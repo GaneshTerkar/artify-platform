@@ -74,7 +74,11 @@ Use **sequential mode** to match the existing convention:
 
 ```bash
 migrate create -ext sql -seq -digits 3 \
-  -dir D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migration \
+  -dir migrations_dir_path \
+  next_db_migration
+example:
+migrate create -ext sql -seq -digits 3 \
+  -dir D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migrations \
   next_db_migration
 ```
 
@@ -92,6 +96,10 @@ This generates:
 ### Apply All Migrations
 
 ```bash
+migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" \
+  -path "migrations_dir_path" \
+  up
+example:
 migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
   -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migration" \
   up
@@ -100,6 +108,10 @@ migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disa
 ### Check Migration Version
 
 ```bash
+migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" \
+  -path "migrations_dir_path" \
+  version
+example:
 migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
   -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migration" \
   version
@@ -112,6 +124,10 @@ migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disa
 Rollback the last migration:
 
 ```bash
+migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" \
+  -path "migrations_dir_path" \
+  down 1
+example:
 migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
   -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migration" \
   down 1
@@ -120,6 +136,10 @@ migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disa
 Rollback **all** migrations:
 
 ```bash
+migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" \
+  -path "migrations_dir_path" \
+  down -all
+example:
 migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
   -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migration" \
   down -all
@@ -132,6 +152,10 @@ migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disa
 ⚠️ **Deletes all tables and migration history**
 
 ```bash
+migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" \
+  -path "migrations_dir_path" \
+  drop -f
+example:
 migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
   -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migration" \
   drop -f
@@ -151,6 +175,10 @@ migrate ... version
 Fix by forcing the version:
 
 ```bash
+migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" \
+  -path "migrations_dir_path" \
+  force 1
+example:
 migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
   -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migration" \
   force 1

@@ -31,58 +31,6 @@ cmd
 ├── migration
 │
 └── server
-```
-
-.env
-backend_setup_artify_platform.md
-go.mod
-go.sum
-
-cmd
-├── internal
-│ ├── config
-│ │ └── config.go # Application configuration loader
-│ │
-│ ├── db
-│ │ ├── postgres.go # PostgreSQL connection setup
-│ │ └── schema.sql # Reference SQL schema (do not run directly)
-│ │
-│ ├── errors
-│ │ └── errors.go # Centralized error definitions
-│ │
-│ ├── middleware
-│ │ ├── auth.go # JWT authentication middleware
-│ │ └── rbac.go # Role-based access control
-│ │
-│ ├── modules
-│ │ ├── artists # Artist domain module
-│ │ ├── auth # Authentication module
-│ │ ├── files # File management
-│ │ ├── notifications # Notifications
-│ │ ├── orders # Order lifecycle
-│ │ └── users # User management
-│ │
-│ ├── routes
-│ │ └── routes.go # API route registration
-│ │
-│ └── utils
-│ ├── context.go
-│ ├── jwt.go
-│ ├── password.go
-│ └── response.go
-│
-├── migration # Database migration scripts
-│ ├── 001_init_schema.up.sql
-│ ├── 001_init_schema.down.sql
-│ ├── 002_add_artist_review_states.up.sql
-│ ├── 002_add_artist_review_states.down.sql
-│ ├── 003_remove_timestamp_defaults_and_triggers.up.sql
-│ └── 003_remove_timestamp_defaults_and_triggers.down.sql
-│
-└── server
-└── main.go # Application entry point
-
-````
 
 ---
 

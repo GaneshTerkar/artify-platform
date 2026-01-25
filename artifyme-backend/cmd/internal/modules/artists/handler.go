@@ -24,9 +24,7 @@ func NewHandler(service *ArtistService) *ArtistHandler {
 // @Summary Add a new painting
 // @Description Artist adds a painting
 // @Tags Artist
-// @securityDefinitions.apikey BearerAuth
-// @in header
-// @name Authorization
+// @Security BearerAuth
 // @Accept json
 // @Produce json
 // @Param body body AddPaintingRequest true "Painting details"
@@ -72,9 +70,7 @@ func (h *ArtistHandler) AddPainting(c *gin.Context) {
 // @Summary Get my paintings
 // @Description Get all paintings added by the logged-in artist
 // @Tags Artist
-// @securityDefinitions.apikey BearerAuth
-// @in header
-// @name Authorization
+// @Security BearerAuth
 // @Produce json
 // @Success 200 {array} ArtistPainting
 // @Failure 404 {object} ErrorResponse

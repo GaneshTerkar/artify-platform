@@ -183,6 +183,8 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/artists.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Get my paintings
       tags:
       - Artist
@@ -217,6 +219,8 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/artists.ErrorResponse'
+      security:
+      - BearerAuth: []
       summary: Add a new painting
       tags:
       - Artist

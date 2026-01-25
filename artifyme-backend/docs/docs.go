@@ -25,6 +25,11 @@ const docTemplate = `{
     "paths": {
         "/api/artist/paintings/": {
             "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Get all paintings added by the logged-in artist",
                 "produces": [
                     "application/json"
@@ -60,6 +65,11 @@ const docTemplate = `{
         },
         "/api/artist/paintings/add": {
             "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
                 "description": "Artist adds a painting",
                 "consumes": [
                     "application/json"

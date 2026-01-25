@@ -7,52 +7,42 @@ Thumbs.db
 # =====================================
 # IDE & Editors
 # =====================================
-# Eclipse / Spring Tool Suite (STS)
-.project
-.classpath
-.settings/
-.sts4-cache/
-
-# IntelliJ IDEA
 .idea/
+.vscode/
 *.iml
 
-# VS Code
-.vscode/
+# =====================================
+# Go (Backend)
+# =====================================
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+go.work
+bin/
+dist/
+
+# Backend secrets
+.env
 
 # =====================================
-# Backend - Spring Boot / Maven
-# =====================================
-backend/target/
-backend/.mvn/wrapper/maven-wrapper.jar
-
-# Logs
-*.log
-
-# Application configuration (secrets)
-backend/src/main/resources/application.yml
-backend/src/main/resources/application.properties
-backend/src/main/resources/application-*.yml
-backend/src/main/resources/application-*.properties
-
-# =====================================
-# Frontend - React / Node
+# Frontend (React)
 # =====================================
 frontend/node_modules/
 frontend/build/
 frontend/dist/
 
-# Environment variables
 frontend/.env
 frontend/.env.local
 frontend/.env.development
 frontend/.env.production
 
 # =====================================
-# Test & Coverage
+# Logs
 # =====================================
-coverage/
-*.lcov
+*.log
 
 # =====================================
 # Temporary / Backup files
@@ -63,13 +53,6 @@ coverage/
 *.bak
 
 # =====================================
-# Uploads / Generated Media (if local)
+# Uploads / Generated Media
 # =====================================
 uploads/
-
-# =====================================
-# Misc
-# =====================================
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*

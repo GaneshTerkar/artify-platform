@@ -1,0 +1,6 @@
+ALTER TYPE account_status ADD VALUE IF NOT EXISTS 'UNDER_REVIEW';
+ALTER TYPE account_status ADD VALUE IF NOT EXISTS 'REJECTED';
+
+ALTER TABLE artist_profiles
+ADD COLUMN rejected_reason TEXT,
+ADD COLUMN rejected_at TIMESTAMPTZ;

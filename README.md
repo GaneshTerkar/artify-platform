@@ -5,39 +5,6 @@ This document explains how to set up, run, and maintain the **Artify Platform ba
 ---
 
 ## 📁 Project Structure
-
-```
-.env
-backend_setup_artify_platform.md
-go.mod
-go.sum
-
-cmd
-├── internal
-│   ├── config
-│   ├── db
-│   ├── errors
-│   ├── middleware
-│   ├── modules
-│   │   ├── artists
-│   │   ├── auth
-│   │   ├── files
-│   │   ├── notifications
-│   │   ├── orders
-│   │   └── users
-│   ├── routes
-│   └── utils
-│
-├── migration
-│
-└── server
-```
-
-.env
-backend_setup_artify_platform.md
-go.mod
-go.sum
-
 cmd
 ├── internal
 │ ├── config
@@ -71,14 +38,7 @@ cmd
 │ ├── password.go
 │ └── response.go
 │
-├── migration # Database migration scripts
-│ ├── 001_init_schema.up.sql
-│ ├── 001_init_schema.down.sql
-│ ├── 002_add_artist_review_states.up.sql
-│ ├── 002_add_artist_review_states.down.sql
-│ ├── 003_remove_timestamp_defaults_and_triggers.up.sql
-│ └── 003_remove_timestamp_defaults_and_triggers.down.sql
-│
+├── migrations/ # Database migration scripts
 └── server
 └── main.go # Application entry point
 
@@ -113,18 +73,18 @@ migrate -version
 Create a `.env` file in the project root:
 
 ```env
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=artifyme
-DB_USER=postgres
-DB_PASSWORD=root
+DB_HOST=host
+DB_PORT=port
+DB_NAME=database_name
+DB_USER=dbuser
+DB_PASSWORD=dbpassword
 DB_SSLMODE=disable
 ```
 
 The database URL used by migrations:
 
 ```
-postgres://postgres:root@localhost:5432/artifyme?sslmode=disable
+postgres://dbuser:dbpassword@host:port/database_name?sslmode=disable
 ```
 
 ---

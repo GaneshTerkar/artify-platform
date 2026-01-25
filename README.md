@@ -1,50 +1,6 @@
 # Artify Platform – Backend Setup Guide
 
-This document explains how to set up, run, and maintain the **Artify Platform backend**, including database migrations, project structure, and common troubleshooting steps.
-
----
-
-## 📁 Project Structure
-cmd
-├── internal
-│ ├── config
-│ │ └── config.go # Application configuration loader
-│ │
-│ ├── db
-│ │ ├── postgres.go # PostgreSQL connection setup
-│ │ └── schema.sql # Reference SQL schema (do not run directly)
-│ │
-│ ├── errors
-│ │ └── errors.go # Centralized error definitions
-│ │
-│ ├── middleware
-│ │ ├── auth.go # JWT authentication middleware
-│ │ └── rbac.go # Role-based access control
-│ │
-│ ├── modules
-│ │ ├── artists # Artist domain module
-│ │ ├── auth # Authentication module
-│ │ ├── files # File management
-│ │ ├── notifications # Notifications
-│ │ ├── orders # Order lifecycle
-│ │ └── users # User management
-│ │
-│ ├── routes
-│ │ └── routes.go # API route registration
-│ │
-│ └── utils
-│ ├── context.go
-│ ├── jwt.go
-│ ├── password.go
-│ └── response.go
-│
-├── migrations/ # Database migration scripts
-└── server
-└── main.go # Application entry point
-
-````
-
----
+This document explains how to set up, run, and maintain the **Artify Platform backend**, including database migrations and common troubleshooting steps.
 
 ## 🧱 Prerequisites
 

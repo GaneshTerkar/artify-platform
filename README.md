@@ -2,6 +2,35 @@
 
 This document explains how to set up, run, and maintain the **Artify Platform backend**, including database migrations and common troubleshooting steps.
 
+## 📁 Project Structure
+
+```
+.env
+backend_setup_artify_platform.md
+go.mod
+go.sum
+
+cmd
+├── internal
+│   ├── config
+│   ├── db
+│   ├── errors
+│   ├── middleware
+│   ├── modules
+│   │   ├── artists
+│   │   ├── auth
+│   │   ├── files
+│   │   ├── notifications
+│   │   ├── orders
+│   │   └── users
+│   ├── routes
+│   └── utils
+│
+├── migrations
+│
+└── server
+
+---
 ## 🧱 Prerequisites
 
 Ensure the following tools are installed:
@@ -50,7 +79,7 @@ postgres://dbuser:dbpassword@host:port/database_name?sslmode=disable
 All migration files are located in:
 
 ```
-cmd/migration
+cmd/migrations
 ```
 
 ### Migration Naming Convention
@@ -101,7 +130,7 @@ migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" 
   up
 example:
 migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
-  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migration" \
+  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migrations" \
   up
 ```
 
@@ -113,7 +142,7 @@ migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" 
   version
 example:
 migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
-  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migration" \
+  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migrations" \
   version
 ```
 
@@ -129,7 +158,7 @@ migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" 
   down 1
 example:
 migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
-  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migration" \
+  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migrations" \
   down 1
 ```
 
@@ -141,7 +170,7 @@ migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" 
   down -all
 example:
 migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
-  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migration" \
+  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migrations" \
   down -all
 ```
 
@@ -157,7 +186,7 @@ migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" 
   drop -f
 example:
 migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
-  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migration" \
+  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migrations" \
   drop -f
 ```
 
@@ -180,7 +209,7 @@ migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" 
   force 1
 example:
 migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
-  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migration" \
+  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migrations" \
   force 1
 ```
 

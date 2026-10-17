@@ -176,9 +176,9 @@ export default function HomePage() {
                     <span className="rounded-full bg-slate-900/85 backdrop-blur-sm border border-slate-600/70 px-2.5 py-1 text-[11px] font-semibold text-brand tracking-wide uppercase shadow">
                       {painting.category_label}
                     </span>
-                    {painting.source === "COMPLETED_ORDER" && (
+                    {(painting.source === "COMPLETED_ARTWORK" || painting.source === "COMPLETED_ORDER") && (
                       <span className="rounded-full bg-emerald-950/85 backdrop-blur-sm border border-emerald-500/60 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 shadow">
-                        ✓ Completed Order
+                        ✓ Completed Artwork
                       </span>
                     )}
                   </div>
@@ -361,9 +361,9 @@ export default function HomePage() {
                   <span className="text-xs font-semibold text-brand uppercase tracking-wider">
                     {selectedPainting.category_label}
                   </span>
-                  {selectedPainting.source === "COMPLETED_ORDER" && (
+                  {(selectedPainting.source === "COMPLETED_ARTWORK" || selectedPainting.source === "COMPLETED_ORDER") && (
                     <span className="rounded-full bg-emerald-950/90 border border-emerald-500/70 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                      ✓ Completed Client Order
+                      ✓ Completed Artwork
                     </span>
                   )}
                 </div>

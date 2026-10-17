@@ -1,7 +1,9 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/modules/artists"
 	"github.com/gin-gonic/gin"
@@ -16,7 +18,7 @@ func RoleMiddleware(requiredRoles ...string) gin.HandlerFunc {
 		roleValue, exists := c.Get("role")
 		if !exists {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "role not found in token",
+				"error": "you are not allowed to perform this action: role not found in authentication token",
 			})
 			return
 		}
@@ -24,7 +26,7 @@ func RoleMiddleware(requiredRoles ...string) gin.HandlerFunc {
 		userRole, ok := roleValue.(string)
 		if !ok {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
-				"error": "invalid role format",
+				"error": "you are not allowed to perform this action: invalid role format in token",
 			})
 			return
 		}
@@ -39,7 +41,7 @@ func RoleMiddleware(requiredRoles ...string) gin.HandlerFunc {
 
 		// no role matched
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-			"error": "insufficient permissions",
+			"error": fmt.Sprintf("you are not allowed to perform this action with role '%s'. Required role: %s", userRole, strings.Join(requiredRoles, " or ")),
 		})
 	}
 }
@@ -50,8 +52,8 @@ func VerifiedArtistMiddleware(repo *artists.ArtistRepository) gin.HandlerFunc {
 
 		profile, err := repo.GetArtistProfile(c.Request.Context(), artistID)
 		if err != nil || !profile.Verified {
-			c.AbortWithStatusJSON(403, gin.H{
-				"error": "artist not verified",
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
+				"error": "you are not allowed to perform this action: artist account is not verified by admin",
 			})
 			return
 		}
@@ -71,8 +73,9 @@ func StatusMiddleware(allowed ...string) gin.HandlerFunc {
 		}
 
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{
-			"error": "action not allowed in current account status",
+			"error": fmt.Sprintf("you are not allowed to perform this action: account status '%s' is not permitted. Allowed status: %s", status, strings.Join(allowed, " or ")),
 		})
 	}
 }
+
 

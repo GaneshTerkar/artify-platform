@@ -45,19 +45,7 @@ type LoginRequest struct {
 	Token string
 	User UserDTO
  }
-// RegisterHandler godoc
-//
-// @Summary      Register a new user
-// @Description Create a new user account. Defaults role to CUSTOMER if not provided.
-// @Tags         Auth
-// @Accept       json
-// @Produce      json
-// @Param        request body auth.RegisterRequest true "Register payload"
-// @Success      201 {object} auth.RegisterResponse
-// @Failure      400 {object} map[string]string "Invalid request payload"
-// @Failure      409 {object} map[string]string "Email already exists"
-// @Failure      500 {object} map[string]string "Internal server error"
-// @Router       /auth/register [post]
+
 func (h *AuthHandler) RegisterHandler(c *gin.Context) {
 
 	ctx, cancel := utils.DBContext(c)
@@ -88,20 +76,8 @@ func (h *AuthHandler) RegisterHandler(c *gin.Context) {
 	c.JSON(http.StatusCreated, RegisterResponse{User: ToUserDTO(user),})
 }
 
-// LoginHandler godoc
-//
-// @Summary      Login user
-// @Description Authenticate user using email and password and return JWT token
-// @Tags         Auth
-// @Accept       json
-// @Produce      json
-// @Param        request body auth.LoginRequest true "Login payload"
-// @Success      200 {object} auth.LoginResponse
-// @Failure      400 {object} map[string]string "Invalid request payload"
-// @Failure      401 {object} map[string]string "Invalid credentials"
-// @Failure      500 {object} map[string]string "Token generation failed"
-// @Router       /auth/login [post]
 func (h *AuthHandler) LoginHandler(c *gin.Context) {
+
 
 	ctx, cancel := utils.DBContext(c)
 	defer cancel()

@@ -180,14 +180,16 @@ A single reference file is provided at [`.env.example`](.env.example).
 | `GET` | `/api/v1/admin/orders` | Admin | Review all platform orders |
 | `PATCH` | `/api/v1/admin/orders/:id/status` | Admin | Update order lifecycle status |
 
-For the full interactive API contract, visit **Swagger UI** at `/swagger/index.html`.
+For the complete role-by-role API specification and ready-to-run requests, see [`docs/API_DOCUMENTATION.md`](docs/API_DOCUMENTATION.md) and [`artifyme-backend/api.http`](artifyme-backend/api.http).
 
 ---
 
 ## 📚 Further Reading
 
+- [Complete API Documentation & Role Guide](docs/API_DOCUMENTATION.md)
 - [Functionality Guide (Feature by Feature)](docs/FUNCTIONALITY_GUIDE.md)
 - [Backend Documentation](artifyme-backend/README.md)
 - [Frontend Documentation](artifyme-frontend/README.md)
 - [Product Brief & Requirements](docs/PRODUCT_BRIEF.md)
+
 

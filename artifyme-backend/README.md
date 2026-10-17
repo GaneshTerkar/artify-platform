@@ -124,17 +124,12 @@ go build -o server.exe ./cmd/server
 
 ---
 
-## 📖 API Documentation & Swagger
+## 📖 API Documentation & In-Repo Testing
 
-Interactive Swagger UI documentation is available out of the box:
+- **Complete In-Repo Role-Based API Guide**: [`docs/API_DOCUMENTATION.md`](../docs/API_DOCUMENTATION.md) (covers all endpoints, token generation, request/response examples, and role validation).
+- **Executable HTTP Collection**: [`api.http`](api.http) (pre-configured for VS Code REST Client / IntelliJ HTTP Client to execute every endpoint by role with 1 click).
+- **Swagger UI**: `http://localhost:8080/swagger/index.html` (public catalog and protected business operations).
 
-- **Swagger UI**: `http://localhost:8080/swagger/index.html`
-- **Swagger JSON**: `http://localhost:8080/swagger/doc.json`
-
-To regenerate Swagger docs after updating annotations:
-```bash
-swag init -g cmd/server/main.go -o docs/
-```
 
 ---
 

@@ -120,48 +120,38 @@ const docTemplate = `{
                 }
             }
         },
-        "/auth/login": {
+        "/api/v1/upload": {
             "post": {
-                "description": "Authenticate user using email and password and return JWT token",
+                "description": "Uploads an image (JPG, PNG, WEBP, GIF, HEIC) to storage and returns its URL",
                 "consumes": [
-                    "application/json"
+                    "multipart/form-data"
                 ],
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "Auth"
+                    "Files"
                 ],
-                "summary": "Login user",
+                "summary": "Upload an image file",
                 "parameters": [
                     {
-                        "description": "Login payload",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/auth.LoginRequest"
-                        }
+                        "type": "file",
+                        "description": "Image file to upload",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/auth.LoginResponse"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "400": {
-                        "description": "Invalid request payload",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "401": {
-                        "description": "Invalid credentials",
+                        "description": "Bad Request",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -170,68 +160,7 @@ const docTemplate = `{
                         }
                     },
                     "500": {
-                        "description": "Token generation failed",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "/auth/register": {
-            "post": {
-                "description": "Create a new user account. Defaults role to CUSTOMER if not provided.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Auth"
-                ],
-                "summary": "Register a new user",
-                "parameters": [
-                    {
-                        "description": "Register payload",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/auth.RegisterRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "201": {
-                        "description": "Created",
-                        "schema": {
-                            "$ref": "#/definitions/auth.RegisterResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Invalid request payload",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "409": {
-                        "description": "Email already exists",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
-                        }
-                    },
-                    "500": {
-                        "description": "Internal server error",
+                        "description": "Internal Server Error",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -304,34 +233,6 @@ const docTemplate = `{
                 }
             }
         },
-        "auth.LoginRequest": {
-            "type": "object",
-            "required": [
-                "email",
-                "password"
-            ],
-            "properties": {
-                "email": {
-                    "type": "string",
-                    "example": "ganesh@example.com"
-                },
-                "password": {
-                    "type": "string",
-                    "example": "password123"
-                }
-            }
-        },
-        "auth.LoginResponse": {
-            "type": "object",
-            "properties": {
-                "token": {
-                    "type": "string"
-                },
-                "user": {
-                    "$ref": "#/definitions/auth.UserDTO"
-                }
-            }
-        },
         "auth.PaintingCategory": {
             "type": "string",
             "enum": [
@@ -347,113 +248,6 @@ const docTemplate = `{
                 "Oil",
                 "Acrylic",
                 "WaterColor"
-            ]
-        },
-        "auth.RegisterRequest": {
-            "type": "object",
-            "required": [
-                "address",
-                "email",
-                "full_name",
-                "password",
-                "phone_number"
-            ],
-            "properties": {
-                "address": {
-                    "type": "string",
-                    "example": "Pune, India"
-                },
-                "email": {
-                    "type": "string",
-                    "example": "ganesh@example.com"
-                },
-                "full_name": {
-                    "type": "string",
-                    "example": "Ganesh Terkar"
-                },
-                "password": {
-                    "type": "string",
-                    "minLength": 8,
-                    "example": "password123"
-                },
-                "phone_number": {
-                    "type": "string",
-                    "example": "+91XXXXXXXXXX"
-                },
-                "role": {
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/auth.UserRole"
-                        }
-                    ],
-                    "example": "CUSTOMER"
-                }
-            }
-        },
-        "auth.RegisterResponse": {
-            "type": "object",
-            "properties": {
-                "user": {
-                    "$ref": "#/definitions/auth.UserDTO"
-                }
-            }
-        },
-        "auth.UserDTO": {
-            "type": "object",
-            "properties": {
-                "address": {
-                    "type": "string",
-                    "example": "Pune, India"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "email": {
-                    "type": "string",
-                    "example": "ganesh@example.com"
-                },
-                "full_name": {
-                    "type": "string",
-                    "example": "Ganesh Terkar"
-                },
-                "phone_number": {
-                    "type": "string",
-                    "example": "+91XXXXXXXXXX"
-                },
-                "role": {
-                    "type": "string",
-                    "example": "CUSTOMER"
-                },
-                "status": {
-                    "type": "string",
-                    "example": "ACTIVE"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "string",
-                    "example": "550e8400-e29b-41d4-a716-446655440000"
-                },
-                "user_name": {
-                    "type": "string",
-                    "example": "ganesh123"
-                }
-            }
-        },
-        "auth.UserRole": {
-            "type": "string",
-            "enum": [
-                "ADMIN",
-                "ARTIST",
-                "CUSTOMER",
-                "DELIVERY_AGENT"
-            ],
-            "x-enum-varnames": [
-                "Admin",
-                "Artist",
-                "Customer",
-                "DeliveryAgent"
             ]
         }
     },

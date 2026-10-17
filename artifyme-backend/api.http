@@ -1,0 +1,249 @@
+### ====================================================================
+### Artify Platform &mdash; Role-Based Interactive API Collection
+### Works with VS Code REST Client / IntelliJ HTTP Client / ThunderClient
+### ====================================================================
+
+@baseUrl = http://localhost:8080
+
+### ====================================================================
+### 1. AUTHENTICATION & TOKEN GENERATION
+### ====================================================================
+
+### Login as ADMIN (Ganesh Terkar)
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "ganesh@example.com",
+  "password": "password123"
+}
+
+### Store Admin Token
+@adminToken = {{adminLogin.response.body.Token}}
+
+### --------------------------------------------------------------------
+
+### Register a new CUSTOMER
+# @name customerRegister
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "full_name": "Rohan Sharma",
+  "email": "customer_rohan@example.com",
+  "password": "password123",
+  "address": "Baner, Pune, Maharashtra",
+  "phone_number": "+919822334455",
+  "role": "CUSTOMER"
+}
+
+### Login as CUSTOMER
+# @name customerLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "customer_rohan@example.com",
+  "password": "password123"
+}
+
+### Store Customer Token
+@customerToken = {{customerLogin.response.body.Token}}
+
+### --------------------------------------------------------------------
+
+### Register a new ARTIST
+# @name artistRegister
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "full_name": "Priya Arts",
+  "email": "artist_priya@example.com",
+  "password": "password123",
+  "address": "Kothrud, Pune, Maharashtra",
+  "phone_number": "+919877665544",
+  "role": "ARTIST"
+}
+
+### Login as ARTIST
+# @name artistLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "artist_priya@example.com",
+  "password": "password123"
+}
+
+### Store Artist Token
+@artistToken = {{artistLogin.response.body.Token}}
+
+
+### ====================================================================
+### 2. PUBLIC APIS (No Token Required)
+### ====================================================================
+
+### Health Check
+GET {{baseUrl}}/health
+
+### Dynamic Gallery &mdash; All Paintings
+GET {{baseUrl}}/api/v1/paintings
+
+### Dynamic Gallery &mdash; Filtered by PENCIL
+GET {{baseUrl}}/api/v1/paintings?category=PENCIL
+
+### Dynamic Gallery &mdash; Filtered by CHARCOAL
+GET {{baseUrl}}/api/v1/paintings?category=CHARCOAL
+
+### Products Catalog
+GET {{baseUrl}}/api/v1/products
+
+### Dynamic Price Estimation
+GET {{baseUrl}}/api/v1/products/price/estimate?medium=PENCIL&size=A3&faces=2
+
+
+### ====================================================================
+### 3. CUSTOMER APIS (Requires CUSTOMER Token)
+### ====================================================================
+
+### Get Current Profile
+GET {{baseUrl}}/api/me
+Authorization: Bearer {{customerToken}}
+
+### Create Portrait Order
+# @name createOrder
+POST {{baseUrl}}/api/v1/orders
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "painting_category": "PENCIL",
+  "size": "A3",
+  "persons_included": "COUPLE",
+  "reference_image_url": "/paintings/PhotoGrid_1580669157513.jpg",
+  "delivery_address": "Flat 402, Sunshine Apts, Baner, Pune",
+  "customer_notes": "Please focus on realistic eye detail."
+}
+
+@orderId = {{createOrder.response.body.order_id}}
+
+### List Customer Orders
+GET {{baseUrl}}/api/v1/orders
+Authorization: Bearer {{customerToken}}
+
+### Get Specific Order
+GET {{baseUrl}}/api/v1/orders/{{orderId}}
+Authorization: Bearer {{customerToken}}
+
+
+### ====================================================================
+### 4. ARTIST APIS (Requires ARTIST Token)
+### ====================================================================
+
+### Get Artist Profile
+GET {{baseUrl}}/api/artist/profile/view
+Authorization: Bearer {{artistToken}}
+
+### Update Artist Profile Bio
+POST {{baseUrl}}/api/artist/profile
+Authorization: Bearer {{artistToken}}
+Content-Type: application/json
+
+{
+  "bio": "Specializing in graphite and charcoal realistic portraits with 5 years experience.",
+  "experience_years": 5
+}
+
+### Check Artist Review Status
+GET {{baseUrl}}/api/artist/profile/review-status
+Authorization: Bearer {{artistToken}}
+
+### Upload Portfolio Painting
+POST {{baseUrl}}/api/artist/paintings/add
+Authorization: Bearer {{artistToken}}
+Content-Type: application/json
+
+{
+  "title": "Evening Reflections",
+  "description": "Original charcoal sketch on archival paper",
+  "category": "CHARCOAL",
+  "image_url": "/paintings/PhotoGrid_1581055303423.jpg"
+}
+
+### List Available Verified Artists (Roster)
+GET {{baseUrl}}/api/v1/artists/verified
+Authorization: Bearer {{artistToken}}
+
+
+### ====================================================================
+### 5. ADMIN APIS (Requires ADMIN Token)
+### ====================================================================
+
+### View Artist Review Queue
+GET {{baseUrl}}/api/admin/artists/review-queue
+Authorization: Bearer {{adminToken}}
+
+### Verify / Approve an Artist
+# Replace with actual unverified artist UUID from review-queue
+POST {{baseUrl}}/api/admin/verify-artist/e8d28200-9727-4246-b5a8-b4debd00710c
+Authorization: Bearer {{adminToken}}
+
+### View All Customer Orders (Admin View)
+GET {{baseUrl}}/api/v1/admin/orders
+Authorization: Bearer {{adminToken}}
+
+### Assign Customer Order to a Verified Artist
+POST {{baseUrl}}/api/v1/orders/{{orderId}}/assign
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "artist_id": "e8d28200-9727-4246-b5a8-b4debd00710c"
+}
+
+### Update Order Status to IN_PROGRESS
+PATCH {{baseUrl}}/api/v1/admin/orders/{{orderId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "status": "IN_PROGRESS"
+}
+
+### Complete Order & Publish to Public Gallery
+PATCH {{baseUrl}}/api/v1/admin/orders/{{orderId}}/status
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "status": "COMPLETED",
+  "final_image_url": "/paintings/PhotoGrid_1581055541054.jpg"
+}
+
+
+### ====================================================================
+### 6. ROLE VALIDATION CHECKS (EXPECTED 403 FORBIDDEN)
+### ====================================================================
+
+### TEST 1: Customer attempting to access Admin Review Queue (Should fail with 403)
+GET {{baseUrl}}/api/admin/artists/review-queue
+Authorization: Bearer {{customerToken}}
+
+### TEST 2: Customer attempting to view all platform orders (Should fail with 403)
+GET {{baseUrl}}/api/v1/admin/orders
+Authorization: Bearer {{customerToken}}
+
+### TEST 3: Customer attempting to access Artist Profile (Should fail with 403)
+GET {{baseUrl}}/api/artist/profile/view
+Authorization: Bearer {{customerToken}}
+
+### TEST 4: Assigning order to a non-verified artist ID (Should fail with 400/403)
+POST {{baseUrl}}/api/v1/orders/{{orderId}}/assign
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "artist_id": "00000000-0000-0000-0000-000000000000"
+}

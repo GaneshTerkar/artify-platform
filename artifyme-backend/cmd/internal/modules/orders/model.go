@@ -36,9 +36,11 @@ type Order struct {
 	ArtistID          *uuid.UUID
 	PaintingCategory  PaintingCategory
 	ReferenceImageURL string
-	FinalImageURL     *string
-	CollageImageURL   *string
-	Size              PaintingSize
+	FinalImageURL        *string
+	CollageImageURL      *string
+	OriginalFinalImageURL *string
+	IsPublishedToGallery bool
+	Size                 PaintingSize
 	PersonsIncluded   PersonIncluded
 	Status            OrderStatus
 	DeliveryAddress   string

@@ -43,31 +43,46 @@ func loadImage(src string) (image.Image, error) {
 		return img, err
 	}
 
-	// 2. Check if it's a URL referencing a local file in ./uploads or ./Paintings
+	// 2. Check trimmed prefix and base name in local directories
+	trimmed := strings.TrimPrefix(src, "/")
+	if _, err := os.Stat(trimmed); err == nil {
+		f, err := os.Open(trimmed)
+		if err == nil {
+			defer f.Close()
+			if img, _, err := image.Decode(f); err == nil {
+				return img, nil
+			}
+		}
+	}
+
+	baseName := filepath.Base(trimmed)
+	for _, dir := range []string{"./uploads", "./Paintings", "./paintings"} {
+		p := filepath.Join(dir, baseName)
+		if _, err := os.Stat(p); err == nil {
+			f, err := os.Open(p)
+			if err == nil {
+				defer f.Close()
+				if img, _, err := image.Decode(f); err == nil {
+					return img, nil
+				}
+			}
+		}
+	}
+
+	// 3. Check if it's a URL referencing a local file in ./uploads or ./Paintings
 	if strings.HasPrefix(src, "http://") || strings.HasPrefix(src, "https://") {
 		parsed, err := url.Parse(src)
 		if err == nil {
-			baseName := filepath.Base(parsed.Path)
-			localUploads := filepath.Join("./uploads", baseName)
-			if _, err := os.Stat(localUploads); err == nil {
-				f, err := os.Open(localUploads)
-				if err == nil {
-					defer f.Close()
-					img, _, err := image.Decode(f)
+			bName := filepath.Base(parsed.Path)
+			for _, dir := range []string{"./uploads", "./Paintings", "./paintings"} {
+				p := filepath.Join(dir, bName)
+				if _, err := os.Stat(p); err == nil {
+					f, err := os.Open(p)
 					if err == nil {
-						return img, nil
-					}
-				}
-			}
-
-			localPaintings := filepath.Join("./Paintings", baseName)
-			if _, err := os.Stat(localPaintings); err == nil {
-				f, err := os.Open(localPaintings)
-				if err == nil {
-					defer f.Close()
-					img, _, err := image.Decode(f)
-					if err == nil {
-						return img, nil
+						defer f.Close()
+						if img, _, err := image.Decode(f); err == nil {
+							return img, nil
+						}
 					}
 				}
 			}

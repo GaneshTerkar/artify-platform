@@ -24,6 +24,8 @@ export type Order = {
   customer_notes?: string;
   final_image_url?: string;
   collage_image_url?: string;
+  original_final_image_url?: string;
+  is_published_to_gallery?: boolean;
   created_at: string;
   updated_at?: string;
 };

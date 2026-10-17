@@ -8,9 +8,11 @@ type orderDTO struct {
 	ArtistID          *string   `json:"artist_id,omitempty"`
 	PaintingCategory  string    `json:"painting_category"`
 	ReferenceImageURL string    `json:"reference_image_url"`
-	FinalImageURL     *string   `json:"final_image_url,omitempty"`
-	CollageImageURL   *string   `json:"collage_image_url,omitempty"`
-	Size              string    `json:"size"`
+	FinalImageURL         *string   `json:"final_image_url,omitempty"`
+	CollageImageURL       *string   `json:"collage_image_url,omitempty"`
+	OriginalFinalImageURL *string   `json:"original_final_image_url,omitempty"`
+	IsPublishedToGallery  bool      `json:"is_published_to_gallery"`
+	Size                  string    `json:"size"`
 	PersonsIncluded   string    `json:"persons_included"`
 	Status            string    `json:"status"`
 	LifecycleLabel    string    `json:"lifecycle_label"`
@@ -44,9 +46,11 @@ func toOrderDTO(o *Order) orderDTO {
 		UserID:            o.UserID.String(),
 		PaintingCategory:  string(o.PaintingCategory),
 		ReferenceImageURL: o.ReferenceImageURL,
-		FinalImageURL:     o.FinalImageURL,
-		CollageImageURL:   o.CollageImageURL,
-		Size:              string(o.Size),
+		FinalImageURL:         o.FinalImageURL,
+		CollageImageURL:       o.CollageImageURL,
+		OriginalFinalImageURL: o.OriginalFinalImageURL,
+		IsPublishedToGallery:  o.IsPublishedToGallery,
+		Size:                  string(o.Size),
 		PersonsIncluded:   string(o.PersonsIncluded),
 		Status:            string(o.Status),
 		LifecycleLabel:    lifecycleLabel(o.Status),

@@ -197,12 +197,26 @@ export default function AccountPage() {
 
                 {/* Body: Photos & Specs */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
-                  {/* Photo Thumbnails */}
+                  {/* Photo Thumbnail (Single Collaged Image for Completed Orders) */}
                   <div className="flex items-center gap-3 md:col-span-1">
-                    {hasRef && (
+                    {hasFinal ? (
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-emerald-400 mb-1">
+                          {o.collage_image_url ? "Artwork Collage" : "Final Artwork"}
+                        </p>
+                        <CollageThumbnail
+                          sizeClass="h-20 w-20"
+                          finalImageUrl={resolveImage(o.original_final_image_url || o.final_image_url!)}
+                          refImageUrl={o.reference_image_url ? resolveImage(o.reference_image_url) : undefined}
+                          collageImageUrl={o.collage_image_url ? resolveImage(o.collage_image_url) : undefined}
+                          onClick={() => setInspectingOrder(o)}
+                          badgeText={o.collage_image_url ? "Collage" : "Artwork"}
+                        />
+                      </div>
+                    ) : hasRef ? (
                       <div>
                         <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
-                          {isArtist ? "Client Photo" : "Reference"}
+                          {isArtist ? "Client Photo" : "Reference Photo"}
                         </p>
                         <div
                           onClick={() => setSelectedPhoto(resolveImage(o.reference_image_url))}
@@ -215,23 +229,7 @@ export default function AccountPage() {
                           />
                         </div>
                       </div>
-                    )}
-
-                    {hasFinal && (
-                      <div>
-                        <p className="text-[10px] uppercase font-bold text-emerald-400 mb-1">
-                          {o.collage_image_url ? "Artwork Collage" : "Final Artwork"}
-                        </p>
-                        <CollageThumbnail
-                          sizeClass="h-20 w-20"
-                          finalImageUrl={resolveImage(o.final_image_url!)}
-                          refImageUrl={o.reference_image_url ? resolveImage(o.reference_image_url) : undefined}
-                          collageImageUrl={o.collage_image_url ? resolveImage(o.collage_image_url) : undefined}
-                          onClick={() => setInspectingOrder(o)}
-                          badgeText={o.collage_image_url ? "Collage" : "Artwork"}
-                        />
-                      </div>
-                    )}
+                    ) : null}
                   </div>
 
                   {/* Order Specifications */}
@@ -294,9 +292,15 @@ export default function AccountPage() {
 
                         {/* 3. Completed State */}
                         {o.status === "COMPLETED" && (
-                          <span className="text-xs text-emerald-400 font-medium text-right">
-                            ✓ Published to Gallery after confirmation from Admin
-                          </span>
+                          o.is_published_to_gallery ? (
+                            <span className="text-xs text-emerald-400 font-medium text-right flex items-center gap-1">
+                              <span>✓</span> Published to Gallery after confirmation from Admin
+                            </span>
+                          ) : (
+                            <span className="text-xs text-amber-300 font-medium text-right flex items-center gap-1">
+                              <span>⏳</span> Pending Admin Inspection before publishing to Gallery
+                            </span>
+                          )
                         )}
                       </div>
                     )}
@@ -388,7 +392,7 @@ export default function AccountPage() {
           isOpen={Boolean(inspectingOrder)}
           onClose={() => setInspectingOrder(null)}
           orderId={inspectingOrder.order_id}
-          finalImageUrl={resolveImage(inspectingOrder.final_image_url)}
+          finalImageUrl={resolveImage(inspectingOrder.original_final_image_url || inspectingOrder.final_image_url)}
           refImageUrl={inspectingOrder.reference_image_url ? resolveImage(inspectingOrder.reference_image_url) : undefined}
           collageImageUrl={inspectingOrder.collage_image_url ? resolveImage(inspectingOrder.collage_image_url) : undefined}
           category={inspectingOrder.painting_category}

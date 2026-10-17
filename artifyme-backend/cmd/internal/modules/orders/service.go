@@ -206,3 +206,35 @@ func canTransition(role string, from, to OrderStatus) bool {
 	return false
 }
 
+func (s *Service) ConfirmGalleryPublish(ctx context.Context, orderID, actorID uuid.UUID, role string) (*Order, error) {
+	if role != "ADMIN" {
+		return nil, ErrForbidden
+	}
+	o, err := s.repo.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if o.Status != StatusCompleted {
+		return nil, errors.New("only completed orders can be confirmed and published to gallery")
+	}
+
+	sketchURL := ""
+	if o.OriginalFinalImageURL != nil && *o.OriginalFinalImageURL != "" {
+		sketchURL = *o.OriginalFinalImageURL
+	} else if o.FinalImageURL != nil {
+		sketchURL = *o.FinalImageURL
+	}
+
+	// Ensure collage is generated using this order's exact reference photo and finished sketch
+	if (o.CollageImageURL == nil || *o.CollageImageURL == "") && o.ReferenceImageURL != "" && sketchURL != "" {
+		cURL, err := GenerateCollage(ctx, orderID, sketchURL, o.ReferenceImageURL, s.uploader, s.baseURL)
+		if err == nil {
+			_ = s.repo.UpdateCollageURL(ctx, orderID, cURL)
+		} else {
+			slog.Error("failed to generate artwork collage during admin confirmation", "order_id", orderID, "error", err)
+		}
+	}
+
+	return s.repo.ConfirmGalleryPublish(ctx, orderID, actorID)
+}
+

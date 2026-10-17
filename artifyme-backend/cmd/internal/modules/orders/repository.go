@@ -48,7 +48,8 @@ func (r *Repository) Create(ctx context.Context, in CreateOrderInput) (*Order, e
 		) VALUES ($1, $2::painting_category, $3, $4::painting_size, $5::person_included, $6, $7, 'PLACED', NOW(), NOW(), $1)
 		RETURNING
 			order_id, user_id, artist_id, painting_category::text, reference_image_url,
-			final_image_url, collage_image_url, size::text, persons_included::text, status::text,
+			final_image_url, collage_image_url, original_final_image_url, is_published_to_gallery,
+			size::text, persons_included::text, status::text,
 			delivery_address, total_price, customer_notes,
 			COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
 	`, in.UserID, in.PaintingCategory, in.ReferenceImageURL, in.Size, in.PersonsIncluded,
@@ -59,7 +60,8 @@ func (r *Repository) GetByID(ctx context.Context, orderID uuid.UUID) (*Order, er
 	return r.scanOrder(r.pool.QueryRow(ctx, `
 		SELECT
 			order_id, user_id, artist_id, painting_category::text, reference_image_url,
-			final_image_url, collage_image_url, size::text, persons_included::text, status::text,
+			final_image_url, collage_image_url, original_final_image_url, is_published_to_gallery,
+			size::text, persons_included::text, status::text,
 			delivery_address, total_price, customer_notes,
 			COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
 		FROM orders WHERE order_id = $1
@@ -70,7 +72,8 @@ func (r *Repository) ListByUser(ctx context.Context, userID uuid.UUID) ([]Order,
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			order_id, user_id, artist_id, painting_category::text, reference_image_url,
-			final_image_url, collage_image_url, size::text, persons_included::text, status::text,
+			final_image_url, collage_image_url, original_final_image_url, is_published_to_gallery,
+			size::text, persons_included::text, status::text,
 			delivery_address, total_price, customer_notes,
 			COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
 		FROM orders WHERE user_id = $1 OR artist_id = $1 ORDER BY created_at DESC
@@ -98,7 +101,8 @@ func (r *Repository) ListAll(ctx context.Context, status *string) ([]Order, erro
 		rows, err = r.pool.Query(ctx, `
 			SELECT
 				order_id, user_id, artist_id, painting_category::text, reference_image_url,
-				final_image_url, collage_image_url, size::text, persons_included::text, status::text,
+				final_image_url, collage_image_url, original_final_image_url, is_published_to_gallery,
+				size::text, persons_included::text, status::text,
 				delivery_address, total_price, customer_notes,
 				COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
 			FROM orders WHERE status = $1::order_status ORDER BY created_at DESC
@@ -107,7 +111,8 @@ func (r *Repository) ListAll(ctx context.Context, status *string) ([]Order, erro
 		rows, err = r.pool.Query(ctx, `
 			SELECT
 				order_id, user_id, artist_id, painting_category::text, reference_image_url,
-				final_image_url, collage_image_url, size::text, persons_included::text, status::text,
+				final_image_url, collage_image_url, original_final_image_url, is_published_to_gallery,
+				size::text, persons_included::text, status::text,
 				delivery_address, total_price, customer_notes,
 				COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
 			FROM orders ORDER BY created_at DESC
@@ -165,7 +170,8 @@ func (r *Repository) UpdateDraft(ctx context.Context, orderID, userID uuid.UUID,
 		WHERE order_id = $1 AND user_id = $2 AND status = 'PLACED'
 		RETURNING
 			order_id, user_id, artist_id, painting_category::text, reference_image_url,
-			final_image_url, collage_image_url, size::text, persons_included::text, status::text,
+			final_image_url, collage_image_url, original_final_image_url, is_published_to_gallery,
+			size::text, persons_included::text, status::text,
 			delivery_address, total_price, customer_notes,
 			COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
 	`, orderID, userID, category, size, persons, refURL, address, notes))
@@ -183,10 +189,29 @@ func (r *Repository) UpdateStatus(ctx context.Context, orderID uuid.UUID, newSta
 		WHERE order_id = $1
 		RETURNING
 			order_id, user_id, artist_id, painting_category::text, reference_image_url,
-			final_image_url, collage_image_url, size::text, persons_included::text, status::text,
+			final_image_url, collage_image_url, original_final_image_url, is_published_to_gallery,
+			size::text, persons_included::text, status::text,
 			delivery_address, total_price, customer_notes,
 			COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
 	`, orderID, string(newStatus), artistID, finalURL, collageURL, updatedBy))
+}
+
+func (r *Repository) ConfirmGalleryPublish(ctx context.Context, orderID, adminID uuid.UUID) (*Order, error) {
+	return r.scanOrder(r.pool.QueryRow(ctx, `
+		UPDATE orders SET
+			original_final_image_url = COALESCE(original_final_image_url, final_image_url),
+			final_image_url = COALESCE(collage_image_url, final_image_url),
+			is_published_to_gallery = TRUE,
+			updated_at = NOW(),
+			updated_by = $2
+		WHERE order_id = $1 AND status = 'COMPLETED'
+		RETURNING
+			order_id, user_id, artist_id, painting_category::text, reference_image_url,
+			final_image_url, collage_image_url, original_final_image_url, is_published_to_gallery,
+			size::text, persons_included::text, status::text,
+			delivery_address, total_price, customer_notes,
+			COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
+	`, orderID, adminID))
 }
 
 func (r *Repository) UpdateCollageURL(ctx context.Context, orderID uuid.UUID, collageURL string) error {
@@ -250,10 +275,13 @@ func (r *Repository) scanOrder(row pgx.Row) (*Order, error) {
 	var artistID *uuid.UUID
 	var finalURL *string
 	var collageURL *string
+	var origFinalURL *string
+	var isPublished bool
 	var notes *string
 	err := row.Scan(
 		&o.OrderID, &o.UserID, &artistID, &o.PaintingCategory, &o.ReferenceImageURL,
-		&finalURL, &collageURL, &o.Size, &o.PersonsIncluded, &o.Status, &o.DeliveryAddress,
+		&finalURL, &collageURL, &origFinalURL, &isPublished,
+		&o.Size, &o.PersonsIncluded, &o.Status, &o.DeliveryAddress,
 		&o.TotalPrice, &notes, &o.CreatedAt, &o.UpdatedAt, &o.UpdatedBy,
 	)
 	if err != nil {
@@ -265,6 +293,8 @@ func (r *Repository) scanOrder(row pgx.Row) (*Order, error) {
 	o.ArtistID = artistID
 	o.FinalImageURL = finalURL
 	o.CollageImageURL = collageURL
+	o.OriginalFinalImageURL = origFinalURL
+	o.IsPublishedToGallery = isPublished
 	o.CustomerNotes = notes
 	return &o, nil
 }
@@ -278,10 +308,13 @@ func scanOrderRow(row scannable) (*Order, error) {
 	var artistID *uuid.UUID
 	var finalURL *string
 	var collageURL *string
+	var origFinalURL *string
+	var isPublished bool
 	var notes *string
 	err := row.Scan(
 		&o.OrderID, &o.UserID, &artistID, &o.PaintingCategory, &o.ReferenceImageURL,
-		&finalURL, &collageURL, &o.Size, &o.PersonsIncluded, &o.Status, &o.DeliveryAddress,
+		&finalURL, &collageURL, &origFinalURL, &isPublished,
+		&o.Size, &o.PersonsIncluded, &o.Status, &o.DeliveryAddress,
 		&o.TotalPrice, &notes, &o.CreatedAt, &o.UpdatedAt, &o.UpdatedBy,
 	)
 	if err != nil {
@@ -290,6 +323,8 @@ func scanOrderRow(row scannable) (*Order, error) {
 	o.ArtistID = artistID
 	o.FinalImageURL = finalURL
 	o.CollageImageURL = collageURL
+	o.OriginalFinalImageURL = origFinalURL
+	o.IsPublishedToGallery = isPublished
 	o.CustomerNotes = notes
 	return &o, nil
 }
@@ -343,7 +378,7 @@ func (r *Repository) ListGalleryPaintings(ctx context.Context, category string) 
 					CONCAT('Commissioned ', INITCAP(o.painting_category::text), ' Portrait') AS title,
 					o.painting_category::text AS category,
 					COALESCE(NULLIF(o.customer_notes, ''), 'Custom commissioned artwork completed for customer.') AS description,
-					o.final_image_url AS image_url,
+					COALESCE(o.collage_image_url, o.final_image_url) AS image_url,
 					COALESCE(u.full_name, 'Ganesh Artist') AS artist_name,
 					'COMPLETED_ORDER' AS source,
 					COALESCE(o.updated_at, o.created_at, NOW()) AS created_at
@@ -351,6 +386,7 @@ func (r *Repository) ListGalleryPaintings(ctx context.Context, category string) 
 				INNER JOIN artist_profiles ap ON o.artist_id = ap.artist_id
 				LEFT JOIN users u ON o.artist_id = u.user_id
 				WHERE o.status = 'COMPLETED' 
+				  AND o.is_published_to_gallery = TRUE
 				  AND o.final_image_url IS NOT NULL 
 				  AND TRIM(o.final_image_url) != ''
 				  AND (o.reference_image_url IS NULL OR o.final_image_url != o.reference_image_url)
@@ -457,7 +493,8 @@ func (r *Repository) AssignArtist(ctx context.Context, orderID uuid.UUID, artist
 		WHERE order_id = $1
 		RETURNING
 			order_id, user_id, artist_id, painting_category::text, reference_image_url,
-			final_image_url, collage_image_url, size::text, persons_included::text, status::text,
+			final_image_url, collage_image_url, original_final_image_url, is_published_to_gallery,
+			size::text, persons_included::text, status::text,
 			delivery_address, total_price, customer_notes,
 			COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
 	`, orderID, artistID, string(newStatus), updatedBy))

@@ -335,3 +335,30 @@ func (h *Handler) ListVerifiedArtists(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"verified_artists": list})
 }
 
+func (h *Handler) AdminConfirmGalleryPublish(c *gin.Context) {
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		return
+	}
+	actorID := c.MustGet("user_id").(uuid.UUID)
+	role := c.MustGet("role").(string)
+
+	o, err := h.service.ConfirmGalleryPublish(c.Request.Context(), orderID, actorID, role)
+	if err != nil {
+		status := http.StatusBadRequest
+		if err == ErrNotFound {
+			status = http.StatusNotFound
+		} else if err == ErrForbidden {
+			status = http.StatusForbidden
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "painting confirmed and published to gallery successfully",
+		"order":   toOrderDTO(o),
+	})
+}
+

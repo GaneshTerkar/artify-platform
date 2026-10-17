@@ -113,6 +113,22 @@ export default function AdminPage() {
     onError: (err: Error) => showMessage(err.message, "error"),
   });
 
+  const confirmGalleryMutation = useMutation({
+    mutationFn: (orderId: string) =>
+      api(`/api/v1/admin/orders/${orderId}/confirm-gallery`, {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin_orders"] });
+      queryClient.invalidateQueries({ queryKey: ["paintings"] });
+      showMessage("Artwork confirmed and published to gallery successfully!");
+      if (inspectingOrder) {
+        setInspectingOrder(null);
+      }
+    },
+    onError: (err: Error) => showMessage(err.message, "error"),
+  });
+
   const verifyArtistMutation = useMutation({
     mutationFn: (artistId: string) =>
       api(`/api/admin/verify-artist/${artistId}`, { method: "POST" }),
@@ -371,31 +387,33 @@ export default function AdminPage() {
                   >
                     {/* Left: Thumbnail & Core Details */}
                     <div className="flex gap-4 items-start w-full md:w-auto">
-                      {o.reference_image_url && (
-                        <div
-                          onClick={() => setSelectedPhoto(resolveImage(o.reference_image_url))}
-                          className="relative w-24 h-24 rounded-xl overflow-hidden bg-slate-800 flex-shrink-0 cursor-pointer border border-slate-700 group shadow"
-                          title="Click to view full reference photo"
-                        >
-                          <img
-                            src={resolveImage(o.reference_image_url)}
-                            alt="Customer Reference"
-                            className="w-full h-full object-cover group-hover:scale-105 transition"
-                          />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs text-white">
-                            View Ref
-                          </div>
-                        </div>
-                      )}
-                      {o.final_image_url && (
+                      {/* Left: Thumbnail Preview (Single Collaged Image for Completed Orders) */}
+                      {o.status === "COMPLETED" && (o.collage_image_url || o.final_image_url) ? (
                         <CollageThumbnail
                           sizeClass="w-24 h-24"
-                          finalImageUrl={resolveImage(o.final_image_url)}
+                          finalImageUrl={resolveImage(o.original_final_image_url || o.final_image_url!)}
                           refImageUrl={o.reference_image_url ? resolveImage(o.reference_image_url) : undefined}
                           collageImageUrl={o.collage_image_url ? resolveImage(o.collage_image_url) : undefined}
                           onClick={() => setInspectingOrder(o)}
                           badgeText={o.collage_image_url ? "Collage" : "Artwork"}
                         />
+                      ) : (
+                        o.reference_image_url && (
+                          <div
+                            onClick={() => setSelectedPhoto(resolveImage(o.reference_image_url))}
+                            className="relative w-24 h-24 rounded-xl overflow-hidden bg-slate-800 flex-shrink-0 cursor-pointer border border-slate-700 group shadow"
+                            title="Click to view full reference photo"
+                          >
+                            <img
+                              src={resolveImage(o.reference_image_url)}
+                              alt="Customer Reference"
+                              className="w-full h-full object-cover group-hover:scale-105 transition"
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs text-white">
+                              View Ref
+                            </div>
+                          </div>
+                        )
                       )}
 
                       <div className="space-y-1.5 flex-1">
@@ -544,17 +562,39 @@ export default function AdminPage() {
                       {/* 5. If COMPLETED: Completed successfully */}
                       {o.status === "COMPLETED" && (
                         <div className="flex flex-col items-end gap-1.5">
-                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-950/70 border border-emerald-500/50 px-3 py-1 text-xs font-semibold text-emerald-300">
-                            <span>✓</span> Completed
-                          </span>
-                          {o.final_image_url && (
-                            <button
-                              onClick={() => setInspectingOrder(o)}
-                              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition flex items-center gap-1 shadow-sm"
-                            >
-                              <span>👁️</span> Inspect Artwork & Collage
-                            </button>
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-950/70 border border-emerald-500/50 px-3 py-1 text-xs font-semibold text-emerald-300">
+                              <span>✓</span> Completed
+                            </span>
+                            {o.is_published_to_gallery ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-purple-950/70 border border-purple-500/40 px-2.5 py-0.5 text-xs font-semibold text-purple-300">
+                                <span>✦</span> Published to Gallery
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-950/70 border border-amber-500/40 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
+                                <span>⏳</span> Pending Gallery Publish
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            {o.final_image_url && (
+                              <button
+                                onClick={() => setInspectingOrder(o)}
+                                className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-xs font-semibold text-white transition flex items-center gap-1 shadow-sm"
+                              >
+                                <span>👁️</span> Inspect Artwork & Collage
+                              </button>
+                            )}
+                            {!o.is_published_to_gallery && (
+                              <button
+                                onClick={() => confirmGalleryMutation.mutate(o.order_id)}
+                                disabled={confirmGalleryMutation.isPending}
+                                className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition flex items-center gap-1 shadow-sm disabled:opacity-50"
+                              >
+                                <span>✓</span> Confirm & Publish to Gallery
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
 
@@ -789,12 +829,15 @@ export default function AdminPage() {
           isOpen={Boolean(inspectingOrder)}
           onClose={() => setInspectingOrder(null)}
           orderId={inspectingOrder.order_id}
-          finalImageUrl={resolveImage(inspectingOrder.final_image_url)}
+          finalImageUrl={resolveImage(inspectingOrder.original_final_image_url || inspectingOrder.final_image_url)}
           refImageUrl={inspectingOrder.reference_image_url ? resolveImage(inspectingOrder.reference_image_url) : undefined}
           collageImageUrl={inspectingOrder.collage_image_url ? resolveImage(inspectingOrder.collage_image_url) : undefined}
           category={inspectingOrder.painting_category}
           size={inspectingOrder.size}
           artistName={verifiedArtists.find((a) => a.artist_id === inspectingOrder.artist_id)?.full_name}
+          isPublishedToGallery={inspectingOrder.is_published_to_gallery}
+          onConfirmPublish={() => confirmGalleryMutation.mutate(inspectingOrder.order_id)}
+          isConfirming={confirmGalleryMutation.isPending}
         />
       )}
 

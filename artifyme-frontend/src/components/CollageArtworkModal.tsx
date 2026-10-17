@@ -10,6 +10,9 @@ interface CollageArtworkModalProps {
   category?: string;
   size?: string;
   artistName?: string;
+  isPublishedToGallery?: boolean;
+  onConfirmPublish?: () => void;
+  isConfirming?: boolean;
 }
 
 export const CollageArtworkModal: React.FC<CollageArtworkModalProps> = ({
@@ -22,6 +25,9 @@ export const CollageArtworkModal: React.FC<CollageArtworkModalProps> = ({
   category,
   size,
   artistName,
+  isPublishedToGallery,
+  onConfirmPublish,
+  isConfirming,
 }) => {
   const [viewMode, setViewMode] = useState<"collage" | "sketch" | "reference" | "split">("collage");
 
@@ -125,15 +131,31 @@ export const CollageArtworkModal: React.FC<CollageArtworkModalProps> = ({
             )}
           </div>
 
-          {/* Action Download Buttons */}
+          {/* Action Download & Publish Buttons */}
           <div className="flex items-center gap-2">
+            {onConfirmPublish && (
+              isPublishedToGallery ? (
+                <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-950/70 border border-emerald-500/50 px-3 py-1.5 text-xs font-semibold text-emerald-300">
+                  <span>✓</span> Published to Gallery
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onConfirmPublish}
+                  disabled={isConfirming}
+                  className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 font-semibold text-white transition inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                >
+                  <span>✓</span> {isConfirming ? "Publishing..." : "Confirm & Publish to Gallery"}
+                </button>
+              )
+            )}
             {collageImageUrl && (
               <a
                 href={collageImageUrl}
                 download={`collage_${orderId.slice(0, 8)}.jpg`}
                 target="_blank"
                 rel="noreferrer"
-                className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 font-semibold text-white transition inline-flex items-center gap-1.5 shadow-sm"
+                className="rounded-lg bg-emerald-700/80 hover:bg-emerald-600 px-3 py-1.5 font-semibold text-white transition inline-flex items-center gap-1.5 shadow-sm"
               >
                 <span>↓</span> Download Collage
               </a>
@@ -143,7 +165,7 @@ export const CollageArtworkModal: React.FC<CollageArtworkModalProps> = ({
               download={`sketch_${orderId.slice(0, 8)}.jpg`}
               target="_blank"
               rel="noreferrer"
-              className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3.5 py-1.5 font-medium text-slate-300 transition inline-flex items-center gap-1.5"
+              className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 font-medium text-slate-300 transition inline-flex items-center gap-1.5"
             >
               <span>↓</span> Download Sketch
             </a>

@@ -21,9 +21,18 @@ export default function AdminPage() {
   };
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [artistFilter, setArtistFilter] = useState<string>("ALL");
-  const [artworkFilter, setArtworkFilter] = useState<string>("ALL");
-  const [inspectionFilter, setInspectionFilter] = useState<"ALL" | "NEEDS_INSPECTION" | "INSPECTED">("ALL");
-  const [userRoleFilter, setUserRoleFilter] = useState<"ALL" | "CUSTOMER" | "ARTIST" | "ADMIN" | "PENDING_REVIEW">("ALL");
+  const [orderSearchQuery, setOrderSearchQuery] = useState<string>("");
+
+  const showArtistFilter = statusFilter !== "PLACED" && statusFilter !== "CANCELLED";
+
+  const handleStatusFilterChange = (status: string) => {
+    setStatusFilter(status);
+    if (status === "PLACED" || status === "CANCELLED") {
+      setArtistFilter("ALL");
+    }
+  };
+  const [userRoleFilter, setUserRoleFilter] = useState<"ALL" | "CUSTOMER" | "ARTIST" | "ADMIN">("ALL");
+  const [artistStatusFilter, setArtistStatusFilter] = useState<"ALL" | "VERIFIED" | "PENDING_REVIEW">("ALL");
   const [userSearchQuery, setUserSearchQuery] = useState<string>("");
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
@@ -66,10 +75,33 @@ export default function AdminPage() {
   });
   const allOrders = ordersData?.orders ?? [];
 
+  // 2. Fetch Artists in Review Queue
+  const { data: reviewQueue, isLoading: queueLoading } = useQuery({
+    queryKey: ["admin_review_queue"],
+    queryFn: () => api<ArtistReviewItem[]>("/api/admin/artists/review-queue"),
+  });
+  const pendingArtists = reviewQueue ?? [];
+
+  // 3. Fetch Verified Artists
+  const { data: verifiedData } = useQuery({
+    queryKey: ["verified_artists"],
+    queryFn: () => api<{ verified_artists: VerifiedArtist[] }>("/api/v1/artists/verified"),
+  });
+  const verifiedArtists = verifiedData?.verified_artists ?? [];
+
+  // 4. Fetch All Platform Users
+  const { data: usersData, isLoading: usersLoading } = useQuery({
+    queryKey: ["admin_users"],
+    queryFn: () => api<{ users: PlatformUser[] }>("/api/v1/admin/users"),
+  });
+  const allUsers = usersData?.users ?? [];
+
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { ALL: allOrders.length };
     for (const o of allOrders) {
-      counts[o.status] = (counts[o.status] || 0) + 1;
+      if (o.status) {
+        counts[o.status] = (counts[o.status] || 0) + 1;
+      }
     }
     return counts;
   }, [allOrders]);
@@ -92,30 +124,62 @@ export default function AdminPage() {
       } else if (statusFilter !== "ALL" && o.status !== statusFilter) {
         return false;
       }
-      // 2. Artist Filter
-      if (artistFilter === "ASSIGNED" && !o.artist_id) return false;
-      if (artistFilter === "UNASSIGNED" && Boolean(o.artist_id)) return false;
-      if (
-        artistFilter !== "ALL" &&
-        artistFilter !== "ASSIGNED" &&
-        artistFilter !== "UNASSIGNED" &&
-        o.artist_id !== artistFilter
-      ) {
-        return false;
+      // 2. Artist Filter (only applies when status is not PLACED or CANCELLED)
+      if (showArtistFilter) {
+        if (artistFilter === "ASSIGNED" && !o.artist_id) return false;
+        if (artistFilter === "UNASSIGNED" && Boolean(o.artist_id)) return false;
+        if (
+          artistFilter !== "ALL" &&
+          artistFilter !== "ASSIGNED" &&
+          artistFilter !== "UNASSIGNED" &&
+          o.artist_id !== artistFilter
+        ) {
+          return false;
+        }
       }
-      // 3. Final Artwork Filter
-      if (artworkFilter === "HAS_FINAL" && (!o.final_image_url || o.final_image_url.trim() === "")) return false;
-      if (artworkFilter === "NO_FINAL" && Boolean(o.final_image_url && o.final_image_url.trim() !== "")) return false;
-      // 4. Inspection Status Filter
-      if (inspectionFilter === "NEEDS_INSPECTION") {
-        if (o.status !== "COMPLETED" || o.is_published_to_gallery) return false;
-      }
-      if (inspectionFilter === "INSPECTED") {
-        if (o.status !== "COMPLETED" || !o.is_published_to_gallery) return false;
+      // 3. Search Query
+      if (orderSearchQuery.trim()) {
+        const rawQ = orderSearchQuery.trim().toLowerCase();
+        const cleanQ = rawQ.replace(/^#/, "");
+        const customer = allUsers.find((u) => u.user_id === o.user_id);
+        const artist = verifiedArtists.find((a) => a.artist_id === o.artist_id);
+        const artistName = artist?.full_name?.toLowerCase();
+        const displayStatus = getOrderLifecycleStatus(o).toLowerCase();
+
+        const matchId = Boolean(o.order_id?.toLowerCase()?.includes(cleanQ));
+        const matchCategory = Boolean(o.painting_category?.toLowerCase()?.includes(rawQ));
+        const matchAddress = Boolean(o.delivery_address?.toLowerCase()?.includes(rawQ));
+        const matchNotes = Boolean(o.customer_notes?.toLowerCase()?.includes(rawQ));
+        const matchArtist = Boolean(artistName?.includes(rawQ));
+        const matchCustomer = Boolean(
+          customer?.full_name?.toLowerCase()?.includes(rawQ) ||
+          customer?.email?.toLowerCase()?.includes(rawQ) ||
+          customer?.user_name?.toLowerCase()?.includes(rawQ)
+        );
+        const matchStatus = Boolean(
+          displayStatus.includes(rawQ) ||
+          (rawQ.includes("inspect") && displayStatus === "completed")
+        );
+        const matchSize = Boolean(o.size?.toLowerCase()?.includes(rawQ));
+        const matchPersons = Boolean(o.persons_included?.toLowerCase()?.includes(rawQ));
+
+        if (
+          !matchId &&
+          !matchCategory &&
+          !matchAddress &&
+          !matchNotes &&
+          !matchArtist &&
+          !matchCustomer &&
+          !matchStatus &&
+          !matchSize &&
+          !matchPersons
+        ) {
+          return false;
+        }
       }
       return true;
     });
-  }, [allOrders, statusFilter, artistFilter, artworkFilter, inspectionFilter]);
+  }, [allOrders, statusFilter, artistFilter, orderSearchQuery, verifiedArtists, allUsers, showArtistFilter]);
 
   const sortedOrders = useMemo(() => {
     return [...filteredOrders].sort((a, b) => {
@@ -138,33 +202,12 @@ export default function AdminPage() {
     { id: "ALL", label: "ALL", count: allOrders.length },
     { id: "PLACED", label: "PLACED", count: statusCounts["PLACED"] || 0 },
     { id: "CONFIRMED", label: "CONFIRMED", count: statusCounts["CONFIRMED"] || 0 },
-    { id: "ASSIGNED_ARTIST", label: "ASSIGNED ARTIST", count: statusCounts["ASSIGNED_ARTIST"] || 0 },
+    { id: "ASSIGNED_ARTIST", label: "ASSIGNED", count: statusCounts["ASSIGNED_ARTIST"] || 0 },
     { id: "IN_PROGRESS", label: "IN PROGRESS", count: statusCounts["IN_PROGRESS"] || 0 },
-    { id: "COMPLETED", label: "COMPLETED", count: needsInspectionCount },
+    { id: "COMPLETED", label: "AWAITING INSPECTION", count: needsInspectionCount },
     { id: "PUBLISHED", label: "PUBLISHED", count: inspectedCount },
     { id: "CANCELLED", label: "CANCELLED", count: statusCounts["CANCELLED"] || 0 },
   ] as const;
-
-  // 2. Fetch Artists in Review Queue
-  const { data: reviewQueue, isLoading: queueLoading } = useQuery({
-    queryKey: ["admin_review_queue"],
-    queryFn: () => api<ArtistReviewItem[]>("/api/admin/artists/review-queue"),
-  });
-  const pendingArtists = reviewQueue ?? [];
-
-  // 3. Fetch Verified Artists
-  const { data: verifiedData } = useQuery({
-    queryKey: ["verified_artists"],
-    queryFn: () => api<{ verified_artists: VerifiedArtist[] }>("/api/v1/artists/verified"),
-  });
-  const verifiedArtists = verifiedData?.verified_artists ?? [];
-
-  // 4. Fetch All Platform Users
-  const { data: usersData, isLoading: usersLoading } = useQuery({
-    queryKey: ["admin_users"],
-    queryFn: () => api<{ users: PlatformUser[] }>("/api/v1/admin/users"),
-  });
-  const allUsers = usersData?.users ?? [];
 
   const userCounts = useMemo(() => {
     const counts = {
@@ -172,13 +215,16 @@ export default function AdminPage() {
       CUSTOMER: 0,
       ARTIST: 0,
       ADMIN: 0,
+      VERIFIED_ARTIST: 0,
       PENDING_REVIEW: 0,
     };
     for (const u of allUsers) {
       if (u.role === "CUSTOMER") counts.CUSTOMER++;
       else if (u.role === "ARTIST") {
         counts.ARTIST++;
-        if (!u.is_verified_artist) {
+        if (u.is_verified_artist) {
+          counts.VERIFIED_ARTIST++;
+        } else {
           counts.PENDING_REVIEW++;
         }
       } else if (u.role === "ADMIN") counts.ADMIN++;
@@ -189,21 +235,24 @@ export default function AdminPage() {
   const filteredUsers = useMemo(() => {
     return allUsers.filter((u) => {
       if (userRoleFilter === "CUSTOMER" && u.role !== "CUSTOMER") return false;
-      if (userRoleFilter === "ARTIST" && u.role !== "ARTIST") return false;
       if (userRoleFilter === "ADMIN" && u.role !== "ADMIN") return false;
-      if (userRoleFilter === "PENDING_REVIEW" && (u.role !== "ARTIST" || u.is_verified_artist)) return false;
+      if (userRoleFilter === "ARTIST") {
+        if (u.role !== "ARTIST") return false;
+        if (artistStatusFilter === "VERIFIED" && !u.is_verified_artist) return false;
+        if (artistStatusFilter === "PENDING_REVIEW" && u.is_verified_artist) return false;
+      }
 
       if (userSearchQuery.trim()) {
         const q = userSearchQuery.toLowerCase();
-        const matchName = u.full_name?.toLowerCase().includes(q);
-        const matchEmail = u.email?.toLowerCase().includes(q);
-        const matchUser = u.user_name?.toLowerCase().includes(q);
-        const matchPhone = u.phone_number?.toLowerCase().includes(q);
+        const matchName = Boolean(u.full_name?.toLowerCase()?.includes(q));
+        const matchEmail = Boolean(u.email?.toLowerCase()?.includes(q));
+        const matchUser = Boolean(u.user_name?.toLowerCase()?.includes(q));
+        const matchPhone = Boolean(u.phone_number?.toLowerCase()?.includes(q));
         if (!matchName && !matchEmail && !matchUser && !matchPhone) return false;
       }
       return true;
     });
-  }, [allUsers, userRoleFilter, userSearchQuery]);
+  }, [allUsers, userRoleFilter, artistStatusFilter, userSearchQuery]);
 
   // Mutations
   const assignMutation = useMutation({
@@ -404,7 +453,6 @@ export default function AdminPage() {
         <div className="space-y-6">
           {/* Filters Bar */}
           <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
-            {/* Status Filter Pills */}
             {/* Status Filter Pills (Aligned on single line in lifecycle sequence) */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
               {STATUS_PILLS.map((pill) => {
@@ -412,16 +460,7 @@ export default function AdminPage() {
                 return (
                   <button
                     key={pill.id}
-                    onClick={() => {
-                      setStatusFilter(pill.id);
-                      if (pill.id === "PUBLISHED") {
-                        setInspectionFilter("INSPECTED");
-                      } else if (pill.id === "COMPLETED") {
-                        setInspectionFilter("NEEDS_INSPECTION");
-                      } else {
-                        setInspectionFilter("ALL");
-                      }
-                    }}
+                    onClick={() => handleStatusFilterChange(pill.id)}
                     className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition ${
                       isActive
                         ? "bg-slate-700 text-white font-semibold border border-slate-500 shadow-sm"
@@ -433,6 +472,8 @@ export default function AdminPage() {
                       className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
                         isActive
                           ? "bg-slate-900 text-white"
+                          : pill.id === "COMPLETED" && needsInspectionCount > 0
+                          ? "bg-amber-500/30 text-amber-300 border border-amber-500/50"
                           : "bg-slate-700 text-slate-300"
                       }`}
                     >
@@ -443,70 +484,56 @@ export default function AdminPage() {
               })}
             </div>
 
-            {/* Secondary Filters: Artist, Artwork, and Inspection Status */}
+            {/* Search and Secondary Filter */}
             <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-800/60 text-xs">
-              <div className="flex items-center gap-2">
-                <span className="text-slate-400 font-medium">Inspection:</span>
-                <select
-                  value={inspectionFilter}
-                  onChange={(e) => {
-                    const val = e.target.value as "ALL" | "NEEDS_INSPECTION" | "INSPECTED";
-                    setInspectionFilter(val);
-                    if (val === "NEEDS_INSPECTION") {
-                      setStatusFilter("COMPLETED");
-                    } else if (val === "INSPECTED") {
-                      setStatusFilter("PUBLISHED");
-                    } else if (statusFilter === "PUBLISHED" || statusFilter === "COMPLETED") {
-                      setStatusFilter("ALL");
-                    }
-                  }}
-                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
-                >
-                  <option value="ALL">All Inspection Statuses</option>
-                  <option value="NEEDS_INSPECTION">Awaiting Inspection ({needsInspectionCount})</option>
-                  <option value="INSPECTED">✓ Published to Gallery ({inspectedCount})</option>
-                </select>
+              {/* Search Bar */}
+              <div className="flex items-center gap-2 flex-1 min-w-[260px]">
+                <span className="text-slate-400">🔍</span>
+                <input
+                  type="text"
+                  value={orderSearchQuery}
+                  onChange={(e) => setOrderSearchQuery(e.target.value)}
+                  placeholder="Search orders by ID, category, address, notes, artist..."
+                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
+                />
+                {orderSearchQuery && (
+                  <button
+                    onClick={() => setOrderSearchQuery("")}
+                    className="text-slate-400 hover:text-white text-xs underline"
+                  >
+                    Clear
+                  </button>
+                )}
               </div>
 
-              <div className="flex items-center gap-2">
-                <span className="text-slate-400 font-medium">Assigned Artist:</span>
-                <select
-                  value={artistFilter}
-                  onChange={(e) => setArtistFilter(e.target.value)}
-                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
-                >
-                  <option value="ALL">All Artists</option>
-                  <option value="ASSIGNED">Any Assigned Artist</option>
-                  <option value="UNASSIGNED">Unassigned Only</option>
-                  {verifiedArtists.map((a) => (
-                    <option key={a.artist_id} value={a.artist_id}>
-                      {a.full_name} ({a.specialization || "Artist"})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-slate-400 font-medium">Final Sketch:</span>
-                <select
-                  value={artworkFilter}
-                  onChange={(e) => setArtworkFilter(e.target.value)}
-                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
-                >
-                  <option value="ALL">All Artwork Status</option>
-                  <option value="HAS_FINAL">✓ With Final Sketch (final_url)</option>
-                  <option value="NO_FINAL">⏳ Awaiting Final Sketch</option>
-                </select>
-              </div>
+              {/* Artist Filter (Visible for active production lifecycle statuses) */}
+              {showArtistFilter && (
+                <div className="flex items-center gap-2">
+                  <span className="text-slate-400 font-medium">Artist:</span>
+                  <select
+                    value={artistFilter}
+                    onChange={(e) => setArtistFilter(e.target.value)}
+                    className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
+                  >
+                    <option value="ALL">All Artists</option>
+                    <option value="ASSIGNED">Any Assigned Artist</option>
+                    <option value="UNASSIGNED">Unassigned Only</option>
+                    {verifiedArtists.map((a) => (
+                      <option key={a.artist_id} value={a.artist_id}>
+                        {a.full_name} ({a.specialization || "Artist"})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               {/* Reset filters shortcut */}
-              {(statusFilter !== "ALL" || artistFilter !== "ALL" || artworkFilter !== "ALL" || inspectionFilter !== "ALL") && (
+              {(statusFilter !== "ALL" || (showArtistFilter && artistFilter !== "ALL") || orderSearchQuery.trim() !== "") && (
                 <button
                   onClick={() => {
                     setStatusFilter("ALL");
                     setArtistFilter("ALL");
-                    setArtworkFilter("ALL");
-                    setInspectionFilter("ALL");
+                    setOrderSearchQuery("");
                   }}
                   className="text-amber-400 hover:text-amber-300 underline font-medium"
                 >
@@ -527,14 +554,15 @@ export default function AdminPage() {
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center space-y-3">
               <p className="text-slate-300 font-medium">No orders match the selected filters.</p>
               <p className="text-xs text-slate-500">
-                Status: {statusFilter} | Artist: {artistFilter} | Sketch: {artworkFilter}
+                Status: {statusFilter}
+                {showArtistFilter && artistFilter !== "ALL" ? ` | Artist: ${artistFilter}` : ""}
+                {orderSearchQuery ? ` | Search: "${orderSearchQuery}"` : ""}
               </p>
               <button
                 onClick={() => {
                   setStatusFilter("ALL");
                   setArtistFilter("ALL");
-                  setArtworkFilter("ALL");
-                  setInspectionFilter("ALL");
+                  setOrderSearchQuery("");
                 }}
                 className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition"
               >
@@ -717,14 +745,18 @@ export default function AdminPage() {
                   { id: "CUSTOMER", label: "CUSTOMERS", count: userCounts.CUSTOMER },
                   { id: "ARTIST", label: "ARTISTS", count: userCounts.ARTIST },
                   { id: "ADMIN", label: "ADMINS", count: userCounts.ADMIN },
-                  { id: "PENDING_REVIEW", label: "PENDING REVIEW", count: userCounts.PENDING_REVIEW },
                 ] as const
               ).map((pill) => {
                 const isActive = userRoleFilter === pill.id;
                 return (
                   <button
                     key={pill.id}
-                    onClick={() => setUserRoleFilter(pill.id)}
+                    onClick={() => {
+                      setUserRoleFilter(pill.id);
+                      if (pill.id !== "ARTIST") {
+                        setArtistStatusFilter("ALL");
+                      }
+                    }}
                     className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition ${
                       isActive
                         ? "bg-slate-700 text-white font-semibold border border-slate-500 shadow-sm"
@@ -739,10 +771,57 @@ export default function AdminPage() {
                     >
                       {pill.count}
                     </span>
+                    {pill.id === "ARTIST" && userCounts.PENDING_REVIEW > 0 && (
+                      <span className="rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 text-[10px] font-semibold">
+                        {userCounts.PENDING_REVIEW} to review
+                      </span>
+                    )}
                   </button>
                 );
               })}
             </div>
+
+            {/* Artist Status Sub-filters (Visible when ARTISTS is selected) */}
+            {userRoleFilter === "ARTIST" && (
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/60 text-xs">
+                <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider">
+                  Artist Status:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setArtistStatusFilter("ALL")}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                    artistStatusFilter === "ALL"
+                      ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 font-semibold"
+                      : "bg-slate-800 text-slate-400 hover:text-white border border-transparent"
+                  }`}
+                >
+                  All Artists ({userCounts.ARTIST})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setArtistStatusFilter("VERIFIED")}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                    artistStatusFilter === "VERIFIED"
+                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold"
+                      : "bg-slate-800 text-slate-400 hover:text-white border border-transparent"
+                  }`}
+                >
+                  ✓ Verified ({userCounts.VERIFIED_ARTIST})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setArtistStatusFilter("PENDING_REVIEW")}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                    artistStatusFilter === "PENDING_REVIEW"
+                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold"
+                      : "bg-slate-800 text-slate-400 hover:text-white border border-transparent"
+                  }`}
+                >
+                  ⏳ Pending Review ({userCounts.PENDING_REVIEW})
+                </button>
+              </div>
+            )}
 
             {/* Search and Summary */}
             <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-800/60 text-xs">
@@ -753,7 +832,7 @@ export default function AdminPage() {
                   value={userSearchQuery}
                   onChange={(e) => setUserSearchQuery(e.target.value)}
                   placeholder="Search users by name, email, phone, username..."
-                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full max-w-md"
+                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
                 />
                 {userSearchQuery && (
                   <button
@@ -781,6 +860,7 @@ export default function AdminPage() {
               <button
                 onClick={() => {
                   setUserRoleFilter("ALL");
+                  setArtistStatusFilter("ALL");
                   setUserSearchQuery("");
                 }}
                 className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition"

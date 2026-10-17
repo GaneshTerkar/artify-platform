@@ -271,7 +271,7 @@ export default function AccountPage() {
                             disabled={statusMutation.isPending}
                             className="rounded-lg bg-blue-600 hover:bg-blue-500 px-3.5 py-2 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm"
                           >
-                            <span>🎨</span> Start Drawing
+                            <span>✓</span> Confirm & Start Drawing
                           </button>
                         )}
 
@@ -291,23 +291,33 @@ export default function AccountPage() {
 
                         {/* 3. Completed State */}
                         {o.status === "COMPLETED" && (
-                          <span className="text-xs text-emerald-400 font-medium">
-                            ✓ Published to Gallery
+                          <span className="text-xs text-emerald-400 font-medium text-right">
+                            ✓ Published to Gallery after confirmation from Admin
                           </span>
                         )}
                       </div>
                     )}
 
-                    {/* CUSTOMER DOWNLOAD ACTION */}
+                    {/* CUSTOMER PREVIEW & DOWNLOAD ACTIONS */}
                     {!isArtist && o.final_image_url && (
-                      <a
-                        href={resolveImage(o.final_image_url)}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition inline-flex items-center gap-1"
-                      >
-                        <span>↓</span> Download High-Res Sketch
-                      </a>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setSelectedPhoto(resolveImage(o.final_image_url!))}
+                          className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition inline-flex items-center gap-1 shadow-sm"
+                        >
+                          <span>👁️</span> Preview Sketch
+                        </button>
+                        <a
+                          href={resolveImage(o.final_image_url)}
+                          target="_blank"
+                          rel="noreferrer"
+                          download
+                          className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 transition inline-flex items-center gap-1"
+                        >
+                          <span>↓</span> Download
+                        </a>
+                      </div>
                     )}
                   </div>
                 </div>

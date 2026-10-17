@@ -537,45 +537,34 @@ export default function AdminPage() {
                         </>
                       )}
 
-                      {/* 4. If IN_PROGRESS: Artist is actively drawing (artist uploads final sketch upon completion) */}
+                      {/* 4. If IN_PROGRESS: Artist is actively drawing (reassign and cancel not allowed) */}
                       {o.status === "IN_PROGRESS" && (
-                        <>
-                          <span className="text-xs text-blue-300 bg-blue-950/60 border border-blue-500/40 rounded-lg px-2.5 py-1">
-                            🎨 Drawing actively in progress ({assignedArtist?.full_name || "Artist"})
-                          </span>
-                          <button
-                            onClick={() => {
-                              setAssigningOrder(o);
-                              setSelectedArtistId(o.artist_id || "");
-                            }}
-                            className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-300 transition"
-                          >
-                            Reassign Artist
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (window.confirm("Are you sure you want to cancel this order?")) {
-                                statusMutation.mutate({ orderId: o.order_id, status: "CANCELLED" });
-                              }
-                            }}
-                            className="text-xs text-rose-400 hover:text-rose-300 py-1 transition"
-                          >
-                            Cancel Order
-                          </button>
-                        </>
+                        <span className="text-xs text-blue-300 bg-blue-950/60 border border-blue-500/40 rounded-lg px-2.5 py-1">
+                          🎨 Drawing actively in progress ({assignedArtist?.full_name || "Artist"})
+                        </span>
                       )}
 
                       {/* 5. If COMPLETED: Completed successfully */}
                       {o.status === "COMPLETED" && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-950/70 border border-emerald-500/50 px-3 py-1 text-xs font-semibold text-emerald-300">
-                          <span>✓</span> Completed & Published
-                        </span>
+                        <div className="flex flex-col items-end gap-1.5">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-950/70 border border-emerald-500/50 px-3 py-1 text-xs font-semibold text-emerald-300">
+                            <span>✓</span> Completed
+                          </span>
+                          {o.final_image_url && (
+                            <button
+                              onClick={() => setSelectedPhoto(resolveImage(o.final_image_url))}
+                              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition flex items-center gap-1 shadow-sm"
+                            >
+                              <span>👁️</span> Inspect Final Artwork
+                            </button>
+                          )}
+                        </div>
                       )}
 
-                      {/* 6. If CANCELLED */}
+                      {/* 6. If CANCELLED: Archived */}
                       {o.status === "CANCELLED" && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-950/70 border border-rose-500/50 px-3 py-1 text-xs font-medium text-rose-300">
-                          Order Cancelled
+                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-800/80 border border-slate-700 px-3 py-1 text-xs font-medium text-slate-400">
+                          Archived (Cancelled)
                         </span>
                       )}
                     </div>

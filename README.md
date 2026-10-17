@@ -186,6 +186,8 @@ For the full interactive API contract, visit **Swagger UI** at `/swagger/index.h
 
 ## 📚 Further Reading
 
+- [Functionality Guide (Feature by Feature)](docs/FUNCTIONALITY_GUIDE.md)
 - [Backend Documentation](artifyme-backend/README.md)
 - [Frontend Documentation](artifyme-frontend/README.md)
 - [Product Brief & Requirements](docs/PRODUCT_BRIEF.md)
+

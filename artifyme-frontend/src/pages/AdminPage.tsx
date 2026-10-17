@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -11,6 +11,8 @@ export default function AdminPage() {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState<"orders" | "artists" | "roster">("orders");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [artistFilter, setArtistFilter] = useState<string>("ALL");
+  const [artworkFilter, setArtworkFilter] = useState<string>("ALL");
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
   // Modal states
@@ -32,13 +34,40 @@ export default function AdminPage() {
 
   // 1. Fetch All Platform Orders
   const { data: ordersData, isLoading: ordersLoading } = useQuery({
-    queryKey: ["admin_orders", statusFilter],
-    queryFn: () => {
-      const q = statusFilter !== "ALL" ? `?status=${statusFilter}` : "";
-      return api<{ orders: Order[] }>(`/api/v1/admin/orders${q}`);
-    },
+    queryKey: ["admin_orders"],
+    queryFn: () => api<{ orders: Order[] }>("/api/v1/admin/orders"),
   });
-  const orders = ordersData?.orders ?? [];
+  const allOrders = ordersData?.orders ?? [];
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { ALL: allOrders.length };
+    for (const o of allOrders) {
+      counts[o.status] = (counts[o.status] || 0) + 1;
+    }
+    return counts;
+  }, [allOrders]);
+
+  const filteredOrders = useMemo(() => {
+    return allOrders.filter((o) => {
+      // 1. Status Filter
+      if (statusFilter !== "ALL" && o.status !== statusFilter) return false;
+      // 2. Artist Filter
+      if (artistFilter === "ASSIGNED" && !o.artist_id) return false;
+      if (artistFilter === "UNASSIGNED" && Boolean(o.artist_id)) return false;
+      if (
+        artistFilter !== "ALL" &&
+        artistFilter !== "ASSIGNED" &&
+        artistFilter !== "UNASSIGNED" &&
+        o.artist_id !== artistFilter
+      ) {
+        return false;
+      }
+      // 3. Final Artwork Filter
+      if (artworkFilter === "HAS_FINAL" && (!o.final_image_url || o.final_image_url.trim() === "")) return false;
+      if (artworkFilter === "NO_FINAL" && Boolean(o.final_image_url && o.final_image_url.trim() !== "")) return false;
+      return true;
+    });
+  }, [allOrders, statusFilter, artistFilter, artworkFilter]);
 
   // 2. Fetch Artists in Review Queue
   const { data: reviewQueue, isLoading: queueLoading } = useQuery({
@@ -155,7 +184,7 @@ export default function AdminPage() {
         <div className="flex items-center gap-3">
           <div className="rounded-xl bg-slate-800/80 border border-slate-700 px-4 py-2.5 text-center">
             <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Orders</p>
-            <p className="text-xl font-bold text-white">{orders.length}</p>
+            <p className="text-xl font-bold text-white">{allOrders.length}</p>
           </div>
           <div className="rounded-xl bg-slate-800/80 border border-slate-700 px-4 py-2.5 text-center">
             <p className="text-xs text-amber-400 uppercase tracking-wider font-semibold">In Review</p>
@@ -192,7 +221,7 @@ export default function AdminPage() {
           }`}
         >
           <span>📦 Customer Orders</span>
-          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">{orders.length}</span>
+          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">{allOrders.length}</span>
         </button>
         <button
           onClick={() => setActiveTab("artists")}
@@ -225,35 +254,117 @@ export default function AdminPage() {
       {/* TAB 1: ORDERS MANAGEMENT */}
       {activeTab === "orders" && (
         <div className="space-y-6">
-          {/* Status Filter Pills */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-slate-400 font-medium mr-1">Filter by status:</span>
-            {["ALL", "PLACED", "CONFIRMED", "ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED", "CANCELLED"].map(
-              (status) => (
-                <button
-                  key={status}
-                  onClick={() => setStatusFilter(status)}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-                    statusFilter === status
-                      ? "bg-brand text-white shadow-sm"
-                      : "bg-slate-800/80 text-slate-300 hover:bg-slate-700"
-                  }`}
+          {/* Filters Bar */}
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+            {/* Status Filter Pills */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-400 font-medium mr-1">Status:</span>
+              {(["ALL", "PLACED", "CONFIRMED", "ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED", "CANCELLED"] as const).map(
+                (status) => {
+                  const count = statusCounts[status] || 0;
+                  const isActive = statusFilter === status;
+                  return (
+                    <button
+                      key={status}
+                      onClick={() => setStatusFilter(status)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                        isActive
+                          ? "bg-brand text-white shadow-sm font-semibold"
+                          : "bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white"
+                      }`}
+                    >
+                      <span>{status === "ALL" ? "All Orders" : status.replace("_", " ")}</span>
+                      <span
+                        className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                          isActive
+                            ? "bg-white/20 text-white"
+                            : "bg-slate-700 text-slate-300"
+                        }`}
+                      >
+                        {count}
+                      </span>
+                    </button>
+                  );
+                }
+              )}
+            </div>
+
+            {/* Secondary Filters: Artist and Artwork / Final Sketch */}
+            <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-800/60 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400 font-medium">Assigned Artist:</span>
+                <select
+                  value={artistFilter}
+                  onChange={(e) => setArtistFilter(e.target.value)}
+                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
                 >
-                  {status === "ALL" ? "All Orders" : status.replace("_", " ")}
+                  <option value="ALL">All Artists</option>
+                  <option value="ASSIGNED">Any Assigned Artist</option>
+                  <option value="UNASSIGNED">Unassigned Only</option>
+                  {verifiedArtists.map((a) => (
+                    <option key={a.artist_id} value={a.artist_id}>
+                      {a.full_name} ({a.specialization || "Artist"})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400 font-medium">Final Sketch:</span>
+                <select
+                  value={artworkFilter}
+                  onChange={(e) => setArtworkFilter(e.target.value)}
+                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
+                >
+                  <option value="ALL">All Artwork Status</option>
+                  <option value="HAS_FINAL">✓ With Final Sketch (final_url)</option>
+                  <option value="NO_FINAL">⏳ Awaiting Final Sketch</option>
+                </select>
+              </div>
+
+              {/* Reset filters shortcut */}
+              {(statusFilter !== "ALL" || artistFilter !== "ALL" || artworkFilter !== "ALL") && (
+                <button
+                  onClick={() => {
+                    setStatusFilter("ALL");
+                    setArtistFilter("ALL");
+                    setArtworkFilter("ALL");
+                  }}
+                  className="text-amber-400 hover:text-amber-300 underline font-medium"
+                >
+                  Clear all filters
                 </button>
-              )
-            )}
+              )}
+
+              <span className="text-slate-400 text-xs ml-auto">
+                Showing <strong className="text-white">{filteredOrders.length}</strong> of{" "}
+                <strong className="text-white">{allOrders.length}</strong> orders
+              </span>
+            </div>
           </div>
 
           {ordersLoading ? (
             <p className="text-center py-12 text-slate-400 text-sm">Loading orders...</p>
-          ) : orders.length === 0 ? (
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center">
-              <p className="text-slate-300 font-medium">No orders found for status: {statusFilter}</p>
+          ) : filteredOrders.length === 0 ? (
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center space-y-3">
+              <p className="text-slate-300 font-medium">No orders match the selected filters.</p>
+              <p className="text-xs text-slate-500">
+                Status: {statusFilter} | Artist: {artistFilter} | Sketch: {artworkFilter}
+              </p>
+              <button
+                onClick={() => {
+                  setStatusFilter("ALL");
+                  setArtistFilter("ALL");
+                  setArtworkFilter("ALL");
+                }}
+                className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition"
+              >
+                Reset Filters
+              </button>
             </div>
           ) : (
             <div className="grid gap-4">
-              {orders.map((o) => {
+              {filteredOrders.map((o) => {
                 const assignedArtist = verifiedArtists.find((a) => a.artist_id === o.artist_id);
                 return (
                   <div
@@ -274,7 +385,23 @@ export default function AdminPage() {
                             className="w-full h-full object-cover group-hover:scale-105 transition"
                           />
                           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs text-white">
-                            View
+                            View Ref
+                          </div>
+                        </div>
+                      )}
+                      {o.final_image_url && (
+                        <div
+                          onClick={() => setSelectedPhoto(resolveImage(o.final_image_url))}
+                          className="relative w-24 h-24 rounded-xl overflow-hidden bg-emerald-950/40 flex-shrink-0 cursor-pointer border border-emerald-500/50 group shadow"
+                          title="Click to view final completed artwork"
+                        >
+                          <img
+                            src={resolveImage(o.final_image_url)}
+                            alt="Final Artwork"
+                            className="w-full h-full object-cover group-hover:scale-105 transition"
+                          />
+                          <div className="absolute inset-0 bg-emerald-950/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs font-semibold text-emerald-300">
+                            Final Art
                           </div>
                         </div>
                       )}

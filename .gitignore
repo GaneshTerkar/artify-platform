@@ -33,11 +33,18 @@ dist/
 frontend/node_modules/
 frontend/build/
 frontend/dist/
+artifyme-frontend/node_modules/
+artifyme-frontend/build/
+artifyme-frontend/dist/
 
 frontend/.env
 frontend/.env.local
 frontend/.env.development
 frontend/.env.production
+artifyme-frontend/.env
+artifyme-frontend/.env.local
+artifyme-frontend/.env.development
+artifyme-frontend/.env.production
 
 # =====================================
 # Logs

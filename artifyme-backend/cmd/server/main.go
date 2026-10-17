@@ -17,6 +17,7 @@ import (
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/config"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/db"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/logger"
+	"github.com/ganeshterkar/artifyme-backend/cmd/internal/middleware"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/routes"
 )
 
@@ -86,6 +87,7 @@ func main() {
 	}
 
 	r := gin.Default()
+	r.Use(middleware.CORSMiddleware(cfg.CORS.AllowedOrigins))
 
 	// Swagger
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))

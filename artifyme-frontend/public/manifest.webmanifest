@@ -1,0 +1,9 @@
+{
+  "name": "Artify Portrait Sketches",
+  "short_name": "Artify",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#1a1a2e",
+  "description": "Order custom portrait sketches from your photos."
+}

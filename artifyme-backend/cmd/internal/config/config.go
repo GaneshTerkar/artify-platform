@@ -12,6 +12,37 @@ type Config struct {
 	App      AppConfig
 	Database DatabaseConfig
 	JWT      JWTConfig
+	CORS     CORSConfig
+	Stripe   StripeConfig
+	S3       S3Config
+	Email    EmailConfig
+}
+
+type S3Config struct {
+	Endpoint        string
+	Region          string
+	Bucket          string
+	AccessKey       string
+	SecretKey       string
+	UseSSL          bool
+	PublicDomain    string // For CDN or public access if needed
+}
+
+type EmailConfig struct {
+	Provider string // e.g., "resend", "smtp"
+	APIKey   string
+	From     string
+}
+
+type CORSConfig struct {
+	AllowedOrigins string
+}
+
+type StripeConfig struct {
+	SecretKey     string
+	WebhookSecret string
+	SuccessURL    string
+	CancelURL     string
 }
 
 type AppConfig struct {
@@ -50,6 +81,29 @@ func Load() *Config {
 			Secret:       mustGetEnv("JWT_SECRET"),
 			ExpiryHours:  getEnvAsInt("JWT_EXPIRES_IN", 24),
 			RefreshHours: getEnvAsInt("JWT_REFRESH_HOURS", 168),
+		},
+		CORS: CORSConfig{
+			AllowedOrigins: getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:5173"),
+		},
+		Stripe: StripeConfig{
+			SecretKey:     getEnv("STRIPE_SECRET_KEY", ""),
+			WebhookSecret: getEnv("STRIPE_WEBHOOK_SECRET", ""),
+			SuccessURL:    getEnv("STRIPE_SUCCESS_URL", "http://localhost:5173/order/success"),
+			CancelURL:     getEnv("STRIPE_CANCEL_URL", "http://localhost:5173/order/cancel"),
+		},
+		S3: S3Config{
+			Endpoint:     getEnv("S3_ENDPOINT", "http://localhost:9000"),
+			Region:       getEnv("S3_REGION", "us-east-1"),
+			Bucket:       getEnv("S3_BUCKET", "artifyme"),
+			AccessKey:    getEnv("S3_ACCESS_KEY", "minioadmin"),
+			SecretKey:    getEnv("S3_SECRET_KEY", "minioadmin"),
+			UseSSL:       getEnv("S3_USE_SSL", "false") == "true",
+			PublicDomain: getEnv("S3_PUBLIC_DOMAIN", ""),
+		},
+		Email: EmailConfig{
+			Provider: getEnv("EMAIL_PROVIDER", "log"),
+			APIKey:   getEnv("EMAIL_API_KEY", ""),
+			From:     getEnv("EMAIL_FROM", "noreply@artifyme.com"),
 		},
 	}
 

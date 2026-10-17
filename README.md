@@ -1,6 +1,31 @@
-# Artify Platform – Backend Setup Guide
+# Artify Platform
 
-This document explains how to set up, run, and maintain the **Artify Platform backend**, including database migrations and common troubleshooting steps.
+Portrait sketch ordering platform: **Go (Gin) API**, **React (Vite) web app**, **PostgreSQL**. Product requirements live in [docs/PRODUCT_BRIEF.md](docs/PRODUCT_BRIEF.md).
+
+## Quick start (local)
+
+```bash
+docker compose up -d
+cp artifyme-backend/env.example artifyme-backend/.env
+# Edit JWT_SECRET if needed
+
+cd artifyme-backend
+go run cmd/server/main.go
+
+cd ../artifyme-frontend
+npm install
+cp env.example .env
+npm run dev
+```
+
+- API: http://localhost:8080 (Swagger: `/swagger/index.html`)
+- App: http://localhost:5173
+
+---
+
+## Backend setup guide
+
+This section explains how to set up, run, and maintain the **Artify Platform backend**, including database migrations and common troubleshooting steps.
 
 ## 📁 Project Structure
 

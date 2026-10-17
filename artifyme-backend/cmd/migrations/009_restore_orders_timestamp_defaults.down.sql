@@ -1,0 +1,7 @@
+ALTER TABLE orders
+  ALTER COLUMN created_at DROP DEFAULT,
+  ALTER COLUMN updated_at DROP DEFAULT;
+
+ALTER TABLE order_status_history
+  ALTER COLUMN created_at DROP DEFAULT,
+  ALTER COLUMN updated_at DROP DEFAULT;

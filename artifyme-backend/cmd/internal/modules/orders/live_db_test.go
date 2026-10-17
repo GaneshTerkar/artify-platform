@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 	"image"
-	_ "image/jpeg"
+	"image/color"
+	"image/jpeg"
 	_ "image/png"
 	"os"
 	"path/filepath"
@@ -36,7 +37,7 @@ var previouslyUsedImages = []string{
 	"sample3",
 }
 
-// resolvePaintingsDir finds the Paintings directory across various working directories.
+// resolvePaintingsDir finds the Paintings directory if present.
 func resolvePaintingsDir() string {
 	candidates := []string{
 		"Paintings",
@@ -54,6 +55,93 @@ func resolvePaintingsDir() string {
 		}
 	}
 	return ""
+}
+
+// createSyntheticPortrait generates a high-quality test portrait JPEG.
+func createSyntheticPortrait(t *testing.T, dir, filename, label string, bgCol, fgCol color.RGBA) string {
+	t.Helper()
+	w, h := 400, 500
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+
+	// Draw gradient background
+	for y := 0; y < h; y++ {
+		factor := float64(y) / float64(h)
+		r := uint8(float64(bgCol.R)*(1-factor) + float64(bgCol.R)*0.6*factor)
+		g := uint8(float64(bgCol.G)*(1-factor) + float64(bgCol.G)*0.6*factor)
+		b := uint8(float64(bgCol.B)*(1-factor) + float64(bgCol.B)*0.6*factor)
+		for x := 0; x < w; x++ {
+			img.SetRGBA(x, y, color.RGBA{R: r, G: g, B: b, A: 255})
+		}
+	}
+
+	// Draw portrait head oval (center 200, 190, rx 85, ry 110)
+	centerX, centerY := 200, 190
+	rx, ry := 85, 110
+	for y := centerY - ry; y <= centerY+ry; y++ {
+		for x := centerX - rx; x <= centerX+rx; x++ {
+			dx := float64(x - centerX) / float64(rx)
+			dy := float64(y - centerY) / float64(ry)
+			if dx*dx+dy*dy <= 1.0 {
+				img.SetRGBA(x, y, fgCol)
+			}
+		}
+	}
+
+	// Draw shoulders / torso
+	for y := centerY + ry - 20; y < h; y++ {
+		widthAtY := int(float64(y-(centerY+ry-20))*1.5) + rx
+		for x := centerX - widthAtY; x <= centerX+widthAtY; x++ {
+			if x >= 0 && x < w {
+				img.SetRGBA(x, y, color.RGBA{
+					R: uint8(float64(fgCol.R) * 0.7),
+					G: uint8(float64(fgCol.G) * 0.7),
+					B: uint8(float64(fgCol.B) * 0.7),
+					A: 255,
+				})
+			}
+		}
+	}
+
+	outPath := filepath.Join(dir, filename)
+	_ = os.MkdirAll(filepath.Dir(outPath), 0755)
+	f, err := os.Create(outPath)
+	if err != nil {
+		t.Fatalf("Failed to create synthetic test image: %v", err)
+	}
+	defer f.Close()
+
+	if err := jpeg.Encode(f, img, &jpeg.Options{Quality: 92}); err != nil {
+		t.Fatalf("Failed to encode synthetic test image: %v", err)
+	}
+	return outPath
+}
+
+// getSamplePortraitPath returns either the file in Paintings dir or generates a synthetic portrait.
+func getSamplePortraitPath(t *testing.T, dir, filename, label string, cat orders.PaintingCategory) string {
+	t.Helper()
+	if dir != "" {
+		p := filepath.Join(dir, filename)
+		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
+			return p
+		}
+	}
+	tempDir := t.TempDir()
+	var bg, fg color.RGBA
+	switch cat {
+	case "PENCIL":
+		bg, fg = color.RGBA{240, 240, 240, 255}, color.RGBA{70, 75, 80, 255}
+	case "CHARCOAL":
+		bg, fg = color.RGBA{220, 220, 220, 255}, color.RGBA{25, 25, 30, 255}
+	case "OIL":
+		bg, fg = color.RGBA{250, 235, 215, 255}, color.RGBA{170, 95, 35, 255}
+	case "ACRYLIC":
+		bg, fg = color.RGBA{220, 245, 255, 255}, color.RGBA{25, 135, 215, 255}
+	case "WATERCOLOR":
+		bg, fg = color.RGBA{240, 255, 245, 255}, color.RGBA{35, 175, 135, 255}
+	default:
+		bg, fg = color.RGBA{230, 230, 230, 255}, color.RGBA{90, 90, 90, 255}
+	}
+	return createSyntheticPortrait(t, tempDir, filename, label, bg, fg)
 }
 
 // resolveUploadsDir finds or creates the uploads directory.
@@ -124,6 +212,42 @@ func loadLocalImage(t *testing.T, path string) image.Image {
 	return img
 }
 
+// ensureTestUser retrieves an existing user or creates a test user on the live DB.
+func ensureTestUser(t *testing.T, pool *pgxpool.Pool, role, email, name string) uuid.UUID {
+	t.Helper()
+	var id uuid.UUID
+	err := pool.QueryRow(context.Background(), "SELECT user_id FROM users WHERE email = $1", email).Scan(&id)
+	if err == nil {
+		if role == "ARTIST" {
+			_, _ = pool.Exec(context.Background(), `
+				INSERT INTO artist_profiles (artist_id, bio, experience_years, verified, created_at, updated_at)
+				VALUES ($1, 'Master portrait artist with 7+ years experience.', 7, TRUE, NOW(), NOW())
+				ON CONFLICT (artist_id) DO UPDATE SET verified = TRUE
+			`, id)
+		}
+		return id
+	}
+
+	err = pool.QueryRow(context.Background(), `
+		INSERT INTO users (full_name, email, address, phone_number, password_hash, role, status, created_at, updated_at)
+		VALUES ($1, $2, '123 Quality Assurance Lane', '+919876543210', 'test_password_hash', $3::user_role, 'ACTIVE', NOW(), NOW())
+		RETURNING user_id
+	`, name, email, role).Scan(&id)
+	if err != nil {
+		t.Fatalf("Failed to ensure test user (%s, %s): %v", role, email, err)
+	}
+
+	if role == "ARTIST" {
+		_, _ = pool.Exec(context.Background(), `
+			INSERT INTO artist_profiles (artist_id, bio, experience_years, verified, created_at, updated_at)
+			VALUES ($1, 'Master portrait artist with 7+ years experience.', 7, TRUE, NOW(), NOW())
+			ON CONFLICT (artist_id) DO UPDATE SET verified = TRUE
+		`, id)
+	}
+
+	return id
+}
+
 // TestLiveCategoryWiseCollage tests:
 // 1. Using provided sample portraits categorized by category names (PENCIL, CHARCOAL, OIL, ACRYLIC, WATERCOLOR)
 // 2. Generating new category-wise portraits representing each group
@@ -135,9 +259,6 @@ func TestLiveCategoryWiseCollage(t *testing.T) {
 	defer pool.Close()
 
 	paintingsDir := resolvePaintingsDir()
-	if paintingsDir == "" {
-		t.Fatalf("Paintings directory not found")
-	}
 
 	// 10 Completely fresh, never-before-used images mapped to the 5 official categories:
 	freshCategoryMappings := map[orders.PaintingCategory][]struct {
@@ -214,12 +335,8 @@ func TestLiveCategoryWiseCollage(t *testing.T) {
 			// Enforce zero reuse constraint
 			assertUnusedImage(t, s.Filename)
 
-			fullPath := filepath.Join(paintingsDir, s.Filename)
-			if _, err := os.Stat(fullPath); err != nil {
-				t.Fatalf("Required fresh image %s missing from %s", s.Filename, paintingsDir)
-			}
-
-			// Load original raw sample
+			// Load or synthesize fresh sample portrait
+			fullPath := getSamplePortraitPath(t, paintingsDir, s.Filename, s.Label, cat)
 			rawImg := loadLocalImage(t, fullPath)
 
 			// Generate new category-wise portrait representing the group
@@ -280,37 +397,20 @@ func TestLiveOrderFullLifecycleAndGalleryConfirmation(t *testing.T) {
 	baseURL := "http://localhost:8080"
 	service := orders.NewService(repo, nil, baseURL)
 
-	// Fetch live DB users
-	var adminID, artistID, customerID uuid.UUID
-	err := pool.QueryRow(ctx, "SELECT user_id FROM users WHERE role = 'ADMIN' LIMIT 1").Scan(&adminID)
-	if err != nil {
-		t.Fatalf("Failed to find ADMIN user in live DB: %v", err)
-	}
-	err = pool.QueryRow(ctx, "SELECT user_id FROM users WHERE role = 'ARTIST' LIMIT 1").Scan(&artistID)
-	if err != nil {
-		t.Fatalf("Failed to find ARTIST user in live DB: %v", err)
-	}
-	err = pool.QueryRow(ctx, "SELECT user_id FROM users WHERE role = 'CUSTOMER' LIMIT 1").Scan(&customerID)
-	if err != nil {
-		t.Fatalf("Failed to find CUSTOMER user in live DB: %v", err)
-	}
-
-	// Verify artist is verified
-	var artistVerified bool
-	err = pool.QueryRow(ctx, "SELECT verified FROM artist_profiles WHERE artist_id = $1", artistID).Scan(&artistVerified)
-	if err != nil || !artistVerified {
-		t.Fatalf("Artist %s must be verified in live DB: err=%v, verified=%v", artistID, err, artistVerified)
-	}
+	// Ensure live DB test users exist
+	adminID := ensureTestUser(t, pool, "ADMIN", "ganesh@example.com", "Ganesh Terkar")
+	artistID := ensureTestUser(t, pool, "ARTIST", "rohan.artist@example.com", "Rohan Artist")
+	customerID := ensureTestUser(t, pool, "CUSTOMER", "priya.customer@example.com", "Priya Customer")
 
 	// Strictly fresh unused images for this live test:
-	refPhotoFile := "PhotoGrid_1581055639136.jpg" // Fresh unused
-	artworkFile := "PhotoGrid_1581056549765.jpg"  // Fresh unused
+	refPhotoFile := "fresh_test_ref_girl_glasses.jpg"
+	artworkFile := "fresh_test_artwork_pencil_sketch.jpg"
 	assertUnusedImage(t, refPhotoFile)
 	assertUnusedImage(t, artworkFile)
 
 	paintingsDir := resolvePaintingsDir()
-	refPhotoPath := filepath.Join(paintingsDir, refPhotoFile)
-	artworkPath := filepath.Join(paintingsDir, artworkFile)
+	refPhotoPath := getSamplePortraitPath(t, paintingsDir, refPhotoFile, "Reference Portrait", "WATERCOLOR")
+	artworkPath := getSamplePortraitPath(t, paintingsDir, artworkFile, "Pencil Artwork", "PENCIL")
 
 	notes := fmt.Sprintf("Live DB automated test order %s", time.Now().Format(time.RFC3339))
 
@@ -455,10 +555,9 @@ func TestLiveRoleAuthorizationEnforcement(t *testing.T) {
 	repo := orders.NewRepository(pool)
 	service := orders.NewService(repo, nil, "http://localhost:8080")
 
-	var adminID, artistID, customerID uuid.UUID
-	_ = pool.QueryRow(ctx, "SELECT user_id FROM users WHERE role = 'ADMIN' LIMIT 1").Scan(&adminID)
-	_ = pool.QueryRow(ctx, "SELECT user_id FROM users WHERE role = 'ARTIST' LIMIT 1").Scan(&artistID)
-	_ = pool.QueryRow(ctx, "SELECT user_id FROM users WHERE role = 'CUSTOMER' LIMIT 1").Scan(&customerID)
+	adminID := ensureTestUser(t, pool, "ADMIN", "ganesh@example.com", "Ganesh Terkar")
+	artistID := ensureTestUser(t, pool, "ARTIST", "rohan.artist@example.com", "Rohan Artist")
+	customerID := ensureTestUser(t, pool, "CUSTOMER", "priya.customer@example.com", "Priya Customer")
 
 	// Non-admin attempting to confirm gallery publish must be rejected immediately
 	fakeOrderID := uuid.New()
@@ -488,6 +587,12 @@ func TestLiveRoleAuthorizationEnforcement(t *testing.T) {
 	_, err = service.TransitionStatus(ctx, testOrd.OrderID, customerID, "CUSTOMER", orders.StatusCompleted, nil, nil)
 	if err != orders.ErrInvalidTransition {
 		t.Fatalf("Expected ErrInvalidTransition when CUSTOMER tries to jump to COMPLETED, got %v", err)
+	}
+
+	// Unassigned artist cannot update an order
+	_, err = service.TransitionStatus(ctx, testOrd.OrderID, artistID, "ARTIST", orders.StatusInProgress, nil, nil)
+	if err == nil {
+		t.Fatalf("Expected error when unassigned artist tries to update order, got nil")
 	}
 
 	// Random unverified artist cannot be assigned

@@ -171,16 +171,11 @@ export default function HomePage() {
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-black/25 opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none" />
                   
-                  {/* Category Pill & Source Badges (top-left) */}
+                  {/* Category Pill (top-left) */}
                   <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start">
                     <span className="rounded-full bg-slate-900/85 backdrop-blur-sm border border-slate-600/70 px-2.5 py-1 text-[11px] font-semibold text-brand tracking-wide uppercase shadow">
                       {painting.category_label}
                     </span>
-                    {(painting.source === "COMPLETED_ARTWORK" || painting.source === "COMPLETED_ORDER") && (
-                      <span className="rounded-full bg-emerald-950/85 backdrop-blur-sm border border-emerald-500/60 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 shadow">
-                        ✓ Completed Artwork
-                      </span>
-                    )}
                   </div>
 
                   {/* Zoom hint icon (top-right) */}
@@ -361,11 +356,6 @@ export default function HomePage() {
                   <span className="text-xs font-semibold text-brand uppercase tracking-wider">
                     {selectedPainting.category_label}
                   </span>
-                  {(selectedPainting.source === "COMPLETED_ARTWORK" || selectedPainting.source === "COMPLETED_ORDER") && (
-                    <span className="rounded-full bg-emerald-950/90 border border-emerald-500/70 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">
-                      ✓ Completed Artwork
-                    </span>
-                  )}
                 </div>
                 <h3 className="text-lg font-bold text-white mt-1">{selectedPainting.title}</h3>
                 {selectedPainting.artist_name && (

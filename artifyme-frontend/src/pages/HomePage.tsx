@@ -171,13 +171,6 @@ export default function HomePage() {
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/25 via-transparent to-black/25 opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none" />
                   
-                  {/* Category Pill (top-left) */}
-                  <div className="absolute top-3 left-3 flex flex-col gap-1.5 items-start">
-                    <span className="rounded-full bg-slate-900/85 backdrop-blur-sm border border-slate-600/70 px-2.5 py-1 text-[11px] font-semibold text-brand tracking-wide uppercase shadow">
-                      {painting.category_label}
-                    </span>
-                  </div>
-
                   {/* Zoom hint icon (top-right) */}
                   <span className="absolute top-3 right-3 rounded-full bg-black/60 p-1.5 text-slate-300 opacity-0 group-hover:opacity-100 transition shadow">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -190,9 +183,14 @@ export default function HomePage() {
                 <div className="flex flex-1 flex-col justify-between p-4 space-y-3">
                   <div>
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-semibold text-white text-base group-hover:text-brand transition">
-                        {painting.title}
-                      </h3>
+                      <div>
+                        <span className="text-[11px] font-semibold text-brand uppercase tracking-wider block mb-0.5">
+                          {painting.category_label}
+                        </span>
+                        <h3 className="font-semibold text-white text-base group-hover:text-brand transition">
+                          {painting.title}
+                        </h3>
+                      </div>
                       <span className="shrink-0 rounded-lg bg-brand/15 border border-brand/30 px-2.5 py-1 text-xs font-bold text-brand">
                         From ₹{painting.starting_price}
                       </span>

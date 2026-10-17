@@ -20,6 +20,8 @@ export default function LoginPage() {
       const user = await login(email, password);
       if (user.role === "ADMIN") {
         navigate("/admin");
+      } else if (user.role === "ARTIST") {
+        navigate("/account");
       } else {
         navigate(redirectTarget);
       }

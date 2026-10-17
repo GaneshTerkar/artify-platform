@@ -72,6 +72,18 @@ func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actor
 		return nil, ErrInvalidTransition
 	}
 
+	if role == "ARTIST" {
+		if o.ArtistID == nil || *o.ArtistID != actorID {
+			return nil, errors.New("you can only update status for orders assigned to you")
+		}
+	}
+
+	if newStatus == StatusCompleted {
+		if finalURL == nil || *finalURL == "" {
+			return nil, errors.New("a final sketch image URL or upload is required to complete the order")
+		}
+	}
+
 	if artistID != nil {
 		verified, err := s.repo.IsArtistVerified(ctx, *artistID)
 		if err != nil {

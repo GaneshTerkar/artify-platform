@@ -39,7 +39,7 @@ function Shell({ children }: { children: React.ReactNode }) {
                 </Link>
               )}
               <Link to="/account" className="text-slate-300 hover:text-white transition">
-                Orders
+                {user.role === "ARTIST" ? "🎨 My Commissions" : "Orders"}
               </Link>
               <button
                 type="button"

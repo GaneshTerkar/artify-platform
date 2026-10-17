@@ -1,59 +1,390 @@
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
-import { api } from "../lib/api";
+import { api, API_URL } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import PhotoUploader from "../components/PhotoUploader";
 import type { Order } from "../types/order";
 
 export default function AccountPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const isArtist = user?.role === "ARTIST";
+
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [completingOrder, setCompletingOrder] = useState<Order | null>(null);
+  const [finalImageUrl, setFinalImageUrl] = useState<string>("");
+  const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+
+  function showMessage(text: string, type: "success" | "error" = "success") {
+    setMessage({ text, type });
+    setTimeout(() => setMessage(null), 4000);
+  }
+
+  // Fetch orders (customer orders or assigned artist commissions)
   const { data, isLoading, error } = useQuery({
     queryKey: ["my-orders"],
     queryFn: () => api<{ orders: Order[] }>("/api/v1/orders"),
   });
 
-  if (isLoading) return <p className="text-slate-400">Loading orders…</p>;
-  if (error) return <p className="text-red-400">Could not load orders.</p>;
-
   const orders = data?.orders ?? [];
 
+  // Mutation to update order status (e.g. Start Drawing, Complete Artwork)
+  const statusMutation = useMutation({
+    mutationFn: ({ orderId, status, finalUrl }: { orderId: string; status: string; finalUrl?: string }) =>
+      api(`/api/v1/orders/${orderId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, final_image_url: finalUrl }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["paintings"] });
+      setCompletingOrder(null);
+      setFinalImageUrl("");
+      showMessage("Commission status updated successfully!");
+    },
+    onError: (err: Error) => {
+      showMessage(err.message, "error");
+    },
+  });
+
+  function resolveImage(url: string) {
+    if (!url) return "";
+    return url.startsWith("http") ? url : `${API_URL}${url}`;
+  }
+
+  if (isLoading) return <p className="text-slate-400 py-8 text-center">Loading orders…</p>;
+  if (error) return <p className="text-rose-400 py-8 text-center">Could not load orders.</p>;
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Your orders</h1>
-        {user?.role === "ADMIN" ? (
-          <Link to="/admin" className="text-sm text-amber-400 hover:underline">
-            Go to Admin Portal →
-          </Link>
-        ) : (
-          <Link to="/order" className="text-sm text-brand">
-            New order
-          </Link>
-        )}
+    <div className="space-y-6">
+      {/* Toast Notification */}
+      {message && (
+        <div
+          className={`p-3.5 rounded-xl text-sm font-medium border flex items-center justify-between transition-all ${
+            message.type === "success"
+              ? "bg-emerald-950/70 border-emerald-500/60 text-emerald-200"
+              : "bg-rose-950/70 border-rose-500/60 text-rose-200"
+          }`}
+        >
+          <span>{message.text}</span>
+          <button onClick={() => setMessage(null)} className="text-xs opacity-70 hover:opacity-100">
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-white">
+              {isArtist ? "My Assigned Commissions" : "Your Orders"}
+            </h1>
+            {isArtist && (
+              <span className="rounded-full bg-purple-500/20 border border-purple-500/40 px-2.5 py-0.5 text-xs font-semibold text-purple-300">
+                🎨 Artist Studio
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-slate-400 mt-1">
+            {isArtist
+              ? "Manage portrait sketch orders assigned to you. Start drawings and upload completed sketches."
+              : "Track progress of your personalized handmade portrait commissions."}
+          </p>
+        </div>
+
+        <div>
+          {user?.role === "ADMIN" ? (
+            <Link to="/admin" className="text-sm text-amber-400 hover:underline">
+              Go to Admin Portal →
+            </Link>
+          ) : !isArtist ? (
+            <Link
+              to="/order"
+              className="rounded-xl bg-brand px-4 py-2 text-xs font-semibold text-white shadow-sm hover:opacity-90 transition"
+            >
+              + New Order
+            </Link>
+          ) : null}
+        </div>
       </div>
+
+      {/* Orders List */}
       {orders.length === 0 ? (
-        <p className="text-slate-400">No orders yet.</p>
+        <div className="rounded-2xl border border-slate-800 bg-brand-muted p-12 text-center space-y-3">
+          <p className="text-base font-semibold text-slate-300">
+            {isArtist ? "No commissions assigned yet." : "You have not placed any orders yet."}
+          </p>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
+            {isArtist
+              ? "When administrators assign customer portrait orders to your verified profile, they will appear here."
+              : "Browse our gallery to discover styles and order your first custom handmade portrait sketch."}
+          </p>
+          {!isArtist && (
+            <Link
+              to="/"
+              className="inline-block mt-2 rounded-xl bg-brand px-4 py-2 text-xs font-semibold text-white hover:opacity-90"
+            >
+              Browse Gallery
+            </Link>
+          )}
+        </div>
       ) : (
-        <ul className="space-y-3">
-          {orders.map((o) => (
-            <li key={o.order_id} className="rounded-xl bg-brand-muted p-4 text-sm">
-              <div className="flex justify-between">
-                <span className="font-medium capitalize">{o.lifecycle_label.replace("_", " ")}</span>
-                <span>₹{o.total_price.toFixed(0)}</span>
+        <div className="space-y-4">
+          {orders.map((o) => {
+            const hasRef = Boolean(o.reference_image_url);
+            const hasFinal = Boolean(o.final_image_url);
+
+            return (
+              <div
+                key={o.order_id}
+                className="rounded-2xl border border-slate-800 bg-brand-muted p-5 shadow-sm space-y-4"
+              >
+                {/* Header row: ID, Category, Date, Status */}
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono text-slate-400">#{o.order_id.slice(0, 8)}</span>
+                    <span className="rounded-lg bg-slate-800 px-2 py-0.5 text-xs font-semibold text-slate-300">
+                      {o.painting_category}
+                    </span>
+                    <span className="text-xs text-slate-500">
+                      {new Date(o.created_at).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </span>
+                  </div>
+
+                  {/* Status Pill */}
+                  <div>
+                    {o.status === "PLACED" && (
+                      <span className="rounded-full bg-amber-950/70 border border-amber-500/50 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
+                        Placed (Payment Pending)
+                      </span>
+                    )}
+                    {o.status === "CONFIRMED" && (
+                      <span className="rounded-full bg-cyan-950/70 border border-cyan-500/50 px-2.5 py-0.5 text-xs font-semibold text-cyan-300">
+                        Payment Confirmed
+                      </span>
+                    )}
+                    {o.status === "ASSIGNED_ARTIST" && (
+                      <span className="rounded-full bg-purple-950/70 border border-purple-500/50 px-2.5 py-0.5 text-xs font-semibold text-purple-300">
+                        Assigned to Artist
+                      </span>
+                    )}
+                    {o.status === "IN_PROGRESS" && (
+                      <span className="rounded-full bg-blue-950/70 border border-blue-500/50 px-2.5 py-0.5 text-xs font-semibold text-blue-300">
+                        Drawing in Progress
+                      </span>
+                    )}
+                    {o.status === "COMPLETED" && (
+                      <span className="rounded-full bg-emerald-950/70 border border-emerald-500/50 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
+                        ✓ Completed & Ready
+                      </span>
+                    )}
+                    {o.status === "CANCELLED" && (
+                      <span className="rounded-full bg-rose-950/70 border border-rose-500/50 px-2.5 py-0.5 text-xs font-semibold text-rose-300">
+                        Cancelled
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Body: Photos & Specs */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+                  {/* Photo Thumbnails */}
+                  <div className="flex items-center gap-3 md:col-span-1">
+                    {hasRef && (
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
+                          {isArtist ? "Client Photo" : "Reference"}
+                        </p>
+                        <div
+                          onClick={() => setSelectedPhoto(resolveImage(o.reference_image_url))}
+                          className="h-20 w-20 rounded-xl overflow-hidden border border-slate-700 bg-slate-900 cursor-pointer hover:border-slate-500 transition"
+                        >
+                          <img
+                            src={resolveImage(o.reference_image_url)}
+                            alt="Reference"
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {hasFinal && (
+                      <div>
+                        <p className="text-[10px] uppercase font-bold text-emerald-400 mb-1">Final Sketch</p>
+                        <div
+                          onClick={() => setSelectedPhoto(resolveImage(o.final_image_url!))}
+                          className="h-20 w-20 rounded-xl overflow-hidden border border-emerald-600/70 bg-slate-900 cursor-pointer hover:border-emerald-400 transition"
+                        >
+                          <img
+                            src={resolveImage(o.final_image_url!)}
+                            alt="Final Artwork"
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Order Specifications */}
+                  <div className="space-y-1.5 md:col-span-2 text-xs">
+                    <div className="flex flex-wrap gap-4 text-slate-300">
+                      <span>
+                        Size: <strong className="text-white">{o.size}</strong>
+                      </span>
+                      <span>
+                        Persons: <strong className="text-white">{o.persons_included}</strong>
+                      </span>
+                      <span>
+                        Total: <strong className="text-brand">₹{o.total_price}</strong>
+                      </span>
+                    </div>
+
+                    {o.customer_notes && (
+                      <p className="text-slate-400 pt-1">
+                        <strong className="text-slate-300">Notes:</strong> {o.customer_notes}
+                      </p>
+                    )}
+
+                    <p className="text-slate-400">
+                      <strong className="text-slate-300">Delivery:</strong> {o.delivery_address}
+                    </p>
+                  </div>
+
+                  {/* Actions Column */}
+                  <div className="flex flex-col items-start md:items-end justify-between gap-2 md:col-span-1 h-full">
+                    {/* ARTIST ACTIONS */}
+                    {isArtist && (
+                      <div className="flex flex-col items-stretch md:items-end gap-2 w-full">
+                        {/* 1. Start Drawing (if Assigned) */}
+                        {o.status === "ASSIGNED_ARTIST" && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              statusMutation.mutate({ orderId: o.order_id, status: "IN_PROGRESS" })
+                            }
+                            disabled={statusMutation.isPending}
+                            className="rounded-lg bg-blue-600 hover:bg-blue-500 px-3.5 py-2 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm"
+                          >
+                            <span>🎨</span> Start Drawing
+                          </button>
+                        )}
+
+                        {/* 2. Complete & Upload Sketch (if In Progress) */}
+                        {o.status === "IN_PROGRESS" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCompletingOrder(o);
+                              setFinalImageUrl(o.final_image_url || "");
+                            }}
+                            className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-2 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm"
+                          >
+                            <span>✓</span> Complete & Upload Sketch
+                          </button>
+                        )}
+
+                        {/* 3. Completed State */}
+                        {o.status === "COMPLETED" && (
+                          <span className="text-xs text-emerald-400 font-medium">
+                            ✓ Published to Gallery
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* CUSTOMER DOWNLOAD ACTION */}
+                    {!isArtist && o.final_image_url && (
+                      <a
+                        href={resolveImage(o.final_image_url)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition inline-flex items-center gap-1"
+                      >
+                        <span>↓</span> Download High-Res Sketch
+                      </a>
+                    )}
+                  </div>
+                </div>
               </div>
-              <p className="text-slate-400">{new Date(o.created_at).toLocaleString()}</p>
-              {o.final_image_url && (
-                <a
-                  href={o.final_image_url}
-                  className="mt-2 inline-block text-brand"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Download sketch
-                </a>
-              )}
-            </li>
-          ))}
-        </ul>
+            );
+          })}
+        </div>
+      )}
+
+      {/* MODAL: COMPLETE & UPLOAD SKETCH FOR ARTIST */}
+      {completingOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-brand-muted p-6 shadow-2xl space-y-5">
+            <div>
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <span>🎨</span> Complete & Upload Finished Sketch
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Upload your hand-drawn sketch photo for order{" "}
+                <strong className="text-white font-mono">#{completingOrder.order_id.slice(0, 8)}</strong>. Once
+                submitted, the customer can download it and it will be showcased in the gallery!
+              </p>
+            </div>
+
+            {/* Photo Uploader Component with Drag & Drop */}
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-slate-300 block">Finished Portrait Artwork</label>
+              <PhotoUploader value={finalImageUrl} onChange={setFinalImageUrl} />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setCompletingOrder(null);
+                  setFinalImageUrl("");
+                }}
+                className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={!finalImageUrl || statusMutation.isPending}
+                onClick={() =>
+                  statusMutation.mutate({
+                    orderId: completingOrder.order_id,
+                    status: "COMPLETED",
+                    finalUrl: finalImageUrl,
+                  })
+                }
+                className="rounded-lg bg-emerald-600 px-5 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50 transition shadow-sm"
+              >
+                {statusMutation.isPending ? "Publishing..." : "✓ Submit & Complete Commission"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LIGHTBOX PREVIEW MODAL */}
+      {selectedPhoto && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-md"
+          onClick={() => setSelectedPhoto(null)}
+        >
+          <div className="relative max-w-3xl w-full overflow-hidden rounded-2xl bg-slate-900 border border-slate-800 p-2">
+            <button
+              onClick={() => setSelectedPhoto(null)}
+              className="absolute top-4 right-4 z-10 rounded-full bg-black/60 p-2 text-white hover:bg-black"
+            >
+              ✕
+            </button>
+            <img src={selectedPhoto} alt="Full view" className="max-h-[80vh] w-full object-contain rounded-xl" />
+          </div>
+        </div>
       )}
     </div>
   );

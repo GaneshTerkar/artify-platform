@@ -279,6 +279,10 @@ func (h *Handler) AdminUpdateStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, toOrderDTO(o))
 }
 
+func (h *Handler) UpdateOrderStatus(c *gin.Context) {
+	h.AdminUpdateStatus(c)
+}
+
 type assignOrderRequest struct {
 	ArtistID string `json:"artist_id" binding:"required"`
 }

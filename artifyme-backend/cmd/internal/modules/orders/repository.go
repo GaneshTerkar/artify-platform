@@ -90,7 +90,7 @@ func (r *Repository) ListByUser(ctx context.Context, userID uuid.UUID) ([]Order,
 			final_image_url, size::text, persons_included::text, status::text,
 			delivery_address, total_price, customer_notes,
 			COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
-		FROM orders WHERE user_id = $1 ORDER BY created_at DESC
+		FROM orders WHERE user_id = $1 OR artist_id = $1 ORDER BY created_at DESC
 	`, userID)
 	if err != nil {
 		return nil, err

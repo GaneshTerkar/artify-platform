@@ -278,3 +278,56 @@ func (h *Handler) AdminUpdateStatus(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, toOrderDTO(o))
 }
+
+type assignOrderRequest struct {
+	ArtistID string `json:"artist_id" binding:"required"`
+}
+
+func (h *Handler) AssignOrder(c *gin.Context) {
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		return
+	}
+	actorID := c.MustGet("user_id").(uuid.UUID)
+	role := c.MustGet("role").(string)
+
+	var req assignOrderRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "artist_id is required"})
+		return
+	}
+
+	targetArtistID, err := uuid.Parse(req.ArtistID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid artist_id format"})
+		return
+	}
+
+	o, err := h.service.AssignOrder(c.Request.Context(), orderID, actorID, role, targetArtistID)
+	if err != nil {
+		status := http.StatusBadRequest
+		if err == ErrNotFound {
+			status = http.StatusNotFound
+		} else if err == ErrForbidden {
+			status = http.StatusForbidden
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "order assigned to verified artist successfully",
+		"order":   toOrderDTO(o),
+	})
+}
+
+func (h *Handler) ListVerifiedArtists(c *gin.Context) {
+	list, err := h.service.ListVerifiedArtists(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"verified_artists": list})
+}
+

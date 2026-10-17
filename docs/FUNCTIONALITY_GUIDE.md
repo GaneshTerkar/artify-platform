@@ -241,15 +241,26 @@ stateDiagram-v2
 ### 8.2 Order Status Definitions
 - `PLACED`: Order created with reference image and specifications; awaiting payment verification.
 - `CONFIRMED`: Payment approved; ready for artist assignment.
+- `ASSIGNED_ARTIST`: Order assigned to a verified artist for execution.
 - `IN_PROGRESS`: Artist has started creating the physical portrait.
 - `COMPLETED`: Artist has finished; final high-res scan uploaded (`final_image_url`). Automatically published to the public gallery.
 - `CANCELLED`: Order cancelled.
 
-### 8.3 Customer Account Screen ([`AccountPage.tsx`](file:///d:/ArtifyMe/artify-platform/artifyme-frontend/src/pages/AccountPage.tsx))
+### 8.3 Verified Artist Order Assignment
+> [!IMPORTANT]
+> **Strict Verification Enforcement**:
+> Customers' portrait sketch orders can **ONLY be assigned to verified artists** (`artist_profiles.verified = TRUE`).
+> - **Who can assign**: Admins and verified Artists can assign orders.
+> - **Assignment Endpoint**: `POST /api/v1/orders/:id/assign` with payload `{ "artist_id": "<uuid>" }`.
+> - **Validation Rule**: If the target `artist_id` is unverified, missing, or belongs to an account with `verified = FALSE`, the system immediately rejects the assignment with `ErrArtistNotVerified` (`400 Bad Request`).
+> - **Roster Discovery**: Verified artists and admins can discover assignable talent via `GET /api/v1/artists/verified`.
+
+### 8.4 Customer Account Screen ([`AccountPage.tsx`](file:///d:/ArtifyMe/artify-platform/artifyme-frontend/src/pages/AccountPage.tsx))
 - Lists all active and past orders placed by the customer.
 - Displays thumbnail of the uploaded reference photo.
 - Color-coded status badge and creation timestamp.
 - Direct link to view/download high-resolution final portrait once `COMPLETED`.
+
 
 ---
 

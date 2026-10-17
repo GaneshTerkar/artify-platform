@@ -385,3 +385,66 @@ func (r *Repository) ListGalleryPaintings(ctx context.Context, category string) 
 	return list, nil
 }
 
+func (r *Repository) IsArtistVerified(ctx context.Context, artistID uuid.UUID) (bool, error) {
+	var verified bool
+	err := r.pool.QueryRow(ctx, `
+		SELECT COALESCE(ap.verified, FALSE)
+		FROM artist_profiles ap
+		INNER JOIN users u ON ap.artist_id = u.user_id
+		WHERE ap.artist_id = $1 AND u.role = 'ARTIST'
+	`, artistID).Scan(&verified)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return verified, nil
+}
+
+func (r *Repository) ListVerifiedArtists(ctx context.Context) ([]VerifiedArtist, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT 
+			u.user_id,
+			u.full_name,
+			u.email,
+			COALESCE(ap.experience_years, 0),
+			COALESCE(ap.bio, '')
+		FROM artist_profiles ap
+		INNER JOIN users u ON ap.artist_id = u.user_id
+		WHERE ap.verified = TRUE AND u.role = 'ARTIST'
+		ORDER BY u.full_name ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []VerifiedArtist
+	for rows.Next() {
+		var a VerifiedArtist
+		if err := rows.Scan(&a.ArtistID, &a.FullName, &a.Email, &a.ExperienceYears, &a.Bio); err != nil {
+			return nil, err
+		}
+		list = append(list, a)
+	}
+	return list, rows.Err()
+}
+
+func (r *Repository) AssignArtist(ctx context.Context, orderID uuid.UUID, artistID uuid.UUID, updatedBy uuid.UUID, newStatus OrderStatus) (*Order, error) {
+	return r.scanOrder(r.pool.QueryRow(ctx, `
+		UPDATE orders SET
+			artist_id = $2,
+			status = $3::order_status,
+			updated_at = NOW(),
+			updated_by = $4
+		WHERE order_id = $1
+		RETURNING
+			order_id, user_id, artist_id, painting_category::text, reference_image_url,
+			final_image_url, size::text, persons_included::text, status::text,
+			delivery_address, total_price, customer_notes,
+			COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
+	`, orderID, artistID, string(newStatus), updatedBy))
+}
+
+

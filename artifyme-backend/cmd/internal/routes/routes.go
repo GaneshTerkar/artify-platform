@@ -124,7 +124,10 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config) {
 		v1Auth.GET("/orders/:id", orderHandler.GetOrder)
 		v1Auth.PATCH("/orders/:id", orderHandler.PatchOrder)
 		v1Auth.POST("/orders/:id/checkout", orderHandler.Checkout)
+		v1Auth.POST("/orders/:id/assign", orderHandler.AssignOrder)
+		v1Auth.GET("/artists/verified", orderHandler.ListVerifiedArtists)
 	}
+
 
 	v1Admin := v1.Group("/admin")
 	v1Admin.Use(middleware.AuthMiddleware(cfg.JWT.Secret), middleware.RoleMiddleware("ADMIN"))

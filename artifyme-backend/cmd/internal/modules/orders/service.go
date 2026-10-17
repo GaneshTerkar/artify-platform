@@ -2,6 +2,7 @@ package orders
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -71,7 +72,60 @@ func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actor
 		return nil, ErrInvalidTransition
 	}
 
+	if artistID != nil {
+		verified, err := s.repo.IsArtistVerified(ctx, *artistID)
+		if err != nil {
+			return nil, err
+		}
+		if !verified {
+			return nil, ErrArtistNotVerified
+		}
+	}
+
 	return s.repo.UpdateStatus(ctx, orderID, newStatus, actorID, artistID, finalURL)
+}
+
+func (s *Service) AssignOrder(ctx context.Context, orderID uuid.UUID, actorID uuid.UUID, role string, targetArtistID uuid.UUID) (*Order, error) {
+	if role != "ADMIN" && role != "ARTIST" {
+		return nil, ErrForbidden
+	}
+
+	if role == "ARTIST" {
+		callerVerified, err := s.repo.IsArtistVerified(ctx, actorID)
+		if err != nil {
+			return nil, err
+		}
+		if !callerVerified {
+			return nil, ErrArtistNotAuthorized
+		}
+	}
+
+	targetVerified, err := s.repo.IsArtistVerified(ctx, targetArtistID)
+	if err != nil {
+		return nil, err
+	}
+	if !targetVerified {
+		return nil, ErrArtistNotVerified
+	}
+
+	o, err := s.repo.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if o.Status == StatusCompleted || o.Status == StatusCancelled {
+		return nil, errors.New("cannot assign an order that is already completed or cancelled")
+	}
+
+	newStatus := StatusAssignedArtist
+	if o.Status == StatusInProgress {
+		newStatus = StatusInProgress
+	}
+
+	return s.repo.AssignArtist(ctx, orderID, targetArtistID, actorID, newStatus)
+}
+
+func (s *Service) ListVerifiedArtists(ctx context.Context) ([]VerifiedArtist, error) {
+	return s.repo.ListVerifiedArtists(ctx)
 }
 
 func (s *Service) History(ctx context.Context, orderID, userID uuid.UUID, role string) ([]StatusHistoryEntry, error) {
@@ -100,12 +154,12 @@ func (s *Service) ConfirmPaid(ctx context.Context, sessionID string, systemUserI
 func canTransition(role string, from, to OrderStatus) bool {
 	if role == "ADMIN" {
 		switch to {
-		case StatusConfirmed, StatusInProgress, StatusCompleted, StatusCancelled:
+		case StatusConfirmed, StatusAssignedArtist, StatusInProgress, StatusCompleted, StatusCancelled:
 			return true
 		}
 	}
 	if role == "ARTIST" {
-		if from == StatusConfirmed && to == StatusInProgress {
+		if (from == StatusConfirmed || from == StatusAssignedArtist) && to == StatusInProgress {
 			return true
 		}
 		if from == StatusInProgress && to == StatusCompleted {
@@ -119,3 +173,4 @@ func canTransition(role string, from, to OrderStatus) bool {
 	}
 	return false
 }
+

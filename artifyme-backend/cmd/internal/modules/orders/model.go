@@ -9,12 +9,22 @@ import (
 type OrderStatus string
 
 const (
-	StatusPlaced     OrderStatus = "PLACED"
-	StatusConfirmed  OrderStatus = "CONFIRMED"
-	StatusInProgress OrderStatus = "IN_PROGRESS"
-	StatusCompleted  OrderStatus = "COMPLETED"
-	StatusCancelled  OrderStatus = "CANCELLED"
+	StatusPlaced         OrderStatus = "PLACED"
+	StatusConfirmed      OrderStatus = "CONFIRMED"
+	StatusAssignedArtist OrderStatus = "ASSIGNED_ARTIST"
+	StatusInProgress     OrderStatus = "IN_PROGRESS"
+	StatusCompleted      OrderStatus = "COMPLETED"
+	StatusCancelled      OrderStatus = "CANCELLED"
 )
+
+type VerifiedArtist struct {
+	ArtistID        uuid.UUID `json:"artist_id"`
+	FullName        string    `json:"full_name"`
+	Email           string    `json:"email"`
+	ExperienceYears int       `json:"experience_years"`
+	Bio             string    `json:"bio"`
+}
+
 
 type PaintingCategory string
 type PaintingSize string

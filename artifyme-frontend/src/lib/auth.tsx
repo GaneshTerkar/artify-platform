@@ -18,7 +18,7 @@ type User = {
 type AuthContextValue = {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
   register: (payload: RegisterPayload) => Promise<void>;
   logout: () => void;
 };
@@ -56,9 +56,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ email, password }),
       });
       persist(res.Token, res.User);
+      return res.User;
     },
     [persist],
   );
+
 
   const register = useCallback(
     async (payload: RegisterPayload) => {

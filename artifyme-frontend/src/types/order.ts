@@ -11,6 +11,8 @@ export type Product = {
 
 export type Order = {
   order_id: string;
+  user_id?: string;
+  artist_id?: string;
   status: string;
   lifecycle_label: string;
   painting_category: string;
@@ -21,6 +23,25 @@ export type Order = {
   total_price: number;
   customer_notes?: string;
   final_image_url?: string;
+  created_at: string;
+  updated_at?: string;
+};
+
+export type VerifiedArtist = {
+  artist_id: string;
+  full_name: string;
+  email: string;
+  experience_years: number;
+  bio: string;
+};
+
+export type ArtistReviewItem = {
+  artist_id: string;
+  full_name: string;
+  user_name: string;
+  bio: string;
+  experience_years: number;
+  paintings_count: number;
   created_at: string;
 };
 
@@ -35,4 +56,5 @@ export type Painting = {
   artist_name?: string;
   source?: string;
 };
+
 

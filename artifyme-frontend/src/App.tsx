@@ -1,6 +1,7 @@
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./lib/auth";
 import AccountPage from "./pages/AccountPage";
+import AdminPage from "./pages/AdminPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import OrderSuccessPage from "./pages/OrderSuccessPage";
@@ -27,6 +28,14 @@ function Shell({ children }: { children: React.ReactNode }) {
           </Link>
           {user ? (
             <>
+              {user.role === "ADMIN" && (
+                <Link
+                  to="/admin"
+                  className="rounded-lg bg-amber-500/20 border border-amber-500/50 px-3 py-1 text-amber-300 font-semibold hover:bg-amber-500 hover:text-black transition flex items-center gap-1"
+                >
+                  <span>🛡️</span> Admin Portal
+                </Link>
+              )}
               <Link to="/account" className="text-slate-300 hover:text-white transition">
                 Orders
               </Link>
@@ -56,6 +65,13 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user, token } = useAuth();
+  if (!token) return <Navigate to="/login" replace />;
+  if (user?.role !== "ADMIN") return <Navigate to="/" replace />;
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <Shell>
@@ -80,7 +96,16 @@ export default function App() {
             </PrivateRoute>
           }
         />
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminPage />
+            </AdminRoute>
+          }
+        />
       </Routes>
     </Shell>
   );
 }
+

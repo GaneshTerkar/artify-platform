@@ -17,11 +17,16 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     try {
-      await login(email, password);
-      navigate(redirectTarget);
+      const user = await login(email, password);
+      if (user.role === "ADMIN") {
+        navigate("/admin");
+      } else {
+        navigate(redirectTarget);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     }
+
   }
 
   return (

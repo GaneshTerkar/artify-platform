@@ -284,15 +284,29 @@ stateDiagram-v2
 
 ## 10. Admin Order & Artist Management
 
-### 10.1 Artist Verification
+### 10.1 Admin Portal Web Application (`/admin`)
+The platform includes a dedicated **Admin Dashboard** ([`AdminPage.tsx`](file:///d:/ArtifyMe/artify-platform/artifyme-frontend/src/pages/AdminPage.tsx)) accessible to users with the `ADMIN` role:
+- **Automatic Navigation**: Logging in with an admin account (`ganesh@example.com`) automatically directs the user to `/admin`.
+- **Admin Navigation Badge**: A prominent `🛡️ Admin Portal` pill appears in the top navigation bar when authenticated as an Admin.
+- **Route Guarding**: Protected by `<AdminRoute>`, redirecting unauthenticated or non-admin users to `/`.
+- **Top Stats Bar**: Real-time counters for total platform orders, pending artist review queue items, and verified artists.
+
+### 10.2 Artist Review & Verification
 - **Endpoint**: `GET /api/admin/artists/review-queue` (requires `ADMIN` role).
 - Admins review pending artist submissions, inspecting uploaded portfolio samples and bios.
-- **Approval**: `POST /api/admin/verify-artist/:id` sets review state to `ACTIVE`.
-- **Rejection**: `POST /api/admin/reject-artist/:id` sets review state to `REJECTED` with feedback.
+- **Approval**: `POST /api/admin/verify-artist/:id` sets review state to `ACTIVE` and verified status to `true`.
+- **Rejection**: `POST /api/admin/reject-artist/:id` sets review state to `REJECTED` with mandatory constructive feedback.
 
-### 10.2 Order Management
-- **Endpoint**: `GET /api/v1/admin/orders` &mdash; Lists all orders across all customers with filtering.
-- **Endpoint**: `PATCH /api/v1/admin/orders/:id/status` &mdash; Updates order status and assigns artist.
+### 10.3 Order Management & Assignment
+- **Endpoint**: `GET /api/v1/admin/orders` &mdash; Lists all orders across all customers with status filtering (`ALL`, `PLACED`, `CONFIRMED`, `ASSIGNED_ARTIST`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`).
+- **Assign to Verified Artist**: One-click dropdown modal selecting from verified artists (`GET /api/v1/artists/verified`) and assigning via `POST /api/v1/orders/:id/assign`.
+- **Status Lifecycle Control**:
+  - `Confirm Order`: Transitions `PLACED` &rarr; `CONFIRMED`.
+  - `Start Drawing`: Transitions `CONFIRMED`/`ASSIGNED_ARTIST` &rarr; `IN_PROGRESS`.
+  - `Complete & Publish`: Submits `final_image_url` and transitions order to `COMPLETED`, **automatically publishing the artwork to the public gallery**.
+  - `Cancel Order`: Transitions order to `CANCELLED`.
+- **Audit Logging**: Every status transition automatically writes a record into `order_status_logs`.
+
 - Status update logs an entry into the `order_status_logs` audit table.
 
 ---

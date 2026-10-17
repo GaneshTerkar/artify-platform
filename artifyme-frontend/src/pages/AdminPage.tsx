@@ -19,6 +19,23 @@ export default function AdminPage() {
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
 
+  const STATUS_PRIORITY: Record<string, number> = {
+    PLACED: 1,
+    CONFIRMED: 2,
+    ASSIGNED_ARTIST: 3,
+    IN_PROGRESS: 4,
+    COMPLETED: 5,
+    PUBLISHED: 6,
+    CANCELLED: 7,
+  };
+
+  function getOrderLifecycleStatus(order: Order): string {
+    if (order.status === "COMPLETED" && order.is_published_to_gallery) {
+      return "PUBLISHED";
+    }
+    return order.status;
+  }
+
   // Modal states
   const [assigningOrder, setAssigningOrder] = useState<Order | null>(null);
   const [selectedArtistId, setSelectedArtistId] = useState<string>("");
@@ -59,7 +76,13 @@ export default function AdminPage() {
   const filteredOrders = useMemo(() => {
     return allOrders.filter((o) => {
       // 1. Status Filter
-      if (statusFilter !== "ALL" && o.status !== statusFilter) return false;
+      if (statusFilter === "PUBLISHED") {
+        if (o.status !== "COMPLETED" || !o.is_published_to_gallery) return false;
+      } else if (statusFilter === "COMPLETED") {
+        if (o.status !== "COMPLETED" || o.is_published_to_gallery) return false;
+      } else if (statusFilter !== "ALL" && o.status !== statusFilter) {
+        return false;
+      }
       // 2. Artist Filter
       if (artistFilter === "ASSIGNED" && !o.artist_id) return false;
       if (artistFilter === "UNASSIGNED" && Boolean(o.artist_id)) return false;
@@ -84,6 +107,34 @@ export default function AdminPage() {
       return true;
     });
   }, [allOrders, statusFilter, artistFilter, artworkFilter, inspectionFilter]);
+
+  const sortedOrders = useMemo(() => {
+    return [...filteredOrders].sort((a, b) => {
+      const statusA = getOrderLifecycleStatus(a);
+      const statusB = getOrderLifecycleStatus(b);
+      const priorityA = STATUS_PRIORITY[statusA] ?? 99;
+      const priorityB = STATUS_PRIORITY[statusB] ?? 99;
+
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+
+      const timeA = new Date(a.created_at || 0).getTime();
+      const timeB = new Date(b.created_at || 0).getTime();
+      return timeB - timeA;
+    });
+  }, [filteredOrders]);
+
+  const STATUS_PILLS = [
+    { id: "ALL", label: "ALL", count: allOrders.length },
+    { id: "PLACED", label: "PLACED", count: statusCounts["PLACED"] || 0 },
+    { id: "CONFIRMED", label: "CONFIRMED", count: statusCounts["CONFIRMED"] || 0 },
+    { id: "ASSIGNED_ARTIST", label: "ASSIGNED ARTIST", count: statusCounts["ASSIGNED_ARTIST"] || 0 },
+    { id: "IN_PROGRESS", label: "IN PROGRESS", count: statusCounts["IN_PROGRESS"] || 0 },
+    { id: "COMPLETED", label: "COMPLETED", count: needsInspectionCount },
+    { id: "PUBLISHED", label: "PUBLISHED", count: inspectedCount },
+    { id: "CANCELLED", label: "CANCELLED", count: statusCounts["CANCELLED"] || 0 },
+  ] as const;
 
   // 2. Fetch Artists in Review Queue
   const { data: reviewQueue, isLoading: queueLoading } = useQuery({
@@ -178,8 +229,10 @@ export default function AdminPage() {
 
   function getStatusBadge(status: string) {
     switch (status) {
+      case "PUBLISHED":
+        return "bg-emerald-500/20 text-emerald-300 border-emerald-500/40";
       case "COMPLETED":
-        return "bg-emerald-500/20 text-emerald-400 border-emerald-500/40";
+        return "bg-cyan-500/20 text-cyan-300 border-cyan-500/40";
       case "IN_PROGRESS":
         return "bg-blue-500/20 text-blue-400 border-blue-500/40";
       case "ASSIGNED_ARTIST":
@@ -287,68 +340,42 @@ export default function AdminPage() {
           {/* Filters Bar */}
           <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
             {/* Status Filter Pills */}
-            {/* Status Filter Pills (Aligned on a single line with neutral active state) */}
+            {/* Status Filter Pills (Aligned on single line in lifecycle sequence) */}
             <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-              {(["ALL", "PLACED", "CONFIRMED", "ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED", "CANCELLED"] as const).map(
-                (status) => {
-                  const count = statusCounts[status] || 0;
-                  const isActive = statusFilter === status && inspectionFilter === "ALL";
-                  return (
-                    <button
-                      key={status}
-                      onClick={() => {
-                        setStatusFilter(status);
+              {STATUS_PILLS.map((pill) => {
+                const isActive = statusFilter === pill.id;
+                return (
+                  <button
+                    key={pill.id}
+                    onClick={() => {
+                      setStatusFilter(pill.id);
+                      if (pill.id === "PUBLISHED") {
+                        setInspectionFilter("INSPECTED");
+                      } else if (pill.id === "COMPLETED") {
+                        setInspectionFilter("NEEDS_INSPECTION");
+                      } else {
                         setInspectionFilter("ALL");
-                      }}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition ${
+                      }
+                    }}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition ${
+                      isActive
+                        ? "bg-slate-700 text-white font-semibold border border-slate-500 shadow-sm"
+                        : "bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white"
+                    }`}
+                  >
+                    <span>{pill.label}</span>
+                    <span
+                      className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
                         isActive
-                          ? "bg-slate-700 text-white font-semibold border border-slate-500 shadow-sm"
-                          : "bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white"
+                          ? "bg-slate-900 text-white"
+                          : "bg-slate-700 text-slate-300"
                       }`}
                     >
-                      <span>{status === "ALL" ? "ALL" : status.replace("_", " ")}</span>
-                      <span
-                        className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
-                          isActive
-                            ? "bg-slate-900 text-white"
-                            : "bg-slate-700 text-slate-300"
-                        }`}
-                      >
-                        {count}
-                      </span>
-                    </button>
-                  );
-                }
-              )}
-
-              {/* Dedicated Quick Action Pill: INSPECT ORDER (Aligned on single line) */}
-              <button
-                onClick={() => {
-                  if (inspectionFilter === "NEEDS_INSPECTION") {
-                    setInspectionFilter("ALL");
-                  } else {
-                    setStatusFilter("COMPLETED");
-                    setInspectionFilter("NEEDS_INSPECTION");
-                  }
-                }}
-                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition ${
-                  inspectionFilter === "NEEDS_INSPECTION"
-                    ? "bg-amber-500 text-slate-950 font-bold shadow-md ring-2 ring-amber-400/60"
-                    : "bg-amber-500/10 border border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
-                }`}
-                title="Filter completed orders that need to be inspected before gallery publishing"
-              >
-                <span>INSPECT ORDER</span>
-                <span
-                  className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
-                    inspectionFilter === "NEEDS_INSPECTION"
-                      ? "bg-slate-950 text-amber-300"
-                      : "bg-amber-500/30 text-amber-200"
-                  }`}
-                >
-                  {needsInspectionCount}
-                </span>
-              </button>
+                      {pill.count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             {/* Secondary Filters: Artist, Artwork, and Inspection Status */}
@@ -360,14 +387,18 @@ export default function AdminPage() {
                   onChange={(e) => {
                     const val = e.target.value as "ALL" | "NEEDS_INSPECTION" | "INSPECTED";
                     setInspectionFilter(val);
-                    if (val !== "ALL") {
+                    if (val === "NEEDS_INSPECTION") {
                       setStatusFilter("COMPLETED");
+                    } else if (val === "INSPECTED") {
+                      setStatusFilter("PUBLISHED");
+                    } else if (statusFilter === "PUBLISHED" || statusFilter === "COMPLETED") {
+                      setStatusFilter("ALL");
                     }
                   }}
                   className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
                 >
                   <option value="ALL">All Inspection Statuses</option>
-                  <option value="NEEDS_INSPECTION">INSPECT ORDER ({needsInspectionCount})</option>
+                  <option value="NEEDS_INSPECTION">Awaiting Inspection ({needsInspectionCount})</option>
                   <option value="INSPECTED">✓ Published to Gallery ({inspectedCount})</option>
                 </select>
               </div>
@@ -419,7 +450,7 @@ export default function AdminPage() {
               )}
 
               <span className="text-slate-400 text-xs ml-auto">
-                Showing <strong className="text-white">{filteredOrders.length}</strong> of{" "}
+                Showing <strong className="text-white">{sortedOrders.length}</strong> of{" "}
                 <strong className="text-white">{allOrders.length}</strong> orders
               </span>
             </div>
@@ -427,7 +458,7 @@ export default function AdminPage() {
 
           {ordersLoading ? (
             <p className="text-center py-12 text-slate-400 text-sm">Loading orders...</p>
-          ) : filteredOrders.length === 0 ? (
+          ) : sortedOrders.length === 0 ? (
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center space-y-3">
               <p className="text-slate-300 font-medium">No orders match the selected filters.</p>
               <p className="text-xs text-slate-500">
@@ -438,6 +469,7 @@ export default function AdminPage() {
                   setStatusFilter("ALL");
                   setArtistFilter("ALL");
                   setArtworkFilter("ALL");
+                  setInspectionFilter("ALL");
                 }}
                 className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition"
               >
@@ -446,54 +478,68 @@ export default function AdminPage() {
             </div>
           ) : (
             <div className="grid gap-4">
-              {filteredOrders.map((o) => {
+              {sortedOrders.map((o, index) => {
+                const displayStatus = getOrderLifecycleStatus(o);
+                const prevStatus = index > 0 ? getOrderLifecycleStatus(sortedOrders[index - 1]) : null;
+                const isFirstOfStatus = prevStatus !== displayStatus;
                 const assignedArtist = verifiedArtists.find((a) => a.artist_id === o.artist_id);
                 return (
-                  <div
-                    key={o.order_id}
-                    className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg flex flex-col md:flex-row gap-5 items-start justify-between"
-                  >
-                    {/* Left: Thumbnail & Core Details */}
-                    <div className="flex gap-4 items-start w-full md:w-auto">
-                      {/* Left: Thumbnail Preview (Reference image until published, except when waiting for admin inspection) */}
-                      {o.status === "COMPLETED" && (o.collage_image_url || o.final_image_url) ? (
-                        <CollageThumbnail
-                          sizeClass="w-20 aspect-[4/5] sm:w-24 sm:aspect-[4/5]"
-                          finalImageUrl={resolveImage(o.original_final_image_url || o.final_image_url!)}
-                          refImageUrl={o.reference_image_url ? resolveImage(o.reference_image_url) : undefined}
-                          collageImageUrl={o.collage_image_url ? resolveImage(o.collage_image_url) : undefined}
-                          onClick={() => setInspectingOrder(o)}
-                          badgeText={o.is_published_to_gallery ? "Published" : "To Inspect"}
-                        />
-                      ) : (
-                        <div
-                          onClick={() => setSelectedPhoto(resolveImage(o.reference_image_url || "/uploads/customer_ref_photo.jpg"))}
-                          className="relative w-20 aspect-[4/5] sm:w-24 sm:aspect-[4/5] rounded-xl overflow-hidden bg-slate-800 flex-shrink-0 cursor-pointer border border-slate-700 group shadow"
-                          title="Click to view full reference photo"
+                  <div key={o.order_id} className="space-y-3">
+                    {statusFilter === "ALL" && isFirstOfStatus && (
+                      <div className={`flex items-center gap-3 ${index > 0 ? "pt-5" : "pt-1"} pb-1`}>
+                        <span
+                          className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${getStatusBadge(
+                            displayStatus
+                          )}`}
                         >
-                          <img
-                            src={resolveImage(o.reference_image_url || "/uploads/customer_ref_photo.jpg")}
-                            alt="Customer Reference"
-                            className="w-full h-full object-cover group-hover:scale-105 transition"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).src = `${API_URL}/uploads/customer_ref_photo.jpg`;
-                            }}
+                          {displayStatus.replace("_", " ")}
+                        </span>
+                        <div className="h-px bg-slate-800/80 flex-1" />
+                      </div>
+                    )}
+                    <div
+                      className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg flex flex-col md:flex-row gap-5 items-start justify-between"
+                    >
+                      {/* Left: Thumbnail & Core Details */}
+                      <div className="flex gap-4 items-start w-full md:w-auto">
+                        {/* Left: Thumbnail Preview (Reference image until published, except when waiting for admin inspection) */}
+                        {o.status === "COMPLETED" && (o.collage_image_url || o.final_image_url) ? (
+                          <CollageThumbnail
+                            sizeClass="w-20 aspect-[4/5] sm:w-24 sm:aspect-[4/5]"
+                            finalImageUrl={resolveImage(o.original_final_image_url || o.final_image_url!)}
+                            refImageUrl={o.reference_image_url ? resolveImage(o.reference_image_url) : undefined}
+                            collageImageUrl={o.collage_image_url ? resolveImage(o.collage_image_url) : undefined}
+                            onClick={() => setInspectingOrder(o)}
                           />
-                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs font-semibold text-white">
-                            View Ref
-                          </div>
-                        </div>
-                      )}
-
-                      <div className="space-y-1.5 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span
-                            className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getStatusBadge(
-                              o.status
-                            )}`}
+                        ) : (
+                          <div
+                            onClick={() => setSelectedPhoto(resolveImage(o.reference_image_url || "/uploads/customer_ref_photo.jpg"))}
+                            className="relative w-20 aspect-[4/5] sm:w-24 sm:aspect-[4/5] rounded-xl overflow-hidden bg-slate-800 flex-shrink-0 cursor-pointer border border-slate-700 group shadow"
+                            title="Click to view full reference photo"
                           >
-                            {o.status.replace("_", " ")}
-                          </span>
+                            <img
+                              src={resolveImage(o.reference_image_url || "/uploads/customer_ref_photo.jpg")}
+                              alt="Customer Reference"
+                              className="w-full h-full object-cover group-hover:scale-105 transition"
+                              onError={(e) => {
+                                (e.currentTarget as HTMLImageElement).src = `${API_URL}/uploads/customer_ref_photo.jpg`;
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs font-semibold text-white">
+                              View Ref
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="space-y-1.5 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getStatusBadge(
+                                displayStatus
+                              )}`}
+                            >
+                              {displayStatus.replace("_", " ")}
+                            </span>
                           <span className="rounded-md bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-300">
                             {o.painting_category}
                           </span>
@@ -533,25 +579,17 @@ export default function AdminPage() {
                             </span>
                           </div>
                         )}
-
-                        {o.is_published_to_gallery && (
-                          <div className="pt-1">
-                            <span className="inline-flex items-center gap-1.5 rounded-md bg-purple-500/10 border border-purple-500/30 px-2.5 py-1 text-xs text-purple-300 font-medium">
-                              <span>✦</span> Inspected & Published to Public Gallery
-                            </span>
-                          </div>
-                        )}
                       </div>
                     </div>
 
                     {/* Right: Actions Bar */}
-                    <div className="flex flex-wrap md:flex-col items-stretch md:items-end gap-2 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-slate-800">
+                    <div className="flex flex-wrap md:flex-col items-stretch md:items-end gap-2 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-slate-800 flex-shrink-0">
                       {/* 1. If PLACED (Unconfirmed / Unpaid): Only allow Confirming Order (Cancel is customer-initiated only) */}
                       {o.status === "PLACED" && (
                         <button
                           onClick={() => statusMutation.mutate({ orderId: o.order_id, status: "CONFIRMED" })}
                           disabled={statusMutation.isPending}
-                          className="rounded-lg bg-amber-500 hover:bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-black transition flex items-center justify-center gap-1 shadow-sm"
+                          className="rounded-lg bg-amber-500 hover:bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-black transition flex items-center justify-center gap-1 shadow-sm whitespace-nowrap flex-shrink-0"
                         >
                           <span>✓</span> Confirm Order
                         </button>
@@ -564,7 +602,7 @@ export default function AdminPage() {
                             setAssigningOrder(o);
                             setSelectedArtistId("");
                           }}
-                          className="rounded-lg bg-brand hover:bg-brand/90 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm"
+                          className="rounded-lg bg-brand hover:bg-brand/90 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
                         >
                           <span>👤</span> Assign Artist
                         </button>
@@ -574,14 +612,14 @@ export default function AdminPage() {
 
                       {/* 4. If IN_PROGRESS: Artist is actively drawing */}
 
-                      {/* 5. If COMPLETED: Show ONLY Inspect Artwork button when awaiting inspection */}
+                      {/* 5. If COMPLETED: Show ONLY Inspect & Publish button when awaiting inspection */}
                       {o.status === "COMPLETED" && !o.is_published_to_gallery && o.final_image_url && (
                         <button
                           onClick={() => setInspectingOrder(o)}
-                          className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 px-3.5 py-1.5 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm"
-                          title="Inspect finished artwork"
+                          className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 px-3.5 py-1.5 text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
+                          title="Inspect finished artwork and publish to gallery"
                         >
-                          <span>👁️</span> Inspect Artwork
+                          <span>👁️</span> Inspect & Publish
                         </button>
                       )}
 
@@ -593,7 +631,8 @@ export default function AdminPage() {
                       )}
                     </div>
                   </div>
-                );
+                </div>
+              );
               })}
             </div>
           )}

@@ -17,15 +17,15 @@ export const CollageThumbnail: React.FC<CollageThumbnailProps> = ({
   onClick,
   className = "",
   sizeClass = "w-20 aspect-[4/5] sm:w-24 sm:aspect-[4/5]",
-  badgeText = "Collage",
+  badgeText,
 }) => {
-  const isAwaitingInspection = badgeText === "To Inspect" || badgeText === "Needs Inspection";
+  const isAwaitingInspection = Boolean(badgeText && (badgeText === "To Inspect" || badgeText === "Needs Inspection"));
   const badgeBg = isAwaitingInspection
     ? "bg-amber-600/90 text-amber-100"
     : "bg-emerald-600/90 text-white";
   const borderClass = isAwaitingInspection
     ? "border-amber-500/50"
-    : "border-emerald-500/50";
+    : "border-slate-700";
   const hoverText = isAwaitingInspection ? "Inspect" : "View";
 
   // If server-generated collage exists, render the composite directly
@@ -47,9 +47,11 @@ export const CollageThumbnail: React.FC<CollageThumbnailProps> = ({
             }
           }}
         />
-        <div className={`absolute top-1 right-1 ${badgeBg} text-[9px] font-bold px-1.5 py-0.5 rounded shadow`}>
-          {badgeText}
-        </div>
+        {badgeText && (
+          <div className={`absolute top-1 right-1 ${badgeBg} text-[9px] font-bold px-1.5 py-0.5 rounded shadow`}>
+            {badgeText}
+          </div>
+        )}
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs font-semibold text-white">
           {hoverText}
         </div>
@@ -89,9 +91,11 @@ export const CollageThumbnail: React.FC<CollageThumbnailProps> = ({
         </div>
       )}
 
-      <div className={`absolute top-1 right-1 ${badgeBg} text-[9px] font-bold px-1.5 py-0.5 rounded shadow`}>
-        {badgeText}
-      </div>
+      {badgeText && (
+        <div className={`absolute top-1 right-1 ${badgeBg} text-[9px] font-bold px-1.5 py-0.5 rounded shadow`}>
+          {badgeText}
+        </div>
+      )}
 
       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs font-semibold text-white z-20">
         {hoverText}

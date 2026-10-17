@@ -1,6 +1,9 @@
 package routes
 
 import (
+	"net/http"
+	"strings"
+
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/config"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/middleware"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/modules/artists"
@@ -14,14 +17,30 @@ import (
 
 func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config) {
 	// ======================
-	// Health Check
+	// Root & Health Check
 	// ======================
+	r.GET("/", func(c *gin.Context) {
+		accept := c.GetHeader("Accept")
+		if strings.Contains(accept, "text/html") {
+			c.Redirect(http.StatusTemporaryRedirect, "/swagger/index.html")
+			return
+		}
+		c.JSON(200, gin.H{
+			"service":      "ArtifyMe Backend API",
+			"status":       "running",
+			"swagger_docs": "/swagger/index.html",
+			"health":       "/health",
+			"frontend_url": "http://localhost:5173",
+		})
+	})
+
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 	r.GET("/healthz", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+
 
 	// ======================
 	// AUTH SETUP

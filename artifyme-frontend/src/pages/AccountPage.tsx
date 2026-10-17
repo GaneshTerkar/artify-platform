@@ -1,9 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
+import { useAuth } from "../lib/auth";
 import type { Order } from "../types/order";
 
 export default function AccountPage() {
+  const { user } = useAuth();
   const { data, isLoading, error } = useQuery({
     queryKey: ["my-orders"],
     queryFn: () => api<{ orders: Order[] }>("/api/v1/orders"),
@@ -18,9 +20,15 @@ export default function AccountPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Your orders</h1>
-        <Link to="/order" className="text-sm text-brand">
-          New order
-        </Link>
+        {user?.role === "ADMIN" ? (
+          <Link to="/admin" className="text-sm text-amber-400 hover:underline">
+            Go to Admin Portal →
+          </Link>
+        ) : (
+          <Link to="/order" className="text-sm text-brand">
+            New order
+          </Link>
+        )}
       </div>
       {orders.length === 0 ? (
         <p className="text-slate-400">No orders yet.</p>

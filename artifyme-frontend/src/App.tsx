@@ -20,12 +20,14 @@ function Shell({ children }: { children: React.ReactNode }) {
           <Link to="/" className="text-slate-300 hover:text-white transition">
             Gallery
           </Link>
-          <Link
-            to="/order"
-            className="rounded-lg bg-brand/15 border border-brand/40 px-3 py-1.5 text-brand font-medium hover:bg-brand hover:text-white transition"
-          >
-            Order Sketch
-          </Link>
+          {user?.role !== "ADMIN" && (
+            <Link
+              to="/order"
+              className="rounded-lg bg-brand/15 border border-brand/40 px-3 py-1.5 text-brand font-medium hover:bg-brand hover:text-white transition"
+            >
+              Order Sketch
+            </Link>
+          )}
           {user ? (
             <>
               {user.role === "ADMIN" && (
@@ -65,6 +67,13 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function CustomerRoute({ children }: { children: React.ReactNode }) {
+  const { user, token } = useAuth();
+  if (!token) return <Navigate to="/login" replace />;
+  if (user?.role === "ADMIN") return <Navigate to="/admin" replace />;
+  return <>{children}</>;
+}
+
 function AdminRoute({ children }: { children: React.ReactNode }) {
   const { user, token } = useAuth();
   if (!token) return <Navigate to="/login" replace />;
@@ -82,9 +91,9 @@ export default function App() {
         <Route
           path="/order"
           element={
-            <PrivateRoute>
+            <CustomerRoute>
               <OrderWizardPage />
-            </PrivateRoute>
+            </CustomerRoute>
           }
         />
         <Route path="/order/success" element={<OrderSuccessPage />} />

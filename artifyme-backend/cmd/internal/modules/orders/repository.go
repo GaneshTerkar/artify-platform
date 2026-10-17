@@ -305,47 +305,59 @@ func (r *Repository) ListGalleryPaintings(ctx context.Context, category string) 
 
 	query := `
 		SELECT 
-			id,
-			title,
-			category,
-			description,
-			image_url,
-			artist_name,
-			source,
-			created_at
+			g.id,
+			g.title,
+			g.category,
+			g.description,
+			g.image_url,
+			g.artist_name,
+			g.source,
+			g.created_at
 		FROM (
-			SELECT 
-				ap.painting_id::text AS id,
-				ap.title AS title,
-				ap.category::text AS category,
-				COALESCE(ap.description, '') AS description,
-				ap.image_url AS image_url,
-				COALESCE(u.full_name, 'Ganesh Terkar') AS artist_name,
-				'SHOWCASE' AS source,
-				COALESCE(ap.created_at, NOW()) AS created_at
-			FROM artist_paintings ap
-			INNER JOIN artist_profiles apf ON ap.artist_id = apf.artist_id
-			LEFT JOIN users u ON ap.artist_id = u.user_id
-			WHERE apf.verified = TRUE
+			SELECT DISTINCT ON (sub.image_url)
+				sub.id,
+				sub.title,
+				sub.category,
+				sub.description,
+				sub.image_url,
+				sub.artist_name,
+				sub.source,
+				sub.created_at
+			FROM (
+				SELECT 
+					o.order_id::text AS id,
+					CONCAT('Commissioned ', INITCAP(o.painting_category::text), ' Portrait') AS title,
+					o.painting_category::text AS category,
+					COALESCE(NULLIF(o.customer_notes, ''), 'Custom commissioned artwork completed for customer.') AS description,
+					o.final_image_url AS image_url,
+					COALESCE(u.full_name, 'Ganesh Artist') AS artist_name,
+					'COMPLETED_ORDER' AS source,
+					COALESCE(o.updated_at, o.created_at, NOW()) AS created_at
+				FROM orders o
+				INNER JOIN artist_profiles ap ON o.artist_id = ap.artist_id
+				LEFT JOIN users u ON o.artist_id = u.user_id
+				WHERE o.status = 'COMPLETED' 
+				  AND o.final_image_url IS NOT NULL 
+				  AND TRIM(o.final_image_url) != ''
+				  AND ap.verified = TRUE
 
-			UNION ALL
+				UNION ALL
 
-			SELECT 
-				o.order_id::text AS id,
-				CONCAT('Commissioned ', INITCAP(o.painting_category::text), ' Portrait') AS title,
-				o.painting_category::text AS category,
-				COALESCE(NULLIF(o.customer_notes, ''), 'Custom commissioned artwork completed for customer.') AS description,
-				o.final_image_url AS image_url,
-				COALESCE(u.full_name, 'ArtifyMe Artist') AS artist_name,
-				'COMPLETED_ORDER' AS source,
-				COALESCE(o.updated_at, o.created_at, NOW()) AS created_at
-			FROM orders o
-			INNER JOIN artist_profiles ap ON o.artist_id = ap.artist_id
-			LEFT JOIN users u ON o.artist_id = u.user_id
-			WHERE o.status = 'COMPLETED' 
-			  AND o.final_image_url IS NOT NULL 
-			  AND TRIM(o.final_image_url) != ''
-			  AND ap.verified = TRUE
+				SELECT 
+					ap.painting_id::text AS id,
+					ap.title AS title,
+					ap.category::text AS category,
+					COALESCE(ap.description, '') AS description,
+					ap.image_url AS image_url,
+					COALESCE(u.full_name, 'Ganesh Artist') AS artist_name,
+					'SHOWCASE' AS source,
+					COALESCE(ap.created_at, NOW()) AS created_at
+				FROM artist_paintings ap
+				INNER JOIN artist_profiles apf ON ap.artist_id = apf.artist_id
+				LEFT JOIN users u ON ap.artist_id = u.user_id
+				WHERE apf.verified = TRUE
+			) sub
+			ORDER BY sub.image_url, sub.source ASC, sub.created_at DESC
 		) g
 		WHERE ($1::text IS NULL OR g.category = $1)
 		ORDER BY g.created_at DESC;

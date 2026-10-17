@@ -68,12 +68,21 @@ export default function HomePage() {
             detailed pencil sketches to rich oil paintings—and order your personalized sketch today.
           </p>
           <div className="flex flex-wrap gap-3 pt-2">
-            <Link
-              to="/order"
-              className="rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/30 hover:opacity-90 transition"
-            >
-              Order Custom Sketch
-            </Link>
+            {user?.role === "ADMIN" ? (
+              <Link
+                to="/admin"
+                className="rounded-xl bg-amber-500 px-6 py-3 text-sm font-semibold text-black shadow-lg shadow-amber-500/30 hover:opacity-90 transition flex items-center gap-2"
+              >
+                <span>🛡️</span> Open Admin Portal
+              </Link>
+            ) : (
+              <Link
+                to="/order"
+                className="rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/30 hover:opacity-90 transition"
+              >
+                Order Custom Sketch
+              </Link>
+            )}
             <a
               href="#gallery"
               className="rounded-xl border border-slate-600 bg-slate-800/60 px-5 py-3 text-sm font-medium text-slate-200 hover:bg-slate-700/60 transition"
@@ -212,16 +221,25 @@ export default function HomePage() {
                       View Preview
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => handleOrderClick(painting)}
-                      className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:opacity-90 transition"
-                    >
-                      <span>Order in {painting.category}</span>
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                      </svg>
-                    </button>
+                    {user?.role === "ADMIN" ? (
+                      <Link
+                        to="/admin"
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500/20 border border-amber-500/40 px-3.5 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500 hover:text-black transition"
+                      >
+                        <span>🛡️ Admin Portal</span>
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleOrderClick(painting)}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-brand px-3.5 py-2 text-xs font-semibold text-white shadow-sm hover:opacity-90 transition"
+                      >
+                        <span>Order in {painting.category}</span>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -358,17 +376,27 @@ export default function HomePage() {
                 <p className="text-xs text-slate-400 mt-1.5 max-w-md">{selectedPainting.description}</p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  const p = selectedPainting;
-                  setSelectedPainting(null);
-                  handleOrderClick(p);
-                }}
-                className="w-full sm:w-auto shrink-0 rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-brand/30 hover:opacity-90 transition"
-              >
-                Order in this Style
-              </button>
+              {user?.role === "ADMIN" ? (
+                <Link
+                  to="/admin"
+                  onClick={() => setSelectedPainting(null)}
+                  className="w-full sm:w-auto shrink-0 rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-black shadow-md shadow-amber-500/30 hover:opacity-90 transition text-center flex items-center justify-center gap-1.5"
+                >
+                  <span>🛡️</span> Manage in Admin Portal
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const p = selectedPainting;
+                    setSelectedPainting(null);
+                    handleOrderClick(p);
+                  }}
+                  className="w-full sm:w-auto shrink-0 rounded-xl bg-brand px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-brand/30 hover:opacity-90 transition"
+                >
+                  Order in this Style
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -19,9 +19,6 @@ export default function AdminPage() {
   const [assigningOrder, setAssigningOrder] = useState<Order | null>(null);
   const [selectedArtistId, setSelectedArtistId] = useState<string>("");
 
-  const [completingOrder, setCompletingOrder] = useState<Order | null>(null);
-  const [finalImageUrl, setFinalImageUrl] = useState<string>("");
-
   const [rejectingArtist, setRejectingArtist] = useState<ArtistReviewItem | null>(null);
   const [rejectReason, setRejectReason] = useState<string>("");
 
@@ -108,9 +105,7 @@ export default function AdminPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_orders"] });
       queryClient.invalidateQueries({ queryKey: ["paintings"] }); // updates public gallery!
-      setCompletingOrder(null);
-      setFinalImageUrl("");
-      showMessage("Order status updated! (If completed, published to public gallery)");
+      showMessage("Order status updated successfully!");
     },
     onError: (err: Error) => showMessage(err.message, "error"),
   });
@@ -514,16 +509,12 @@ export default function AdminPage() {
                         </>
                       )}
 
-                      {/* 3. If ASSIGNED_ARTIST: Artist is assigned, can Start Drawing or Reassign */}
+                      {/* 3. If ASSIGNED_ARTIST: Artist is assigned, awaiting artist to begin drawing */}
                       {o.status === "ASSIGNED_ARTIST" && (
                         <>
-                          <button
-                            onClick={() => statusMutation.mutate({ orderId: o.order_id, status: "IN_PROGRESS" })}
-                            disabled={statusMutation.isPending}
-                            className="rounded-lg bg-blue-600 hover:bg-blue-500 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1"
-                          >
-                            <span>🎨</span> Start Drawing
-                          </button>
+                          <span className="text-xs text-purple-300 bg-purple-950/60 border border-purple-500/40 rounded-lg px-2.5 py-1">
+                            ⏳ Assigned to {assignedArtist?.full_name || "Artist"} (Awaiting Start)
+                          </span>
                           <button
                             onClick={() => {
                               setAssigningOrder(o);
@@ -546,18 +537,12 @@ export default function AdminPage() {
                         </>
                       )}
 
-                      {/* 4. If IN_PROGRESS: Artist is hand-drawing, can Complete Artwork or Reassign */}
+                      {/* 4. If IN_PROGRESS: Artist is actively drawing (artist uploads final sketch upon completion) */}
                       {o.status === "IN_PROGRESS" && (
                         <>
-                          <button
-                            onClick={() => {
-                              setCompletingOrder(o);
-                              setFinalImageUrl(o.final_image_url || "");
-                            }}
-                            className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1 shadow-sm"
-                          >
-                            <span>✓</span> Complete & Upload Sketch
-                          </button>
+                          <span className="text-xs text-blue-300 bg-blue-950/60 border border-blue-500/40 rounded-lg px-2.5 py-1">
+                            🎨 Drawing actively in progress ({assignedArtist?.full_name || "Artist"})
+                          </span>
                           <button
                             onClick={() => {
                               setAssigningOrder(o);
@@ -764,53 +749,6 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* MODAL: COMPLETE ORDER & ATTACH FINAL ARTWORK */}
-      {completingOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-white">Complete & Publish Artwork</h3>
-            <p className="text-xs text-slate-400">
-              Provide the high-resolution final portrait image URL. Once completed, this artwork is{" "}
-              <strong className="text-brand">automatically published to the public gallery</strong>!
-            </p>
-
-            <label className="block space-y-1.5 text-xs text-slate-300">
-              <span>Final Painting Image URL or Path</span>
-              <input
-                type="text"
-                placeholder="/paintings/PhotoGrid_1580669157513.jpg or https://..."
-                value={finalImageUrl}
-                onChange={(e) => setFinalImageUrl(e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-white text-sm"
-              />
-            </label>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setCompletingOrder(null)}
-                className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!finalImageUrl.trim() || statusMutation.isPending}
-                onClick={() =>
-                  statusMutation.mutate({
-                    orderId: completingOrder.order_id,
-                    status: "COMPLETED",
-                    finalUrl: finalImageUrl.trim(),
-                  })
-                }
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-500 disabled:opacity-50"
-              >
-                {statusMutation.isPending ? "Completing..." : "Complete & Publish"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* MODAL: REJECT ARTIST */}
       {rejectingArtist && (

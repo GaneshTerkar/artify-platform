@@ -63,3 +63,5 @@ artifyme-frontend/.env.production
 # Uploads / Generated Media
 # =====================================
 uploads/
+**/uploads/
+artifyme-backend/uploads/

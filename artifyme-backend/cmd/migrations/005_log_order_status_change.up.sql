@@ -10,7 +10,7 @@ $$ BEGIN
 			changed_by,
 			note
 		) VALUES (
-			OLD.id,
+			OLD.order_id,
 			OLD.status,
 			NEW.status,
 			NEW.updated_by,

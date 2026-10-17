@@ -306,10 +306,29 @@ func GenerateCollage(ctx context.Context, orderID uuid.UUID, mainImageURL, refIm
 	}
 
 	// Fallback to local save if uploader is nil
-	localPath := filepath.Join("./uploads", filename)
+	localPath := resolveUploadFilePath(filename)
+	_ = os.MkdirAll(filepath.Dir(localPath), 0755)
 	if err := os.WriteFile(localPath, buf.Bytes(), 0644); err != nil {
 		return "", fmt.Errorf("failed to write local collage: %w", err)
 	}
 	localURL := fmt.Sprintf("%s/uploads/%s", strings.TrimRight(baseURL, "/"), filename)
 	return localURL, nil
+}
+
+func resolveUploadFilePath(filename string) string {
+	candidates := []string{
+		"./uploads",
+		"../uploads",
+		"../../uploads",
+		"../../../uploads",
+		"../../../../uploads",
+		"d:/ArtifyMe/artify-platform/artifyme-backend/uploads",
+	}
+	for _, dir := range candidates {
+		if fi, err := os.Stat(dir); err == nil && fi.IsDir() {
+			return filepath.Join(dir, filename)
+		}
+	}
+	_ = os.MkdirAll("./uploads", 0755)
+	return filepath.Join("./uploads", filename)
 }

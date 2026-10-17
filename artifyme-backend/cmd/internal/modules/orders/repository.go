@@ -184,6 +184,10 @@ func (r *Repository) UpdateStatus(ctx context.Context, orderID uuid.UUID, newSta
 			artist_id = COALESCE($3, artist_id),
 			final_image_url = COALESCE($4, final_image_url),
 			collage_image_url = COALESCE($5, collage_image_url),
+			original_final_image_url = CASE 
+				WHEN $2::order_status = 'COMPLETED' AND $4 IS NOT NULL AND $4 != '' THEN COALESCE(original_final_image_url, $4)
+				ELSE original_final_image_url 
+			END,
 			updated_at = NOW(),
 			updated_by = $6
 		WHERE order_id = $1

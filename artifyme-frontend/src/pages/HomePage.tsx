@@ -68,14 +68,7 @@ export default function HomePage() {
             detailed pencil sketches to rich oil paintings—and order your personalized sketch today.
           </p>
           <div className="flex flex-wrap gap-3 pt-2">
-            {user?.role === "ADMIN" ? (
-              <Link
-                to="/admin"
-                className="rounded-xl bg-amber-500 px-6 py-3 text-sm font-semibold text-black shadow-lg shadow-amber-500/30 hover:opacity-90 transition flex items-center gap-2"
-              >
-                <span>🛡️</span> Open Admin Portal
-              </Link>
-            ) : (
+            {user?.role !== "ADMIN" && (
               <Link
                 to="/order"
                 className="rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/30 hover:opacity-90 transition"
@@ -153,14 +146,7 @@ export default function HomePage() {
             <p className="text-xs text-slate-400 max-w-md mx-auto">
               Our verified artists have not published any gallery paintings yet. Custom commissioned orders completed by artists will appear here automatically.
             </p>
-            {user?.role === "ADMIN" ? (
-              <Link
-                to="/admin"
-                className="inline-block rounded-xl bg-amber-500 px-4 py-2 text-xs font-semibold text-black hover:opacity-90 transition"
-              >
-                Go to Admin Portal →
-              </Link>
-            ) : (
+            {user?.role !== "ADMIN" && (
               <Link
                 to="/order"
                 className="inline-block rounded-xl bg-brand px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition"
@@ -241,14 +227,7 @@ export default function HomePage() {
                       View Preview
                     </button>
 
-                    {user?.role === "ADMIN" ? (
-                      <Link
-                        to="/admin"
-                        className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500/20 border border-amber-500/40 px-3.5 py-2 text-xs font-semibold text-amber-300 hover:bg-amber-500 hover:text-black transition"
-                      >
-                        <span>🛡️ Admin Portal</span>
-                      </Link>
-                    ) : (
+                    {user?.role !== "ADMIN" && (
                       <button
                         type="button"
                         onClick={() => handleOrderClick(painting)}
@@ -392,15 +371,7 @@ export default function HomePage() {
                 <p className="text-xs text-slate-400 mt-1.5 max-w-md">{selectedPainting.description}</p>
               </div>
 
-              {user?.role === "ADMIN" ? (
-                <Link
-                  to="/admin"
-                  onClick={() => setSelectedPainting(null)}
-                  className="w-full sm:w-auto shrink-0 rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-semibold text-black shadow-md shadow-amber-500/30 hover:opacity-90 transition text-center flex items-center justify-center gap-1.5"
-                >
-                  <span>🛡️</span> Manage in Admin Portal
-                </Link>
-              ) : (
+              {user?.role !== "ADMIN" && (
                 <button
                   type="button"
                   onClick={() => {

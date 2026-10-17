@@ -14,12 +14,9 @@ function Shell({ children }: { children: React.ReactNode }) {
     <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 pb-12 pt-6">
       <header className="mb-8 flex items-center justify-between border-b border-slate-800 pb-4">
         <Link to="/" className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-          <span className="text-brand">✦</span> Artify
+          <span className="text-brand">✦</span> ArtifyMe
         </Link>
         <nav className="flex items-center gap-3 text-sm">
-          <Link to="/" className="text-slate-300 hover:text-white transition">
-            Gallery
-          </Link>
           {user?.role !== "ADMIN" && (
             <Link
               to="/order"
@@ -31,16 +28,26 @@ function Shell({ children }: { children: React.ReactNode }) {
           {user ? (
             <>
               {user.role === "ADMIN" && (
-                <Link
-                  to="/admin"
-                  className="rounded-lg bg-amber-500/20 border border-amber-500/50 px-3 py-1 text-amber-300 font-semibold hover:bg-amber-500 hover:text-black transition flex items-center gap-1"
-                >
-                  <span>🛡️</span> Admin Portal
+                <>
+                  <Link
+                    to="/admin?tab=orders"
+                    className="text-slate-300 hover:text-white transition"
+                  >
+                    Orders
+                  </Link>
+                  <Link
+                    to="/admin?tab=users"
+                    className="text-slate-300 hover:text-white transition"
+                  >
+                    Users
+                  </Link>
+                </>
+              )}
+              {user.role !== "ADMIN" && (
+                <Link to="/account" className="text-slate-300 hover:text-white transition">
+                  {user.role === "ARTIST" ? "🎨 My Commissions" : "Orders"}
                 </Link>
               )}
-              <Link to="/account" className="text-slate-300 hover:text-white transition">
-                {user.role === "ARTIST" ? "🎨 My Commissions" : "Orders"}
-              </Link>
               <button
                 type="button"
                 onClick={logout}

@@ -98,18 +98,14 @@ export default function AccountPage() {
         </div>
 
         <div>
-          {user?.role === "ADMIN" ? (
-            <Link to="/admin" className="text-sm text-amber-400 hover:underline">
-              Go to Admin Portal →
-            </Link>
-          ) : !isArtist ? (
+          {!isArtist && user?.role !== "ADMIN" && (
             <Link
               to="/order"
               className="rounded-xl bg-brand px-4 py-2 text-xs font-semibold text-white shadow-sm hover:opacity-90 transition"
             >
               + New Order
             </Link>
-          ) : null}
+          )}
         </div>
       </div>
 

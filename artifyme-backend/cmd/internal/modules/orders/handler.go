@@ -234,6 +234,16 @@ func (h *Handler) AdminListOrders(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"orders": out})
 }
 
+func (h *Handler) AdminListUsers(c *gin.Context) {
+	role := c.MustGet("role").(string)
+	users, err := h.service.ListAllUsers(c.Request.Context(), role)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"users": users})
+}
+
 func (h *Handler) AdminUpdateStatus(c *gin.Context) {
 	orderID, err := uuid.Parse(c.Param("id"))
 	if err != nil {

@@ -157,6 +157,7 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config) {
 		v1Admin.GET("/orders", orderHandler.AdminListOrders)
 		v1Admin.PATCH("/orders/:id/status", orderHandler.AdminUpdateStatus)
 		v1Admin.POST("/orders/:id/confirm-gallery", orderHandler.AdminConfirmGalleryPublish)
+		v1Admin.GET("/users", orderHandler.AdminListUsers)
 	}
 
 	r.POST("/webhooks/stripe", orderHandler.StripeWebhook)

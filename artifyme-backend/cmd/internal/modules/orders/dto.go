@@ -66,3 +66,20 @@ func toOrderDTO(o *Order) orderDTO {
 	}
 	return d
 }
+
+type UserItemDTO struct {
+	UserID              string    `json:"user_id"`
+	FullName            string    `json:"full_name"`
+	UserName            string    `json:"user_name"`
+	Email               string    `json:"email"`
+	Address             string    `json:"address"`
+	PhoneNumber         string    `json:"phone_number"`
+	Role                string    `json:"role"`
+	Status              string    `json:"status"`
+	IsVerifiedArtist    bool      `json:"is_verified_artist"`
+	ExperienceYears     int       `json:"experience_years"`
+	Bio                 string    `json:"bio"`
+	OrdersCount         int       `json:"orders_count"`
+	AssignedOrdersCount int       `json:"assigned_orders_count"`
+	CreatedAt           time.Time `json:"created_at"`
+}

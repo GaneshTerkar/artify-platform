@@ -60,4 +60,21 @@ export type Painting = {
   source?: string;
 };
 
+export type PlatformUser = {
+  user_id: string;
+  full_name: string;
+  user_name: string;
+  email: string;
+  address: string;
+  phone_number: string;
+  role: "CUSTOMER" | "ARTIST" | "ADMIN" | "DELIVERY_AGENT";
+  status: "ACTIVE" | "PENDING" | "SUSPENDED";
+  is_verified_artist: boolean;
+  experience_years: number;
+  bio: string;
+  orders_count: number;
+  assigned_orders_count: number;
+  created_at: string;
+};
+
 

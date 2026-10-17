@@ -1,8 +1,9 @@
 import { useState, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import type { Order, VerifiedArtist, ArtistReviewItem } from "../types/order";
+import type { Order, VerifiedArtist, ArtistReviewItem, PlatformUser } from "../types/order";
 import { CollageThumbnail } from "../components/CollageThumbnail";
 import { CollageArtworkModal } from "../components/CollageArtworkModal";
 
@@ -11,11 +12,19 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 export default function AdminPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState<"orders" | "artists" | "roster">("orders");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const activeTab: "orders" | "users" = tabParam === "users" ? "users" : "orders";
+
+  const handleTabChange = (tab: "orders" | "users") => {
+    setSearchParams({ tab });
+  };
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [artistFilter, setArtistFilter] = useState<string>("ALL");
   const [artworkFilter, setArtworkFilter] = useState<string>("ALL");
   const [inspectionFilter, setInspectionFilter] = useState<"ALL" | "NEEDS_INSPECTION" | "INSPECTED">("ALL");
+  const [userRoleFilter, setUserRoleFilter] = useState<"ALL" | "CUSTOMER" | "ARTIST" | "ADMIN" | "PENDING_REVIEW">("ALL");
+  const [userSearchQuery, setUserSearchQuery] = useState<string>("");
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
 
@@ -150,6 +159,52 @@ export default function AdminPage() {
   });
   const verifiedArtists = verifiedData?.verified_artists ?? [];
 
+  // 4. Fetch All Platform Users
+  const { data: usersData, isLoading: usersLoading } = useQuery({
+    queryKey: ["admin_users"],
+    queryFn: () => api<{ users: PlatformUser[] }>("/api/v1/admin/users"),
+  });
+  const allUsers = usersData?.users ?? [];
+
+  const userCounts = useMemo(() => {
+    const counts = {
+      ALL: allUsers.length,
+      CUSTOMER: 0,
+      ARTIST: 0,
+      ADMIN: 0,
+      PENDING_REVIEW: 0,
+    };
+    for (const u of allUsers) {
+      if (u.role === "CUSTOMER") counts.CUSTOMER++;
+      else if (u.role === "ARTIST") {
+        counts.ARTIST++;
+        if (!u.is_verified_artist) {
+          counts.PENDING_REVIEW++;
+        }
+      } else if (u.role === "ADMIN") counts.ADMIN++;
+    }
+    return counts;
+  }, [allUsers]);
+
+  const filteredUsers = useMemo(() => {
+    return allUsers.filter((u) => {
+      if (userRoleFilter === "CUSTOMER" && u.role !== "CUSTOMER") return false;
+      if (userRoleFilter === "ARTIST" && u.role !== "ARTIST") return false;
+      if (userRoleFilter === "ADMIN" && u.role !== "ADMIN") return false;
+      if (userRoleFilter === "PENDING_REVIEW" && (u.role !== "ARTIST" || u.is_verified_artist)) return false;
+
+      if (userSearchQuery.trim()) {
+        const q = userSearchQuery.toLowerCase();
+        const matchName = u.full_name?.toLowerCase().includes(q);
+        const matchEmail = u.email?.toLowerCase().includes(q);
+        const matchUser = u.user_name?.toLowerCase().includes(q);
+        const matchPhone = u.phone_number?.toLowerCase().includes(q);
+        if (!matchName && !matchEmail && !matchUser && !matchPhone) return false;
+      }
+      return true;
+    });
+  }, [allUsers, userRoleFilter, userSearchQuery]);
+
   // Mutations
   const assignMutation = useMutation({
     mutationFn: ({ orderId, artistId }: { orderId: string; artistId: string }) =>
@@ -202,6 +257,7 @@ export default function AdminPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_review_queue"] });
       queryClient.invalidateQueries({ queryKey: ["verified_artists"] });
+      queryClient.invalidateQueries({ queryKey: ["admin_users"] });
       showMessage("Artist verified & account activated successfully!");
     },
     onError: (err: Error) => showMessage(err.message, "error"),
@@ -215,6 +271,7 @@ export default function AdminPage() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_review_queue"] });
+      queryClient.invalidateQueries({ queryKey: ["admin_users"] });
       setRejectingArtist(null);
       setRejectReason("");
       showMessage("Artist rejected with feedback.");
@@ -252,9 +309,6 @@ export default function AdminPage() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border border-slate-700/60 p-6 shadow-xl">
         <div>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center rounded-md bg-amber-500/20 px-2.5 py-0.5 text-xs font-semibold text-amber-300 border border-amber-500/30">
-              Admin Portal
-            </span>
             <span className="text-xs text-slate-400">Authenticated as {user?.email}</span>
           </div>
           <h1 className="text-2xl font-bold text-white mt-1.5">Art Studio Operations & Control</h1>
@@ -263,20 +317,41 @@ export default function AdminPage() {
           </p>
         </div>
 
-        {/* Quick Stats */}
+        {/* Quick Stats & Tab Switchers */}
         <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-slate-800/80 border border-slate-700 px-4 py-2.5 text-center">
-            <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">Orders</p>
+          <button
+            type="button"
+            onClick={() => handleTabChange("orders")}
+            className={`rounded-xl px-5 py-2.5 text-center transition border cursor-pointer ${
+              activeTab === "orders"
+                ? "bg-slate-800 border-brand shadow-lg ring-1 ring-brand/50"
+                : "bg-slate-800/80 border-slate-700 hover:border-slate-500 hover:bg-slate-800"
+            }`}
+          >
+            <p className={`text-xs uppercase tracking-wider font-semibold ${
+              activeTab === "orders" ? "text-brand" : "text-slate-400"
+            }`}>
+              Orders
+            </p>
             <p className="text-xl font-bold text-white">{allOrders.length}</p>
-          </div>
-          <div className="rounded-xl bg-slate-800/80 border border-slate-700 px-4 py-2.5 text-center">
-            <p className="text-xs text-amber-400 uppercase tracking-wider font-semibold">In Review</p>
-            <p className="text-xl font-bold text-amber-300">{pendingArtists.length}</p>
-          </div>
-          <div className="rounded-xl bg-slate-800/80 border border-slate-700 px-4 py-2.5 text-center">
-            <p className="text-xs text-emerald-400 uppercase tracking-wider font-semibold">Artists</p>
-            <p className="text-xl font-bold text-emerald-300">{verifiedArtists.length}</p>
-          </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange("users")}
+            className={`rounded-xl px-5 py-2.5 text-center transition border cursor-pointer ${
+              activeTab === "users"
+                ? "bg-slate-800 border-brand shadow-lg ring-1 ring-brand/50"
+                : "bg-slate-800/80 border-slate-700 hover:border-slate-500 hover:bg-slate-800"
+            }`}
+          >
+            <p className={`text-xs uppercase tracking-wider font-semibold ${
+              activeTab === "users" ? "text-brand" : "text-emerald-400"
+            }`}>
+              Users
+            </p>
+            <p className="text-xl font-bold text-emerald-300">{allUsers.length}</p>
+          </button>
         </div>
       </div>
 
@@ -296,41 +371,31 @@ export default function AdminPage() {
       {/* Tabs */}
       <div className="flex border-b border-slate-800 text-sm font-medium">
         <button
-          onClick={() => setActiveTab("orders")}
+          onClick={() => handleTabChange("orders")}
           className={`pb-3 px-4 border-b-2 transition flex items-center gap-2 ${
             activeTab === "orders"
               ? "border-brand text-brand font-semibold"
               : "border-transparent text-slate-400 hover:text-white"
           }`}
         >
-          <span>📦 Customer Orders</span>
+          <span>📦 Orders</span>
           <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">{allOrders.length}</span>
         </button>
         <button
-          onClick={() => setActiveTab("artists")}
+          onClick={() => handleTabChange("users")}
           className={`pb-3 px-4 border-b-2 transition flex items-center gap-2 ${
-            activeTab === "artists"
+            activeTab === "users"
               ? "border-brand text-brand font-semibold"
               : "border-transparent text-slate-400 hover:text-white"
           }`}
         >
-          <span>🎨 Artist Review Queue</span>
-          {pendingArtists.length > 0 && (
-            <span className="rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 text-xs">
-              {pendingArtists.length}
+          <span>👥 Users</span>
+          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">{allUsers.length}</span>
+          {userCounts.PENDING_REVIEW > 0 && (
+            <span className="rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 text-[10px] font-semibold">
+              {userCounts.PENDING_REVIEW} in review
             </span>
           )}
-        </button>
-        <button
-          onClick={() => setActiveTab("roster")}
-          className={`pb-3 px-4 border-b-2 transition flex items-center gap-2 ${
-            activeTab === "roster"
-              ? "border-brand text-brand font-semibold"
-              : "border-transparent text-slate-400 hover:text-white"
-          }`}
-        >
-          <span>👥 Verified Artists Roster</span>
-          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">{verifiedArtists.length}</span>
         </button>
       </div>
 
@@ -639,113 +704,244 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* TAB 2: ARTIST REVIEW QUEUE */}
-      {activeTab === "artists" && (
+      {/* TAB 2: PLATFORM USERS MANAGEMENT */}
+      {activeTab === "users" && (
         <div className="space-y-6">
-          <div className="rounded-xl bg-slate-900/40 border border-slate-800 p-4">
-            <h2 className="text-base font-semibold text-white">Artist Review & Verification Queue</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Review artist profiles and quality portfolios. Once verified, artists can receive and fulfill customer portrait orders.
-            </p>
+          {/* Filters & Search Bar */}
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+            {/* Role Filter Pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+              {(
+                [
+                  { id: "ALL", label: "ALL", count: userCounts.ALL },
+                  { id: "CUSTOMER", label: "CUSTOMERS", count: userCounts.CUSTOMER },
+                  { id: "ARTIST", label: "ARTISTS", count: userCounts.ARTIST },
+                  { id: "ADMIN", label: "ADMINS", count: userCounts.ADMIN },
+                  { id: "PENDING_REVIEW", label: "PENDING REVIEW", count: userCounts.PENDING_REVIEW },
+                ] as const
+              ).map((pill) => {
+                const isActive = userRoleFilter === pill.id;
+                return (
+                  <button
+                    key={pill.id}
+                    onClick={() => setUserRoleFilter(pill.id)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition ${
+                      isActive
+                        ? "bg-slate-700 text-white font-semibold border border-slate-500 shadow-sm"
+                        : "bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white"
+                    }`}
+                  >
+                    <span>{pill.label}</span>
+                    <span
+                      className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                        isActive ? "bg-slate-900 text-white" : "bg-slate-700 text-slate-300"
+                      }`}
+                    >
+                      {pill.count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Search and Summary */}
+            <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-800/60 text-xs">
+              <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+                <span className="text-slate-400">🔍</span>
+                <input
+                  type="text"
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  placeholder="Search users by name, email, phone, username..."
+                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full max-w-md"
+                />
+                {userSearchQuery && (
+                  <button
+                    onClick={() => setUserSearchQuery("")}
+                    className="text-slate-400 hover:text-white text-xs underline"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              <span className="text-slate-400 text-xs ml-auto">
+                Showing <strong className="text-white">{filteredUsers.length}</strong> of{" "}
+                <strong className="text-white">{allUsers.length}</strong> users
+              </span>
+            </div>
           </div>
 
-          {queueLoading ? (
-            <p className="text-center py-12 text-slate-400 text-sm">Loading review queue...</p>
-          ) : pendingArtists.length === 0 ? (
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/30 p-12 text-center">
-              <span className="text-3xl">✨</span>
-              <p className="text-white font-medium mt-2">All artist applications reviewed!</p>
-              <p className="text-xs text-slate-400 mt-1">There are no pending artists waiting in the review queue.</p>
+          {/* Users List */}
+          {usersLoading ? (
+            <p className="text-center py-12 text-slate-400 text-sm">Loading platform users...</p>
+          ) : filteredUsers.length === 0 ? (
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center space-y-3">
+              <p className="text-slate-300 font-medium">No users found matching current filters.</p>
+              <button
+                onClick={() => {
+                  setUserRoleFilter("ALL");
+                  setUserSearchQuery("");
+                }}
+                className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition"
+              >
+                Reset Filters
+              </button>
             </div>
           ) : (
             <div className="grid gap-4">
-              {pendingArtists.map((artist) => (
-                <div
-                  key={artist.artist_id}
-                  className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg flex flex-col md:flex-row gap-5 items-start justify-between"
-                >
-                  <div className="space-y-2 flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-lg font-bold text-white">{artist.full_name}</h3>
-                      <span className="rounded bg-amber-500/20 text-amber-300 text-xs px-2 py-0.5 font-medium border border-amber-500/30">
-                        Pending Review
-                      </span>
-                      <span className="text-xs text-slate-400">@{artist.user_name}</span>
+              {filteredUsers.map((u) => {
+                const isArtist = u.role === "ARTIST";
+                const isPendingArtist = isArtist && !u.is_verified_artist;
+                const initials = u.full_name
+                  ? u.full_name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase()
+                  : "U";
+
+                return (
+                  <div
+                    key={u.user_id}
+                    className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg flex flex-col md:flex-row gap-5 items-start justify-between"
+                  >
+                    {/* Left: Avatar & Details */}
+                    <div className="flex gap-4 items-start w-full md:w-auto flex-1">
+                      {/* Avatar */}
+                      <div
+                        className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0 shadow border ${
+                          u.role === "ADMIN"
+                            ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                            : isArtist
+                            ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
+                            : "bg-blue-500/20 text-blue-300 border-blue-500/40"
+                        }`}
+                      >
+                        {initials}
+                      </div>
+
+                      {/* Content */}
+                      <div className="space-y-1.5 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-base font-bold text-white">{u.full_name}</h3>
+
+                          {/* Role Badge */}
+                          <span
+                            className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                              u.role === "ADMIN"
+                                ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                                : isArtist
+                                ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
+                                : "bg-blue-500/20 text-blue-300 border-blue-500/40"
+                            }`}
+                          >
+                            {u.role}
+                          </span>
+
+                          {/* Account Status Badge */}
+                          <span
+                            className={`rounded-full border px-2 py-0.2 text-[10px] font-semibold ${
+                              u.status === "ACTIVE"
+                                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/30"
+                                : u.status === "PENDING"
+                                ? "bg-amber-500/20 text-amber-300 border-amber-500/30"
+                                : "bg-rose-500/20 text-rose-300 border-rose-500/30"
+                            }`}
+                          >
+                            {u.status}
+                          </span>
+
+                          {/* Artist Verification Status */}
+                          {isArtist && (
+                            <span
+                              className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${
+                                u.is_verified_artist
+                                  ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                                  : "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                              }`}
+                            >
+                              {u.is_verified_artist ? "✓ Verified Artist" : "⏳ Pending Review"}
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Contact details */}
+                        <div className="text-xs text-slate-400 space-y-0.5">
+                          <p>
+                            <strong className="text-slate-300">Email:</strong> {u.email}
+                            {u.user_name && <span className="ml-2 text-slate-500">(@{u.user_name})</span>}
+                          </p>
+                          {u.phone_number && (
+                            <p>
+                              <strong className="text-slate-300">Phone:</strong> {u.phone_number}
+                            </p>
+                          )}
+                          {u.address && (
+                            <p>
+                              <strong className="text-slate-300">Address:</strong> {u.address}
+                            </p>
+                          )}
+
+                          {/* Role-specific statistics */}
+                          {u.role === "CUSTOMER" && (
+                            <p className="text-blue-300 font-medium pt-0.5">
+                              <span>📦</span> {u.orders_count} portrait order{u.orders_count === 1 ? "" : "s"} placed
+                            </p>
+                          )}
+
+                          {isArtist && (
+                            <div className="space-y-0.5 pt-0.5">
+                              <p className="text-purple-300 font-medium">
+                                <span>🎨</span> {u.assigned_orders_count} commission{u.assigned_orders_count === 1 ? "" : "s"} assigned •{" "}
+                                {u.experience_years} year{u.experience_years === 1 ? "" : "s"} experience
+                              </p>
+                              {u.bio && (
+                                <p className="italic text-slate-300 bg-slate-800/40 rounded-lg p-2.5 border border-slate-800 mt-1">
+                                  "{u.bio}"
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
 
-                    <p className="text-xs text-slate-300">
-                      <strong>Experience:</strong> {artist.experience_years} years •{" "}
-                      <strong>Submitted Artwork:</strong> {artist.paintings_count} paintings
-                    </p>
-
-                    {artist.bio && (
-                      <p className="text-xs text-slate-400 bg-slate-800/40 rounded-lg p-2.5 border border-slate-800 italic">
-                        "{artist.bio}"
-                      </p>
+                    {/* Right: Actions (for pending review artists) */}
+                    {isPendingArtist && (
+                      <div className="flex flex-wrap md:flex-col items-stretch md:items-end gap-2 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-slate-800 flex-shrink-0">
+                        <button
+                          onClick={() => verifyArtistMutation.mutate(u.user_id)}
+                          disabled={verifyArtistMutation.isPending}
+                          className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
+                        >
+                          <span>✓</span> {verifyArtistMutation.isPending ? "Approving..." : "Approve & Verify"}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setRejectingArtist({
+                              artist_id: u.user_id,
+                              full_name: u.full_name,
+                              user_name: u.user_name,
+                              bio: u.bio,
+                              experience_years: u.experience_years,
+                              paintings_count: 0,
+                              created_at: u.created_at,
+                            });
+                            setRejectReason("");
+                          }}
+                          className="rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-800/60 px-3.5 py-1.5 text-xs font-semibold text-rose-300 transition flex items-center justify-center gap-1 whitespace-nowrap flex-shrink-0"
+                        >
+                          <span>✕</span> Reject
+                        </button>
+                      </div>
                     )}
                   </div>
-
-                  <div className="flex items-center gap-2 w-full md:w-auto">
-                    <button
-                      onClick={() => verifyArtistMutation.mutate(artist.artist_id)}
-                      disabled={verifyArtistMutation.isPending}
-                      className="flex-1 md:flex-none rounded-lg bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-xs font-semibold text-white transition shadow"
-                    >
-                      {verifyArtistMutation.isPending ? "Approving..." : "Approve & Verify"}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setRejectingArtist(artist);
-                        setRejectReason("");
-                      }}
-                      className="flex-1 md:flex-none rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-800/60 px-4 py-2 text-xs font-semibold text-rose-300 transition"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
-        </div>
-      )}
-
-      {/* TAB 3: VERIFIED ARTISTS ROSTER */}
-      {activeTab === "roster" && (
-        <div className="space-y-6">
-          <div className="rounded-xl bg-slate-900/40 border border-slate-800 p-4">
-            <h2 className="text-base font-semibold text-white">Active Verified Artists Directory</h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              All active artists officially verified to work on customer portrait commissions.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {verifiedArtists.map((artist) => (
-              <div
-                key={artist.artist_id}
-                className="rounded-2xl border border-slate-800 bg-slate-900/50 p-5 space-y-2 shadow"
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-white text-base">{artist.full_name}</h3>
-                  <span className="rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-xs px-2.5 py-0.5 font-semibold">
-                    ✓ Verified
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400">
-                  <strong className="text-slate-300">Email:</strong> {artist.email}
-                </p>
-                <p className="text-xs text-slate-400">
-                  <strong className="text-slate-300">Experience:</strong> {artist.experience_years} years
-                </p>
-                {artist.bio && (
-                  <p className="text-xs text-slate-400 italic bg-slate-800/30 p-2 rounded border border-slate-800">
-                    "{artist.bio}"
-                  </p>
-                )}
-              </div>
-            ))}
-          </div>
         </div>
       )}
 

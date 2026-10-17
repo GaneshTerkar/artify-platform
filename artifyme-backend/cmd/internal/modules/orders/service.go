@@ -244,3 +244,10 @@ func (s *Service) ConfirmGalleryPublish(ctx context.Context, orderID, actorID uu
 	return s.repo.ConfirmGalleryPublish(ctx, orderID, actorID)
 }
 
+func (s *Service) ListAllUsers(ctx context.Context, role string) ([]UserItemDTO, error) {
+	if role != "ADMIN" {
+		return nil, ErrForbidden
+	}
+	return s.repo.ListAllUsers(ctx)
+}
+

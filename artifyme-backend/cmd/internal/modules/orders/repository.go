@@ -507,4 +507,61 @@ func (r *Repository) AssignArtist(ctx context.Context, orderID uuid.UUID, artist
 	`, orderID, artistID, string(newStatus), updatedBy))
 }
 
+func (r *Repository) ListAllUsers(ctx context.Context) ([]UserItemDTO, error) {
+	rows, err := r.pool.Query(ctx, `
+		SELECT 
+			u.user_id,
+			u.full_name,
+			COALESCE(u.user_name, ''),
+			u.email,
+			COALESCE(u.address, ''),
+			COALESCE(u.phone_number, ''),
+			u.role::text,
+			u.status::text,
+			COALESCE(ap.verified, FALSE),
+			COALESCE(ap.experience_years, 0),
+			COALESCE(ap.bio, ''),
+			(SELECT COUNT(*) FROM orders o WHERE o.user_id = u.user_id),
+			(SELECT COUNT(*) FROM orders o WHERE o.artist_id = u.user_id),
+			COALESCE(u.created_at, NOW())
+		FROM users u
+		LEFT JOIN artist_profiles ap ON u.user_id = ap.artist_id
+		ORDER BY u.created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var list []UserItemDTO
+	for rows.Next() {
+		var item UserItemDTO
+		var uid uuid.UUID
+		if err := rows.Scan(
+			&uid,
+			&item.FullName,
+			&item.UserName,
+			&item.Email,
+			&item.Address,
+			&item.PhoneNumber,
+			&item.Role,
+			&item.Status,
+			&item.IsVerifiedArtist,
+			&item.ExperienceYears,
+			&item.Bio,
+			&item.OrdersCount,
+			&item.AssignedOrdersCount,
+			&item.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		item.UserID = uid.String()
+		list = append(list, item)
+	}
+	if list == nil {
+		list = []UserItemDTO{}
+	}
+	return list, rows.Err()
+}
+
 

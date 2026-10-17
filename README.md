@@ -1,279 +1,191 @@
 # Artify Platform
 
-Portrait sketch ordering platform: **Go (Gin) API**, **React (Vite) web app**, **PostgreSQL**. Product requirements live in [docs/PRODUCT_BRIEF.md](docs/PRODUCT_BRIEF.md).
+[![Go Version](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![React Version](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react)](https://react.dev/)
+[![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=flat&logo=vite)](https://vitejs.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-38B2AC?style=flat&logo=tailwind-css)](https://tailwindcss.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16+-4169E1?style=flat&logo=postgresql)](https://www.postgresql.org/)
 
-## Quick start (local)
+Artify is a portrait sketch and painting ordering platform that connects customers with skilled portrait artists. Customers can explore a categorized gallery of authentic artwork, upload reference photos from their device, configure custom sketch orders (size, medium, number of faces), and track artwork progress from placement to completion.
+
+---
+
+## 🏗️ Repository Architecture
+
+This repository is structured as a full-stack monorepo:
+
+```
+artify-platform/
+├── artifyme-backend/       # Go (Gin) REST API backend
+│   ├── cmd/
+│   │   ├── internal/       # Config, db, logger, middleware, routes, and domain modules
+│   │   │   └── modules/    # artists, auth, files, orders, users
+│   │   ├── migrations/     # PostgreSQL SQL migrations (001 to 010)
+│   │   └── server/         # API server entrypoint (main.go)
+│   ├── docs/               # Swagger API specifications
+│   ├── Paintings/          # Authentic artist catalog images served at /paintings/
+│   ├── env.example         # Backend environment template
+│   └── README.md           # Dedicated backend documentation
+│
+├── artifyme-frontend/      # React (Vite + TypeScript + Tailwind CSS) web app
+│   ├── public/             # Static public assets (icons, manifest)
+│   ├── src/                # Components, pages, auth context, API client, types
+│   ├── env.example         # Frontend environment template
+│   └── README.md           # Dedicated frontend documentation
+│
+├── docker-compose.yml      # Local development container orchestration (PostgreSQL)
+├── docs/                   # Product requirements & architectural documentation
+│   └── PRODUCT_BRIEF.md
+├── .env.example            # Master environment configuration reference
+├── .gitignore              # Repository git ignore rules
+└── README.md               # Main project overview (this file)
+```
+
+---
+
+## ⚡ Quick Start (Local Development)
+
+### 1. Prerequisites
+- **Go** ≥ 1.21 (tested on Go 1.25)
+- **Node.js** ≥ 18 and **npm**
+- **Docker & Docker Compose** (or a local PostgreSQL 14+ instance)
+
+---
+
+### 2. Start PostgreSQL Database
+
+Start PostgreSQL via Docker Compose:
 
 ```bash
 docker compose up -d
-cp artifyme-backend/env.example artifyme-backend/.env
-# Edit JWT_SECRET if needed
+```
 
+> [!NOTE]
+> If you already have a local PostgreSQL service running on port `5432`, ensure database `artifyme` exists with appropriate credentials matching your `.env`.
+
+---
+
+### 3. Setup and Run the Backend
+
+```bash
 cd artifyme-backend
-go run cmd/server/main.go
 
-cd ../artifyme-frontend
-npm install
+# Create your local .env configuration
 cp env.example .env
+
+# Run the backend API server
+go run cmd/server/main.go
+```
+
+> [!TIP]
+> **Automatic Migrations**: The backend automatically connects to PostgreSQL and applies all pending SQL migrations (`001` through `010`) on startup. No manual migration CLI commands are required!
+
+The API will be live at:
+- **API Base**: `http://localhost:8080`
+- **Swagger Documentation**: `http://localhost:8080/swagger/index.html`
+- **Health Check**: `http://localhost:8080/health`
+
+---
+
+### 4. Setup and Run the Frontend
+
+Open a second terminal:
+
+```bash
+cd artifyme-frontend
+
+# Install dependencies
+npm install
+
+# Create frontend .env configuration
+cp env.example .env
+
+# Start Vite development server
 npm run dev
 ```
 
-- API: http://localhost:8080 (Swagger: `/swagger/index.html`)
-- App: http://localhost:5173
+> [!NOTE]
+> On **Windows PowerShell**, if execution policies restrict `npm`, run with `npm.cmd` (e.g. `npm.cmd run dev`).
+
+Open your browser at **`http://localhost:5173`**.
 
 ---
 
-## Backend setup guide
+## 🎨 Key Features & User Journey
 
-This section explains how to set up, run, and maintain the **Artify Platform backend**, including database migrations and common troubleshooting steps.
+1. **Dynamic Database-Driven Gallery**:
+   - Displays authentic paintings seeded directly into PostgreSQL (`artist_paintings`).
+   - Categorized by true artistic medium: **Pencil**, **Charcoal**, **Watercolor**, **Acrylic**, and **Oil**.
+   - Automatically incorporates newly completed customer orders into the public gallery.
+   - 1:1 square display preventing artwork and reference photo clipping.
 
-## 📁 Project Structure
+2. **Customer Photo Uploader**:
+   - Browse files directly from any phone, laptop, or desktop with drag-and-drop support.
+   - Client-side format (JPG, PNG, WebP) and size validation (up to 10MB).
+   - Dual-backend storage: persists to local disk (`./uploads`) or S3 / MinIO.
 
-```
-.env
-backend_setup_artify_platform.md
-go.mod
-go.sum
+3. **Multi-Step Custom Order Wizard**:
+   - Choose medium, dimensions (A4, A3, A2), and number of subjects/faces (1, 2, 3+).
+   - Dynamic pricing engine calculates live estimates.
+   - Add reference photos and special delivery/framing notes.
 
-cmd
-├── internal
-│   ├── config
-│   ├── db
-│   ├── errors
-│   ├── middleware
-│   ├── modules
-│   │   ├── artists
-│   │   ├── auth
-│   │   ├── files
-│   │   ├── notifications
-│   │   ├── orders
-│   │   └── users
-│   ├── routes
-│   └── utils
-│
-├── migrations
-│
-└── server
+4. **Guest Authentication Redirect**:
+   - Guests can browse artworks and categories freely.
+   - When a guest chooses to place an order, they are seamlessly guided to Log In or Register, preserving their selected medium and order intent.
 
----
-## 🧱 Prerequisites
-
-Ensure the following tools are installed:
-
-- **Go** ≥ 1.21
-- **PostgreSQL** ≥ 14
-- **golang-migrate CLI**
-
-### Install golang-migrate
-
-```bash
-go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-````
-
-Verify installation:
-
-```bash
-migrate -version
-```
+5. **Customer Dashboard & Tracking**:
+   - Real-time order status tracking: `PLACED` &rarr; `CONFIRMED` &rarr; `IN_PROGRESS` &rarr; `COMPLETED`.
+   - Access high-resolution completed artwork downloads upon delivery.
 
 ---
 
-## ⚙️ Environment Configuration
+## ⚙️ Environment Variables Reference
 
-Create a `.env` file in the project root:
+A single reference file is provided at [`.env.example`](.env.example).
 
-```env
-DB_HOST=host
-DB_PORT=port
-DB_NAME=database_name
-DB_USER=dbuser
-DB_PASSWORD=dbpassword
-DB_SSLMODE=disable
-```
+### Backend (`artifyme-backend/.env`)
+| Variable | Required | Default / Example | Purpose |
+| :--- | :---: | :--- | :--- |
+| `DATABASE_URL` | **Yes** | `postgres://postgres:root@localhost:5432/artifyme?sslmode=disable` | PostgreSQL connection URL |
+| `JWT_SECRET` | **Yes** | `change-me-in-production-use-long-random-string` | Secret key for signing auth tokens |
+| `PORT` | No | `8080` | HTTP port |
+| `APP_ENV` | No | `development` | `development` or `production` |
+| `CORS_ALLOWED_ORIGINS`| No | `http://localhost:5173` | Allowed frontend origins |
+| `MIGRATIONS_PATH` | No | `cmd/migrations` | Path to SQL migrations |
+| `STRIPE_SECRET_KEY` | No | `""` | Stripe secret key (mock checkout when empty)|
+| `S3_ENDPOINT` | No | `http://localhost:9000` | S3 / MinIO endpoint |
+| `S3_BUCKET` | No | `artify-uploads` | Storage bucket name |
 
-The database URL used by migrations:
-
-```
-postgres://dbuser:dbpassword@host:port/database_name?sslmode=disable
-```
-
----
-
-## 🗄️ Database Migrations
-
-All migration files are located in:
-
-```
-cmd/migrations
-```
-
-### Migration Naming Convention
-
-- Sequential numbering
-- 3 digits
-- Paired `up.sql` and `down.sql`
-
-Example:
-
-```
-003_remove_timestamp_defaults_and_triggers.up.sql
-003_remove_timestamp_defaults_and_triggers.down.sql
-```
+### Frontend (`artifyme-frontend/.env`)
+| Variable | Required | Default / Example | Purpose |
+| :--- | :---: | :--- | :--- |
+| `VITE_API_URL` | **Yes** | `http://localhost:8080` | Base URL of the Go backend |
 
 ---
 
-## ➕ Create a New Migration
+## 📡 API Overview
 
-Use **sequential mode** to match the existing convention:
+| Method | Endpoint | Access | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/health` | Public | Service health status |
+| `POST` | `/auth/register` | Public | Register customer or artist account |
+| `POST` | `/auth/login` | Public | Authenticate and obtain JWT |
+| `GET` | `/api/v1/paintings` | Public | Dynamic gallery paintings with category filtering |
+| `GET` | `/api/v1/products` | Public | Product catalog and base mediums |
+| `GET` | `/api/v1/products/price/estimate` | Public | Calculate order pricing based on specs |
+| `POST` | `/api/v1/upload` | User | Upload customer reference photo |
+| `POST` | `/api/v1/orders` | User | Create a new custom portrait order |
+| `GET` | `/api/v1/orders` | User | List orders for current authenticated user |
+| `POST` | `/api/v1/orders/:id/checkout` | User | Generate checkout session |
+| `GET` | `/api/v1/admin/orders` | Admin | Review all platform orders |
+| `PATCH` | `/api/v1/admin/orders/:id/status` | Admin | Update order lifecycle status |
 
-```bash
-migrate create -ext sql -seq -digits 3 \
-  -dir migrations_dir_path \
-  next_db_migration
-example:
-migrate create -ext sql -seq -digits 3 \
-  -dir D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migrations \
-  next_db_migration
-```
-
-This generates:
-
-```
-004_next_db_migration.up.sql
-004_next_db_migration.down.sql
-```
+For the full interactive API contract, visit **Swagger UI** at `/swagger/index.html`.
 
 ---
 
-## ▶️ Run Migrations
+## 📚 Further Reading
 
-### Apply All Migrations
-
-```bash
-migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" \
-  -path "migrations_dir_path" \
-  up
-example:
-migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
-  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migrations" \
-  up
-```
-
-### Check Migration Version
-
-```bash
-migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" \
-  -path "migrations_dir_path" \
-  version
-example:
-migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
-  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migrations" \
-  version
-```
-
----
-
-## ⬇️ Rollback Migrations
-
-Rollback the last migration:
-
-```bash
-migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" \
-  -path "migrations_dir_path" \
-  down 1
-example:
-migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
-  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migrations" \
-  down 1
-```
-
-Rollback **all** migrations:
-
-```bash
-migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" \
-  -path "migrations_dir_path" \
-  down -all
-example:
-migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
-  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migrations" \
-  down -all
-```
-
----
-
-## 💣 Drop Database (Development Only)
-
-⚠️ **Deletes all tables and migration history**
-
-```bash
-migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" \
-  -path "migrations_dir_path" \
-  drop -f
-example:
-migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
-  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migrations" \
-  drop -f
-```
-
----
-
-## 🧹 Dirty Migration Recovery
-
-If a migration fails, the database may enter a **dirty state**:
-
-```bash
-migrate ... version
-# Output: 1 (dirty)
-```
-
-Fix by forcing the version:
-
-```bash
-migrate -database "postgres://dbuser:password@host:port/dbname?sslmode=disable" \
-  -path "migrations_dir_path" \
-  force 1
-example:
-migrate -database "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable" \
-  -path "D:/ArtifyMe/artify-platform/artifyme-backend/cmd/migrations" \
-  force 1
-```
-
-Then re-run:
-
-```bash
-migrate ... up
-```
-
----
-
-## ⚠️ Common Migration Rules
-
-- Always create tables **before** altering them in later migrations
-- Avoid `CREATE TYPE` without `IF NOT EXISTS` unless guaranteed new DB
-- Do **not** modify old migration files once applied
-- Use new migrations for all schema changes
-
----
-
-## 🚀 Run the Backend Server
-
-From the backend root:
-
-```bash
-go run cmd/server/main.go
-```
-
-The API server will start using the configuration from `.env`.
-
----
-
-## ✅ Summary
-
-- Database schema is managed **only via migrations**
-- Sequential migration numbering is mandatory
-- `schema.sql` is for reference only
-- Always verify migration order and dependencies
-
----
-
-Happy building 🎨🚀
+- [Backend Documentation](artifyme-backend/README.md)
+- [Frontend Documentation](artifyme-frontend/README.md)
+- [Product Brief & Requirements](docs/PRODUCT_BRIEF.md)

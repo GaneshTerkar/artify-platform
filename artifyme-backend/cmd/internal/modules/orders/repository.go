@@ -355,6 +355,7 @@ func (r *Repository) ListGalleryPaintings(ctx context.Context, category string) 
 				WHERE o.status = 'COMPLETED' 
 				  AND o.final_image_url IS NOT NULL 
 				  AND TRIM(o.final_image_url) != ''
+				  AND (o.reference_image_url IS NULL OR o.final_image_url != o.reference_image_url)
 				  AND ap.verified = TRUE
 				  AND NOT EXISTS (
 				      SELECT 1 FROM artist_paintings ap2 

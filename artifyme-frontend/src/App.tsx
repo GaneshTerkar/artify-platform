@@ -13,8 +13,15 @@ function Shell({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 pb-12 pt-6">
       <header className="mb-8 flex items-center justify-between border-b border-slate-800 pb-4">
-        <Link to="/" className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-          <span className="text-brand">✦</span> ArtifyMe
+        <Link to="/" className="text-xl font-bold tracking-tight text-white flex items-center gap-2.5 group">
+          <img
+            src="/artifyme-icon.png"
+            alt="ArtifyMe"
+            className="w-8 h-8 rounded-full object-cover shadow-sm ring-1 ring-white/10 group-hover:scale-105 transition"
+          />
+          <span className="font-extrabold tracking-tight bg-gradient-to-r from-cyan-400 via-pink-400 to-amber-300 bg-clip-text text-transparent">
+            ArtifyMe
+          </span>
         </Link>
         <nav className="flex items-center gap-3 text-sm">
           {user?.role !== "ADMIN" && (

@@ -396,8 +396,8 @@ func (r *Repository) ListGalleryPaintings(ctx context.Context, category string) 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	if len(list) == 0 && (catParam == nil || *catParam == "") {
-		return FallbackGalleryPaintings(category), nil
+	if list == nil {
+		list = []PaintingItem{}
 	}
 	return list, nil
 }

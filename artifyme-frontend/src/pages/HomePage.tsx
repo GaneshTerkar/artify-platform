@@ -145,9 +145,36 @@ export default function HomePage() {
           </div>
         )}
 
+        {/* Empty State */}
+        {!isLoading && filteredPaintings.length === 0 && (
+          <div className="rounded-2xl border border-slate-800 bg-brand-muted p-12 text-center space-y-3">
+            <div className="text-4xl">🎨</div>
+            <h3 className="text-lg font-bold text-white">No Artworks in Gallery Yet</h3>
+            <p className="text-xs text-slate-400 max-w-md mx-auto">
+              Our verified artists have not published any gallery paintings yet. Custom commissioned orders completed by artists will appear here automatically.
+            </p>
+            {user?.role === "ADMIN" ? (
+              <Link
+                to="/admin"
+                className="inline-block rounded-xl bg-amber-500 px-4 py-2 text-xs font-semibold text-black hover:opacity-90 transition"
+              >
+                Go to Admin Portal →
+              </Link>
+            ) : (
+              <Link
+                to="/order"
+                className="inline-block rounded-xl bg-brand px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition"
+              >
+                Order a Custom Portrait →
+              </Link>
+            )}
+          </div>
+        )}
+
         {/* Paintings Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredPaintings.map((painting) => {
+        {!isLoading && filteredPaintings.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredPaintings.map((painting) => {
             // Support both direct public folder and API domain fallback
             const imageSrc = painting.image_url.startsWith("http")
               ? painting.image_url
@@ -239,7 +266,8 @@ export default function HomePage() {
             );
           })}
         </div>
-      </section>
+      )}
+    </section>
 
       {/* Customer Auth Choice Modal (when unauthenticated customer clicks Order) */}
       {authPromptPainting && (

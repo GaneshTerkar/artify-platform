@@ -37,6 +37,7 @@ type Order struct {
 	PaintingCategory  PaintingCategory
 	ReferenceImageURL string
 	FinalImageURL     *string
+	CollageImageURL   *string
 	Size              PaintingSize
 	PersonsIncluded   PersonIncluded
 	Status            OrderStatus

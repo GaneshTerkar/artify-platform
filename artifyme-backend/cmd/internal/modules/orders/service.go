@@ -4,16 +4,23 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"github.com/google/uuid"
 )
 
 type Service struct {
-	repo *Repository
+	repo     *Repository
+	uploader FileUploader
+	baseURL  string
 }
 
-func NewService(repo *Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo *Repository, uploader FileUploader, baseURL string) *Service {
+	return &Service{
+		repo:     repo,
+		uploader: uploader,
+		baseURL:  baseURL,
+	}
 }
 
 func (s *Service) ListGalleryPaintings(ctx context.Context, category string) ([]PaintingItem, error) {
@@ -78,9 +85,19 @@ func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actor
 		}
 	}
 
+	var collageURL *string
 	if newStatus == StatusCompleted {
 		if finalURL == nil || *finalURL == "" {
 			return nil, errors.New("a final sketch image URL or upload is required to complete the order")
+		}
+
+		if o.ReferenceImageURL != "" {
+			cURL, err := GenerateCollage(ctx, orderID, *finalURL, o.ReferenceImageURL, s.uploader, s.baseURL)
+			if err != nil {
+				slog.Error("failed to generate artwork collage", "order_id", orderID, "error", err)
+			} else {
+				collageURL = &cURL
+			}
 		}
 	}
 
@@ -94,7 +111,7 @@ func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actor
 		}
 	}
 
-	return s.repo.UpdateStatus(ctx, orderID, newStatus, actorID, artistID, finalURL)
+	return s.repo.UpdateStatus(ctx, orderID, newStatus, actorID, artistID, finalURL, collageURL)
 }
 
 func (s *Service) AssignOrder(ctx context.Context, orderID uuid.UUID, actorID uuid.UUID, role string, targetArtistID uuid.UUID) (*Order, error) {
@@ -163,7 +180,7 @@ func (s *Service) ConfirmPaid(ctx context.Context, sessionID string, systemUserI
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.UpdateStatus(ctx, orderID, StatusConfirmed, systemUserID, nil, nil)
+	return s.repo.UpdateStatus(ctx, orderID, StatusConfirmed, systemUserID, nil, nil, nil)
 }
 
 func canTransition(role string, from, to OrderStatus) bool {

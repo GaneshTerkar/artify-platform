@@ -9,6 +9,7 @@ type orderDTO struct {
 	PaintingCategory  string    `json:"painting_category"`
 	ReferenceImageURL string    `json:"reference_image_url"`
 	FinalImageURL     *string   `json:"final_image_url,omitempty"`
+	CollageImageURL   *string   `json:"collage_image_url,omitempty"`
 	Size              string    `json:"size"`
 	PersonsIncluded   string    `json:"persons_included"`
 	Status            string    `json:"status"`
@@ -44,6 +45,7 @@ func toOrderDTO(o *Order) orderDTO {
 		PaintingCategory:  string(o.PaintingCategory),
 		ReferenceImageURL: o.ReferenceImageURL,
 		FinalImageURL:     o.FinalImageURL,
+		CollageImageURL:   o.CollageImageURL,
 		Size:              string(o.Size),
 		PersonsIncluded:   string(o.PersonsIncluded),
 		Status:            string(o.Status),

@@ -1,6 +1,7 @@
 package files
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -108,6 +109,44 @@ var allowedExtensions = map[string]bool{
 	".bmp":  true,
 }
 
+func (s *Service) UploadBytes(ctx context.Context, fileBytes []byte, filename string, contentType string, baseURL string) (string, error) {
+	sanitizedBase := strings.ReplaceAll(filepath.Base(filename), " ", "_")
+	localPath := filepath.Join(s.localDir, sanitizedBase)
+	if err := os.WriteFile(localPath, fileBytes, 0644); err != nil {
+		return "", fmt.Errorf("failed to save local file: %w", err)
+	}
+
+	s3Key := fmt.Sprintf("uploads/%s", sanitizedBase)
+	var s3Uploaded bool
+	if s.s3Client != nil && s.cfg.S3.Bucket != "" {
+		_, err := s.s3Client.PutObject(ctx, &s3.PutObjectInput{
+			Bucket:      aws.String(s.cfg.S3.Bucket),
+			Key:         aws.String(s3Key),
+			Body:        bytes.NewReader(fileBytes),
+			ContentType: aws.String(contentType),
+		})
+		if err == nil {
+			s3Uploaded = true
+			slog.Info("file successfully uploaded to S3/MinIO", "bucket", s.cfg.S3.Bucket, "key", s3Key)
+		} else {
+			slog.Warn("failed to upload to S3, fallback to local storage", "error", err)
+		}
+	}
+
+	var publicURL string
+	if s3Uploaded {
+		if s.cfg.S3.PublicDomain != "" {
+			publicURL = fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.S3.PublicDomain, "/"), s3Key)
+		} else {
+			publicURL = fmt.Sprintf("%s/%s/%s", strings.TrimRight(s.cfg.S3.Endpoint, "/"), s.cfg.S3.Bucket, s3Key)
+		}
+	} else {
+		publicURL = fmt.Sprintf("%s/uploads/%s", strings.TrimRight(baseURL, "/"), sanitizedBase)
+	}
+
+	return publicURL, nil
+}
+
 func (s *Service) UploadFile(ctx context.Context, fileHeader *multipart.FileHeader, baseURL string) (string, string, error) {
 	ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
 	if !allowedExtensions[ext] {
@@ -120,21 +159,7 @@ func (s *Service) UploadFile(ctx context.Context, fileHeader *multipart.FileHead
 	}
 	defer src.Close()
 
-	uniqueID := uuid.New().String()
-	sanitizedBase := strings.ReplaceAll(filepath.Base(fileHeader.Filename), " ", "_")
-	filename := fmt.Sprintf("%s_%s", uniqueID, sanitizedBase)
-	s3Key := fmt.Sprintf("uploads/%s", filename)
-
-	// Save locally as backup / static serving
-	localPath := filepath.Join(s.localDir, filename)
-	dst, err := os.Create(localPath)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to create local file: %w", err)
-	}
-	defer dst.Close()
-
-	tee := io.TeeReader(src, dst)
-	fileBytes, err := io.ReadAll(tee)
+	fileBytes, err := io.ReadAll(src)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to read file content: %w", err)
 	}
@@ -144,33 +169,13 @@ func (s *Service) UploadFile(ctx context.Context, fileHeader *multipart.FileHead
 		contentType = "image/" + strings.TrimPrefix(ext, ".")
 	}
 
-	// Upload to S3/MinIO if client is ready
-	var s3Uploaded bool
-	if s.s3Client != nil && s.cfg.S3.Bucket != "" {
-		_, err := s.s3Client.PutObject(ctx, &s3.PutObjectInput{
-			Bucket:      aws.String(s.cfg.S3.Bucket),
-			Key:         aws.String(s3Key),
-			Body:        strings.NewReader(string(fileBytes)),
-			ContentType: aws.String(contentType),
-		})
-		if err == nil {
-			s3Uploaded = true
-			slog.Info("file successfully uploaded to S3/MinIO", "bucket", s.cfg.S3.Bucket, "key", s3Key)
-		} else {
-			slog.Warn("failed to upload to S3, fallback to local storage", "error", err)
-		}
-	}
+	uniqueID := uuid.New().String()
+	sanitizedBase := strings.ReplaceAll(filepath.Base(fileHeader.Filename), " ", "_")
+	filename := fmt.Sprintf("%s_%s", uniqueID, sanitizedBase)
 
-	// Compute public URL
-	var publicURL string
-	if s3Uploaded {
-		if s.cfg.S3.PublicDomain != "" {
-			publicURL = fmt.Sprintf("%s/%s", strings.TrimRight(s.cfg.S3.PublicDomain, "/"), s3Key)
-		} else {
-			publicURL = fmt.Sprintf("%s/%s/%s", strings.TrimRight(s.cfg.S3.Endpoint, "/"), s.cfg.S3.Bucket, s3Key)
-		}
-	} else {
-		publicURL = fmt.Sprintf("%s/uploads/%s", strings.TrimRight(baseURL, "/"), filename)
+	publicURL, err := s.UploadBytes(ctx, fileBytes, filename, contentType, baseURL)
+	if err != nil {
+		return "", "", err
 	}
 
 	return publicURL, filename, nil

@@ -3,7 +3,6 @@ package orders
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -33,12 +32,7 @@ type CreateOrderInput struct {
 }
 
 func (r *Repository) Create(ctx context.Context, in CreateOrderInput) (*Order, error) {
-	var o Order
-	var artistID *uuid.UUID
-	var finalURL *string
-	var notes *string
-
-	err := r.pool.QueryRow(ctx, `
+	return r.scanOrder(r.pool.QueryRow(ctx, `
 		INSERT INTO orders (
 			user_id,
 			painting_category,
@@ -54,29 +48,18 @@ func (r *Repository) Create(ctx context.Context, in CreateOrderInput) (*Order, e
 		) VALUES ($1, $2::painting_category, $3, $4::painting_size, $5::person_included, $6, $7, 'PLACED', NOW(), NOW(), $1)
 		RETURNING
 			order_id, user_id, artist_id, painting_category::text, reference_image_url,
-			final_image_url, size::text, persons_included::text, status::text,
+			final_image_url, collage_image_url, size::text, persons_included::text, status::text,
 			delivery_address, total_price, customer_notes,
 			COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
 	`, in.UserID, in.PaintingCategory, in.ReferenceImageURL, in.Size, in.PersonsIncluded,
-		in.DeliveryAddress, in.CustomerNotes).Scan(
-		&o.OrderID, &o.UserID, &artistID, &o.PaintingCategory, &o.ReferenceImageURL,
-		&finalURL, &o.Size, &o.PersonsIncluded, &o.Status, &o.DeliveryAddress,
-		&o.TotalPrice, &notes, &o.CreatedAt, &o.UpdatedAt, &o.UpdatedBy,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("create order: %w", err)
-	}
-	o.ArtistID = artistID
-	o.FinalImageURL = finalURL
-	o.CustomerNotes = notes
-	return &o, nil
+		in.DeliveryAddress, in.CustomerNotes))
 }
 
 func (r *Repository) GetByID(ctx context.Context, orderID uuid.UUID) (*Order, error) {
 	return r.scanOrder(r.pool.QueryRow(ctx, `
 		SELECT
 			order_id, user_id, artist_id, painting_category::text, reference_image_url,
-			final_image_url, size::text, persons_included::text, status::text,
+			final_image_url, collage_image_url, size::text, persons_included::text, status::text,
 			delivery_address, total_price, customer_notes,
 			COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
 		FROM orders WHERE order_id = $1
@@ -87,7 +70,7 @@ func (r *Repository) ListByUser(ctx context.Context, userID uuid.UUID) ([]Order,
 	rows, err := r.pool.Query(ctx, `
 		SELECT
 			order_id, user_id, artist_id, painting_category::text, reference_image_url,
-			final_image_url, size::text, persons_included::text, status::text,
+			final_image_url, collage_image_url, size::text, persons_included::text, status::text,
 			delivery_address, total_price, customer_notes,
 			COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
 		FROM orders WHERE user_id = $1 OR artist_id = $1 ORDER BY created_at DESC
@@ -115,7 +98,7 @@ func (r *Repository) ListAll(ctx context.Context, status *string) ([]Order, erro
 		rows, err = r.pool.Query(ctx, `
 			SELECT
 				order_id, user_id, artist_id, painting_category::text, reference_image_url,
-				final_image_url, size::text, persons_included::text, status::text,
+				final_image_url, collage_image_url, size::text, persons_included::text, status::text,
 				delivery_address, total_price, customer_notes,
 				COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
 			FROM orders WHERE status = $1::order_status ORDER BY created_at DESC
@@ -124,7 +107,7 @@ func (r *Repository) ListAll(ctx context.Context, status *string) ([]Order, erro
 		rows, err = r.pool.Query(ctx, `
 			SELECT
 				order_id, user_id, artist_id, painting_category::text, reference_image_url,
-				final_image_url, size::text, persons_included::text, status::text,
+				final_image_url, collage_image_url, size::text, persons_included::text, status::text,
 				delivery_address, total_price, customer_notes,
 				COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
 			FROM orders ORDER BY created_at DESC
@@ -182,27 +165,38 @@ func (r *Repository) UpdateDraft(ctx context.Context, orderID, userID uuid.UUID,
 		WHERE order_id = $1 AND user_id = $2 AND status = 'PLACED'
 		RETURNING
 			order_id, user_id, artist_id, painting_category::text, reference_image_url,
-			final_image_url, size::text, persons_included::text, status::text,
+			final_image_url, collage_image_url, size::text, persons_included::text, status::text,
 			delivery_address, total_price, customer_notes,
 			COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
 	`, orderID, userID, category, size, persons, refURL, address, notes))
 }
 
-func (r *Repository) UpdateStatus(ctx context.Context, orderID uuid.UUID, newStatus OrderStatus, updatedBy uuid.UUID, artistID *uuid.UUID, finalURL *string) (*Order, error) {
+func (r *Repository) UpdateStatus(ctx context.Context, orderID uuid.UUID, newStatus OrderStatus, updatedBy uuid.UUID, artistID *uuid.UUID, finalURL *string, collageURL *string) (*Order, error) {
 	return r.scanOrder(r.pool.QueryRow(ctx, `
 		UPDATE orders SET
 			status = $2::order_status,
 			artist_id = COALESCE($3, artist_id),
 			final_image_url = COALESCE($4, final_image_url),
+			collage_image_url = COALESCE($5, collage_image_url),
 			updated_at = NOW(),
-			updated_by = $5
+			updated_by = $6
 		WHERE order_id = $1
 		RETURNING
 			order_id, user_id, artist_id, painting_category::text, reference_image_url,
-			final_image_url, size::text, persons_included::text, status::text,
+			final_image_url, collage_image_url, size::text, persons_included::text, status::text,
 			delivery_address, total_price, customer_notes,
 			COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
-	`, orderID, string(newStatus), artistID, finalURL, updatedBy))
+	`, orderID, string(newStatus), artistID, finalURL, collageURL, updatedBy))
+}
+
+func (r *Repository) UpdateCollageURL(ctx context.Context, orderID uuid.UUID, collageURL string) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE orders SET
+			collage_image_url = $2,
+			updated_at = NOW()
+		WHERE order_id = $1
+	`, orderID, collageURL)
+	return err
 }
 
 func (r *Repository) StatusHistory(ctx context.Context, orderID uuid.UUID) ([]StatusHistoryEntry, error) {
@@ -255,10 +249,11 @@ func (r *Repository) scanOrder(row pgx.Row) (*Order, error) {
 	var o Order
 	var artistID *uuid.UUID
 	var finalURL *string
+	var collageURL *string
 	var notes *string
 	err := row.Scan(
 		&o.OrderID, &o.UserID, &artistID, &o.PaintingCategory, &o.ReferenceImageURL,
-		&finalURL, &o.Size, &o.PersonsIncluded, &o.Status, &o.DeliveryAddress,
+		&finalURL, &collageURL, &o.Size, &o.PersonsIncluded, &o.Status, &o.DeliveryAddress,
 		&o.TotalPrice, &notes, &o.CreatedAt, &o.UpdatedAt, &o.UpdatedBy,
 	)
 	if err != nil {
@@ -269,6 +264,7 @@ func (r *Repository) scanOrder(row pgx.Row) (*Order, error) {
 	}
 	o.ArtistID = artistID
 	o.FinalImageURL = finalURL
+	o.CollageImageURL = collageURL
 	o.CustomerNotes = notes
 	return &o, nil
 }
@@ -281,10 +277,11 @@ func scanOrderRow(row scannable) (*Order, error) {
 	var o Order
 	var artistID *uuid.UUID
 	var finalURL *string
+	var collageURL *string
 	var notes *string
 	err := row.Scan(
 		&o.OrderID, &o.UserID, &artistID, &o.PaintingCategory, &o.ReferenceImageURL,
-		&finalURL, &o.Size, &o.PersonsIncluded, &o.Status, &o.DeliveryAddress,
+		&finalURL, &collageURL, &o.Size, &o.PersonsIncluded, &o.Status, &o.DeliveryAddress,
 		&o.TotalPrice, &notes, &o.CreatedAt, &o.UpdatedAt, &o.UpdatedBy,
 	)
 	if err != nil {
@@ -292,6 +289,7 @@ func scanOrderRow(row scannable) (*Order, error) {
 	}
 	o.ArtistID = artistID
 	o.FinalImageURL = finalURL
+	o.CollageImageURL = collageURL
 	o.CustomerNotes = notes
 	return &o, nil
 }
@@ -459,7 +457,7 @@ func (r *Repository) AssignArtist(ctx context.Context, orderID uuid.UUID, artist
 		WHERE order_id = $1
 		RETURNING
 			order_id, user_id, artist_id, painting_category::text, reference_image_url,
-			final_image_url, size::text, persons_included::text, status::text,
+			final_image_url, collage_image_url, size::text, persons_included::text, status::text,
 			delivery_address, total_price, customer_notes,
 			COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
 	`, orderID, artistID, string(newStatus), updatedBy))

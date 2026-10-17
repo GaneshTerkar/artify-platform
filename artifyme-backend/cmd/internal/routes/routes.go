@@ -112,12 +112,6 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config) {
 	r.GET("/artists/:id", artistHandler.GetPublicArtistProfile)
 
 	// ======================
-	// ORDERS / CATALOG (v1)
-	// ======================
-	orderRepo := orders.NewRepository(pool)
-	orderService := orders.NewService(orderRepo)
-	orderHandler := orders.NewHandler(orderService, cfg)
-
 	// ======================
 	// FILES / UPLOADS & PAINTINGS
 	// ======================
@@ -125,6 +119,14 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config) {
 	filesHandler := files.NewHandler(filesService)
 	r.Static("/uploads", "./uploads")
 	r.Static("/paintings", "./Paintings")
+
+	// ======================
+	// ORDERS / CATALOG (v1)
+	// ======================
+	baseURL := "http://localhost:" + cfg.App.Port
+	orderRepo := orders.NewRepository(pool)
+	orderService := orders.NewService(orderRepo, filesService, baseURL)
+	orderHandler := orders.NewHandler(orderService, cfg)
 
 	v1 := r.Group("/api/v1")
 	{

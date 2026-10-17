@@ -23,6 +23,7 @@ export type Order = {
   total_price: number;
   customer_notes?: string;
   final_image_url?: string;
+  collage_image_url?: string;
   created_at: string;
   updated_at?: string;
 };

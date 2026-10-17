@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import { api, API_URL } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import PhotoUploader from "../components/PhotoUploader";
+import { CollageThumbnail } from "../components/CollageThumbnail";
+import { CollageArtworkModal } from "../components/CollageArtworkModal";
 import type { Order } from "../types/order";
 
 export default function AccountPage() {
@@ -12,6 +14,7 @@ export default function AccountPage() {
   const isArtist = user?.role === "ARTIST";
 
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
   const [completingOrder, setCompletingOrder] = useState<Order | null>(null);
   const [finalImageUrl, setFinalImageUrl] = useState<string>("");
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
@@ -48,9 +51,9 @@ export default function AccountPage() {
     },
   });
 
-  function resolveImage(url: string) {
+  function resolveImage(url?: string) {
     if (!url) return "";
-    return url.startsWith("http") ? url : `${API_URL}${url}`;
+    return url.startsWith("http") ? url : `${API_URL}${url.startsWith("/") ? "" : "/"}${url}`;
   }
 
   if (isLoading) return <p className="text-slate-400 py-8 text-center">Loading orders…</p>;
@@ -216,17 +219,17 @@ export default function AccountPage() {
 
                     {hasFinal && (
                       <div>
-                        <p className="text-[10px] uppercase font-bold text-emerald-400 mb-1">Final Sketch</p>
-                        <div
-                          onClick={() => setSelectedPhoto(resolveImage(o.final_image_url!))}
-                          className="h-20 w-20 rounded-xl overflow-hidden border border-emerald-600/70 bg-slate-900 cursor-pointer hover:border-emerald-400 transition"
-                        >
-                          <img
-                            src={resolveImage(o.final_image_url!)}
-                            alt="Final Artwork"
-                            className="h-full w-full object-cover"
-                          />
-                        </div>
+                        <p className="text-[10px] uppercase font-bold text-emerald-400 mb-1">
+                          {o.collage_image_url ? "Artwork Collage" : "Final Artwork"}
+                        </p>
+                        <CollageThumbnail
+                          sizeClass="h-20 w-20"
+                          finalImageUrl={resolveImage(o.final_image_url!)}
+                          refImageUrl={o.reference_image_url ? resolveImage(o.reference_image_url) : undefined}
+                          collageImageUrl={o.collage_image_url ? resolveImage(o.collage_image_url) : undefined}
+                          onClick={() => setInspectingOrder(o)}
+                          badgeText={o.collage_image_url ? "Collage" : "Artwork"}
+                        />
                       </div>
                     )}
                   </div>
@@ -303,19 +306,19 @@ export default function AccountPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => setSelectedPhoto(resolveImage(o.final_image_url!))}
-                          className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition inline-flex items-center gap-1 shadow-sm"
+                          onClick={() => setInspectingOrder(o)}
+                          className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-white transition inline-flex items-center gap-1.5 shadow-sm"
                         >
-                          <span>👁️</span> Preview Sketch
+                          <span>👁️</span> Preview Sketch & Collage
                         </button>
                         <a
-                          href={resolveImage(o.final_image_url)}
+                          href={o.collage_image_url ? resolveImage(o.collage_image_url) : resolveImage(o.final_image_url)}
                           target="_blank"
                           rel="noreferrer"
-                          download
+                          download={`artifyme_${o.collage_image_url ? "collage" : "sketch"}_${o.order_id.slice(0, 8)}.jpg`}
                           className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 transition inline-flex items-center gap-1"
                         >
-                          <span>↓</span> Download
+                          <span>↓</span> Download {o.collage_image_url ? "Collage" : "Artwork"}
                         </a>
                       </div>
                     )}
@@ -377,6 +380,20 @@ export default function AccountPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* COLLAGE ARTWORK MODAL */}
+      {inspectingOrder && inspectingOrder.final_image_url && (
+        <CollageArtworkModal
+          isOpen={Boolean(inspectingOrder)}
+          onClose={() => setInspectingOrder(null)}
+          orderId={inspectingOrder.order_id}
+          finalImageUrl={resolveImage(inspectingOrder.final_image_url)}
+          refImageUrl={inspectingOrder.reference_image_url ? resolveImage(inspectingOrder.reference_image_url) : undefined}
+          collageImageUrl={inspectingOrder.collage_image_url ? resolveImage(inspectingOrder.collage_image_url) : undefined}
+          category={inspectingOrder.painting_category}
+          size={inspectingOrder.size}
+        />
       )}
 
       {/* LIGHTBOX PREVIEW MODAL */}

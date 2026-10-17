@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import type { Order, VerifiedArtist, ArtistReviewItem } from "../types/order";
+import { CollageThumbnail } from "../components/CollageThumbnail";
+import { CollageArtworkModal } from "../components/CollageArtworkModal";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
@@ -14,6 +16,7 @@ export default function AdminPage() {
   const [artistFilter, setArtistFilter] = useState<string>("ALL");
   const [artworkFilter, setArtworkFilter] = useState<string>("ALL");
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
+  const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
 
   // Modal states
   const [assigningOrder, setAssigningOrder] = useState<Order | null>(null);
@@ -385,20 +388,14 @@ export default function AdminPage() {
                         </div>
                       )}
                       {o.final_image_url && (
-                        <div
-                          onClick={() => setSelectedPhoto(resolveImage(o.final_image_url))}
-                          className="relative w-24 h-24 rounded-xl overflow-hidden bg-emerald-950/40 flex-shrink-0 cursor-pointer border border-emerald-500/50 group shadow"
-                          title="Click to view final completed artwork"
-                        >
-                          <img
-                            src={resolveImage(o.final_image_url)}
-                            alt="Final Artwork"
-                            className="w-full h-full object-cover group-hover:scale-105 transition"
-                          />
-                          <div className="absolute inset-0 bg-emerald-950/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs font-semibold text-emerald-300">
-                            Final Art
-                          </div>
-                        </div>
+                        <CollageThumbnail
+                          sizeClass="w-24 h-24"
+                          finalImageUrl={resolveImage(o.final_image_url)}
+                          refImageUrl={o.reference_image_url ? resolveImage(o.reference_image_url) : undefined}
+                          collageImageUrl={o.collage_image_url ? resolveImage(o.collage_image_url) : undefined}
+                          onClick={() => setInspectingOrder(o)}
+                          badgeText={o.collage_image_url ? "Collage" : "Artwork"}
+                        />
                       )}
 
                       <div className="space-y-1.5 flex-1">
@@ -447,12 +444,12 @@ export default function AdminPage() {
 
                         {o.final_image_url && (
                           <div className="pt-1 flex items-center gap-2">
-                            <span className="text-xs text-emerald-400 font-medium">✦ Finished Artwork:</span>
+                            <span className="text-xs text-emerald-400 font-medium">✦ Finished Artwork & Collage:</span>
                             <button
-                              onClick={() => setSelectedPhoto(resolveImage(o.final_image_url))}
-                              className="text-xs text-brand hover:underline font-medium"
+                              onClick={() => setInspectingOrder(o)}
+                              className="text-xs text-emerald-400 hover:text-emerald-300 underline font-semibold flex items-center gap-1"
                             >
-                              Inspect Final Artwork
+                              <span>👁️</span> Inspect Artwork & Collage
                             </button>
                           </div>
                         )}
@@ -552,10 +549,10 @@ export default function AdminPage() {
                           </span>
                           {o.final_image_url && (
                             <button
-                              onClick={() => setSelectedPhoto(resolveImage(o.final_image_url))}
+                              onClick={() => setInspectingOrder(o)}
                               className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition flex items-center gap-1 shadow-sm"
                             >
-                              <span>👁️</span> Inspect Final Artwork
+                              <span>👁️</span> Inspect Artwork & Collage
                             </button>
                           )}
                         </div>
@@ -784,6 +781,21 @@ export default function AdminPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* COLLAGE ARTWORK INSPECTION MODAL */}
+      {inspectingOrder && inspectingOrder.final_image_url && (
+        <CollageArtworkModal
+          isOpen={Boolean(inspectingOrder)}
+          onClose={() => setInspectingOrder(null)}
+          orderId={inspectingOrder.order_id}
+          finalImageUrl={resolveImage(inspectingOrder.final_image_url)}
+          refImageUrl={inspectingOrder.reference_image_url ? resolveImage(inspectingOrder.reference_image_url) : undefined}
+          collageImageUrl={inspectingOrder.collage_image_url ? resolveImage(inspectingOrder.collage_image_url) : undefined}
+          category={inspectingOrder.painting_category}
+          size={inspectingOrder.size}
+          artistName={verifiedArtists.find((a) => a.artist_id === inspectingOrder.artist_id)?.full_name}
+        />
       )}
 
       {/* PHOTO PREVIEW MODAL */}

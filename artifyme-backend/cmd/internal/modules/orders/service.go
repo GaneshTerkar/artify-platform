@@ -112,6 +112,9 @@ func (s *Service) AssignOrder(ctx context.Context, orderID uuid.UUID, actorID uu
 	if err != nil {
 		return nil, err
 	}
+	if o.Status == StatusPlaced {
+		return nil, errors.New("cannot assign an artist until order payment is confirmed")
+	}
 	if o.Status == StatusCompleted || o.Status == StatusCancelled {
 		return nil, errors.New("cannot assign an order that is already completed or cancelled")
 	}

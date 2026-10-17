@@ -339,64 +339,132 @@ export default function AdminPage() {
 
                     {/* Right: Actions Bar */}
                     <div className="flex flex-wrap md:flex-col items-stretch md:items-end gap-2 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-slate-800">
-                      {/* Assign Artist Button */}
-                      <button
-                        onClick={() => {
-                          setAssigningOrder(o);
-                          setSelectedArtistId(o.artist_id || "");
-                        }}
-                        className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5"
-                      >
-                        <span>👤</span> {o.artist_id ? "Reassign Artist" : "Assign Artist"}
-                      </button>
-
-                      {/* Confirm Order (if Placed) */}
+                      {/* 1. If PLACED (Unconfirmed / Unpaid): Only allow Confirming Payment or Cancelling */}
                       {o.status === "PLACED" && (
-                        <button
-                          onClick={() => statusMutation.mutate({ orderId: o.order_id, status: "CONFIRMED" })}
-                          disabled={statusMutation.isPending}
-                          className="rounded-lg bg-amber-500 hover:bg-amber-600 px-3 py-1.5 text-xs font-semibold text-black transition"
-                        >
-                          Confirm Order
-                        </button>
+                        <>
+                          <button
+                            onClick={() => statusMutation.mutate({ orderId: o.order_id, status: "CONFIRMED" })}
+                            disabled={statusMutation.isPending}
+                            className="rounded-lg bg-amber-500 hover:bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-black transition flex items-center justify-center gap-1 shadow-sm"
+                          >
+                            <span>✓</span> Confirm Payment & Order
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm("Are you sure you want to cancel this order?")) {
+                                statusMutation.mutate({ orderId: o.order_id, status: "CANCELLED" });
+                              }
+                            }}
+                            className="text-xs text-rose-400 hover:text-rose-300 py-1 transition"
+                          >
+                            Cancel Order
+                          </button>
+                        </>
                       )}
 
-                      {/* Start Drawing (if Confirmed or Assigned) */}
-                      {(o.status === "CONFIRMED" || o.status === "ASSIGNED_ARTIST") && (
-                        <button
-                          onClick={() => statusMutation.mutate({ orderId: o.order_id, status: "IN_PROGRESS" })}
-                          disabled={statusMutation.isPending}
-                          className="rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xs font-semibold text-white transition"
-                        >
-                          Start Drawing
-                        </button>
+                      {/* 2. If CONFIRMED: Payment is verified, primary action is to Assign a Verified Artist */}
+                      {o.status === "CONFIRMED" && (
+                        <>
+                          <button
+                            onClick={() => {
+                              setAssigningOrder(o);
+                              setSelectedArtistId(o.artist_id || "");
+                            }}
+                            className="rounded-lg bg-brand hover:bg-brand/90 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm"
+                          >
+                            <span>👤</span> Assign Verified Artist
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm("Are you sure you want to cancel this order?")) {
+                                statusMutation.mutate({ orderId: o.order_id, status: "CANCELLED" });
+                              }
+                            }}
+                            className="text-xs text-rose-400 hover:text-rose-300 py-1 transition"
+                          >
+                            Cancel Order
+                          </button>
+                        </>
                       )}
 
-                      {/* Complete Artwork (if In Progress or Confirmed) */}
-                      {o.status !== "COMPLETED" && o.status !== "CANCELLED" && (
-                        <button
-                          onClick={() => {
-                            setCompletingOrder(o);
-                            setFinalImageUrl(o.final_image_url || "");
-                          }}
-                          className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1"
-                        >
-                          <span>✓</span> Complete & Publish
-                        </button>
+                      {/* 3. If ASSIGNED_ARTIST: Artist is assigned, can Start Drawing or Reassign */}
+                      {o.status === "ASSIGNED_ARTIST" && (
+                        <>
+                          <button
+                            onClick={() => statusMutation.mutate({ orderId: o.order_id, status: "IN_PROGRESS" })}
+                            disabled={statusMutation.isPending}
+                            className="rounded-lg bg-blue-600 hover:bg-blue-500 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1"
+                          >
+                            <span>🎨</span> Start Drawing
+                          </button>
+                          <button
+                            onClick={() => {
+                              setAssigningOrder(o);
+                              setSelectedArtistId(o.artist_id || "");
+                            }}
+                            className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-300 transition"
+                          >
+                            Reassign Artist
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm("Are you sure you want to cancel this order?")) {
+                                statusMutation.mutate({ orderId: o.order_id, status: "CANCELLED" });
+                              }
+                            }}
+                            className="text-xs text-rose-400 hover:text-rose-300 py-1 transition"
+                          >
+                            Cancel Order
+                          </button>
+                        </>
                       )}
 
-                      {/* Cancel Order */}
-                      {o.status !== "CANCELLED" && o.status !== "COMPLETED" && (
-                        <button
-                          onClick={() => {
-                            if (window.confirm("Are you sure you want to cancel this order?")) {
-                              statusMutation.mutate({ orderId: o.order_id, status: "CANCELLED" });
-                            }
-                          }}
-                          className="text-xs text-rose-400 hover:text-rose-300 py-1 transition"
-                        >
-                          Cancel Order
-                        </button>
+                      {/* 4. If IN_PROGRESS: Artist is hand-drawing, can Complete Artwork or Reassign */}
+                      {o.status === "IN_PROGRESS" && (
+                        <>
+                          <button
+                            onClick={() => {
+                              setCompletingOrder(o);
+                              setFinalImageUrl(o.final_image_url || "");
+                            }}
+                            className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1 shadow-sm"
+                          >
+                            <span>✓</span> Complete & Upload Sketch
+                          </button>
+                          <button
+                            onClick={() => {
+                              setAssigningOrder(o);
+                              setSelectedArtistId(o.artist_id || "");
+                            }}
+                            className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-300 transition"
+                          >
+                            Reassign Artist
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm("Are you sure you want to cancel this order?")) {
+                                statusMutation.mutate({ orderId: o.order_id, status: "CANCELLED" });
+                              }
+                            }}
+                            className="text-xs text-rose-400 hover:text-rose-300 py-1 transition"
+                          >
+                            Cancel Order
+                          </button>
+                        </>
+                      )}
+
+                      {/* 5. If COMPLETED: Completed successfully */}
+                      {o.status === "COMPLETED" && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-950/70 border border-emerald-500/50 px-3 py-1 text-xs font-semibold text-emerald-300">
+                          <span>✓</span> Completed & Published
+                        </span>
+                      )}
+
+                      {/* 6. If CANCELLED */}
+                      {o.status === "CANCELLED" && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-rose-950/70 border border-rose-500/50 px-3 py-1 text-xs font-medium text-rose-300">
+                          Order Cancelled
+                        </span>
                       )}
                     </div>
                   </div>

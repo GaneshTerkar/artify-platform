@@ -16,15 +16,24 @@ export const CollageThumbnail: React.FC<CollageThumbnailProps> = ({
   collageImageUrl,
   onClick,
   className = "",
-  sizeClass = "w-24 h-24",
+  sizeClass = "w-20 aspect-[4/5] sm:w-24 sm:aspect-[4/5]",
   badgeText = "Collage",
 }) => {
+  const isAwaitingInspection = badgeText === "To Inspect" || badgeText === "Needs Inspection";
+  const badgeBg = isAwaitingInspection
+    ? "bg-amber-600/90 text-amber-100"
+    : "bg-emerald-600/90 text-white";
+  const borderClass = isAwaitingInspection
+    ? "border-amber-500/50"
+    : "border-emerald-500/50";
+  const hoverText = isAwaitingInspection ? "Inspect" : "View";
+
   // If server-generated collage exists, render the composite directly
   if (collageImageUrl) {
     return (
       <div
         onClick={onClick}
-        className={`relative ${sizeClass} rounded-xl overflow-hidden bg-slate-900 border border-emerald-500/50 flex-shrink-0 cursor-pointer group shadow-lg ${className}`}
+        className={`relative ${sizeClass} rounded-xl overflow-hidden bg-slate-900 border ${borderClass} flex-shrink-0 cursor-pointer group shadow-lg ${className}`}
         title="View Combined Collage Artwork (Sketch + Reference Photo)"
       >
         <img
@@ -32,12 +41,17 @@ export const CollageThumbnail: React.FC<CollageThumbnailProps> = ({
           alt="Combined Artwork Collage"
           className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
           loading="lazy"
+          onError={(e) => {
+            if (finalImageUrl) {
+              (e.currentTarget as HTMLImageElement).src = finalImageUrl;
+            }
+          }}
         />
-        <div className="absolute top-1 right-1 bg-emerald-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
+        <div className={`absolute top-1 right-1 ${badgeBg} text-[9px] font-bold px-1.5 py-0.5 rounded shadow`}>
           {badgeText}
         </div>
         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs font-semibold text-white">
-          Inspect
+          {hoverText}
         </div>
       </div>
     );
@@ -47,7 +61,7 @@ export const CollageThumbnail: React.FC<CollageThumbnailProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`relative ${sizeClass} rounded-xl overflow-hidden bg-slate-900 border border-emerald-500/50 flex-shrink-0 cursor-pointer group shadow-lg ${className}`}
+      className={`relative ${sizeClass} rounded-xl overflow-hidden bg-slate-900 border ${borderClass} flex-shrink-0 cursor-pointer group shadow-lg ${className}`}
       title="View Combined Collage Artwork (Sketch + Reference Photo)"
     >
       {/* Main Completed Sketch */}
@@ -56,6 +70,11 @@ export const CollageThumbnail: React.FC<CollageThumbnailProps> = ({
         alt="Final Sketch"
         className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
         loading="lazy"
+        onError={(e) => {
+          if (refImageUrl) {
+            (e.currentTarget as HTMLImageElement).src = refImageUrl;
+          }
+        }}
       />
 
       {/* Picture-in-picture: Reference photo in bottom-left corner with white border */}
@@ -70,12 +89,12 @@ export const CollageThumbnail: React.FC<CollageThumbnailProps> = ({
         </div>
       )}
 
-      <div className="absolute top-1 right-1 bg-emerald-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded shadow">
+      <div className={`absolute top-1 right-1 ${badgeBg} text-[9px] font-bold px-1.5 py-0.5 rounded shadow`}>
         {badgeText}
       </div>
 
       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs font-semibold text-white z-20">
-        Inspect
+        {hoverText}
       </div>
     </div>
   );

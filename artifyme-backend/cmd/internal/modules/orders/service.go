@@ -147,6 +147,9 @@ func (s *Service) AssignOrder(ctx context.Context, orderID uuid.UUID, actorID uu
 	if o.Status == StatusCompleted || o.Status == StatusCancelled {
 		return nil, errors.New("cannot assign an order that is already completed or cancelled")
 	}
+	if o.ArtistID != nil && *o.ArtistID == targetArtistID {
+		return nil, errors.New("cannot reassign order to the same artist already assigned")
+	}
 
 	newStatus := StatusAssignedArtist
 	if o.Status == StatusInProgress {
@@ -191,6 +194,9 @@ func canTransition(role string, from, to OrderStatus) bool {
 		}
 	}
 	if role == "ARTIST" {
+		if from == StatusAssignedArtist && to == StatusConfirmed {
+			return true
+		}
 		if (from == StatusConfirmed || from == StatusAssignedArtist) && to == StatusInProgress {
 			return true
 		}

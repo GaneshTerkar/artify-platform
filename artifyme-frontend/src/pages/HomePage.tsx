@@ -185,9 +185,9 @@ export default function HomePage() {
                 key={painting.id}
                 className="group flex flex-col overflow-hidden rounded-2xl border border-slate-700/70 bg-brand-muted shadow-md hover:border-slate-500 hover:shadow-xl transition-all duration-200"
               >
-                {/* Image Card Header with zoom button */}
+                {/* Image Card Header with zoom button (aspect-[4/5] with object-cover fills edge-to-edge seamlessly without gaps) */}
                 <div
-                  className="relative aspect-square w-full overflow-hidden bg-slate-900 cursor-pointer"
+                  className="relative aspect-[4/5] w-full overflow-hidden bg-slate-900 cursor-pointer"
                   onClick={() => setSelectedPainting(painting)}
                 >
                   <img

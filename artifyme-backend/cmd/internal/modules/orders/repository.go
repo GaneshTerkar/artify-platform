@@ -181,7 +181,10 @@ func (r *Repository) UpdateStatus(ctx context.Context, orderID uuid.UUID, newSta
 	return r.scanOrder(r.pool.QueryRow(ctx, `
 		UPDATE orders SET
 			status = $2::order_status,
-			artist_id = COALESCE($3, artist_id),
+			artist_id = CASE
+				WHEN $2::order_status IN ('CONFIRMED', 'PLACED') THEN NULL
+				ELSE COALESCE($3, artist_id)
+			END,
 			final_image_url = COALESCE($4, final_image_url),
 			collage_image_url = COALESCE($5, collage_image_url),
 			original_final_image_url = CASE 

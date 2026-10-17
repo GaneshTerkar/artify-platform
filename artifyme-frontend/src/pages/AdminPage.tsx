@@ -15,6 +15,7 @@ export default function AdminPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [artistFilter, setArtistFilter] = useState<string>("ALL");
   const [artworkFilter, setArtworkFilter] = useState<string>("ALL");
+  const [inspectionFilter, setInspectionFilter] = useState<"ALL" | "NEEDS_INSPECTION" | "INSPECTED">("ALL");
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
 
@@ -47,6 +48,14 @@ export default function AdminPage() {
     return counts;
   }, [allOrders]);
 
+  const needsInspectionCount = useMemo(() => {
+    return allOrders.filter((o) => o.status === "COMPLETED" && !o.is_published_to_gallery).length;
+  }, [allOrders]);
+
+  const inspectedCount = useMemo(() => {
+    return allOrders.filter((o) => o.status === "COMPLETED" && o.is_published_to_gallery).length;
+  }, [allOrders]);
+
   const filteredOrders = useMemo(() => {
     return allOrders.filter((o) => {
       // 1. Status Filter
@@ -65,9 +74,16 @@ export default function AdminPage() {
       // 3. Final Artwork Filter
       if (artworkFilter === "HAS_FINAL" && (!o.final_image_url || o.final_image_url.trim() === "")) return false;
       if (artworkFilter === "NO_FINAL" && Boolean(o.final_image_url && o.final_image_url.trim() !== "")) return false;
+      // 4. Inspection Status Filter
+      if (inspectionFilter === "NEEDS_INSPECTION") {
+        if (o.status !== "COMPLETED" || o.is_published_to_gallery) return false;
+      }
+      if (inspectionFilter === "INSPECTED") {
+        if (o.status !== "COMPLETED" || !o.is_published_to_gallery) return false;
+      }
       return true;
     });
-  }, [allOrders, statusFilter, artistFilter, artworkFilter]);
+  }, [allOrders, statusFilter, artistFilter, artworkFilter, inspectionFilter]);
 
   // 2. Fetch Artists in Review Queue
   const { data: reviewQueue, isLoading: queueLoading } = useQuery({
@@ -157,7 +173,7 @@ export default function AdminPage() {
 
   function resolveImage(url?: string) {
     if (!url) return "";
-    return url.startsWith("http") ? url : `${API_URL}${url}`;
+    return url.startsWith("http") ? url : `${API_URL}${url.startsWith("/") ? "" : "/"}${url}`;
   }
 
   function getStatusBadge(status: string) {
@@ -271,27 +287,30 @@ export default function AdminPage() {
           {/* Filters Bar */}
           <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
             {/* Status Filter Pills */}
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-xs text-slate-400 font-medium mr-1">Status:</span>
+            {/* Status Filter Pills (Aligned on a single line with neutral active state) */}
+            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
               {(["ALL", "PLACED", "CONFIRMED", "ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED", "CANCELLED"] as const).map(
                 (status) => {
                   const count = statusCounts[status] || 0;
-                  const isActive = statusFilter === status;
+                  const isActive = statusFilter === status && inspectionFilter === "ALL";
                   return (
                     <button
                       key={status}
-                      onClick={() => setStatusFilter(status)}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                      onClick={() => {
+                        setStatusFilter(status);
+                        setInspectionFilter("ALL");
+                      }}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition ${
                         isActive
-                          ? "bg-brand text-white shadow-sm font-semibold"
+                          ? "bg-slate-700 text-white font-semibold border border-slate-500 shadow-sm"
                           : "bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white"
                       }`}
                     >
-                      <span>{status === "ALL" ? "All Orders" : status.replace("_", " ")}</span>
+                      <span>{status === "ALL" ? "ALL" : status.replace("_", " ")}</span>
                       <span
                         className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
                           isActive
-                            ? "bg-white/20 text-white"
+                            ? "bg-slate-900 text-white"
                             : "bg-slate-700 text-slate-300"
                         }`}
                       >
@@ -301,10 +320,58 @@ export default function AdminPage() {
                   );
                 }
               )}
+
+              {/* Dedicated Quick Action Pill: INSPECT ORDER (Aligned on single line) */}
+              <button
+                onClick={() => {
+                  if (inspectionFilter === "NEEDS_INSPECTION") {
+                    setInspectionFilter("ALL");
+                  } else {
+                    setStatusFilter("COMPLETED");
+                    setInspectionFilter("NEEDS_INSPECTION");
+                  }
+                }}
+                className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition ${
+                  inspectionFilter === "NEEDS_INSPECTION"
+                    ? "bg-amber-500 text-slate-950 font-bold shadow-md ring-2 ring-amber-400/60"
+                    : "bg-amber-500/10 border border-amber-500/40 text-amber-300 hover:bg-amber-500/20"
+                }`}
+                title="Filter completed orders that need to be inspected before gallery publishing"
+              >
+                <span>INSPECT ORDER</span>
+                <span
+                  className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                    inspectionFilter === "NEEDS_INSPECTION"
+                      ? "bg-slate-950 text-amber-300"
+                      : "bg-amber-500/30 text-amber-200"
+                  }`}
+                >
+                  {needsInspectionCount}
+                </span>
+              </button>
             </div>
 
-            {/* Secondary Filters: Artist and Artwork / Final Sketch */}
+            {/* Secondary Filters: Artist, Artwork, and Inspection Status */}
             <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-800/60 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="text-slate-400 font-medium">Inspection:</span>
+                <select
+                  value={inspectionFilter}
+                  onChange={(e) => {
+                    const val = e.target.value as "ALL" | "NEEDS_INSPECTION" | "INSPECTED";
+                    setInspectionFilter(val);
+                    if (val !== "ALL") {
+                      setStatusFilter("COMPLETED");
+                    }
+                  }}
+                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
+                >
+                  <option value="ALL">All Inspection Statuses</option>
+                  <option value="NEEDS_INSPECTION">INSPECT ORDER ({needsInspectionCount})</option>
+                  <option value="INSPECTED">✓ Published to Gallery ({inspectedCount})</option>
+                </select>
+              </div>
+
               <div className="flex items-center gap-2">
                 <span className="text-slate-400 font-medium">Assigned Artist:</span>
                 <select
@@ -337,12 +404,13 @@ export default function AdminPage() {
               </div>
 
               {/* Reset filters shortcut */}
-              {(statusFilter !== "ALL" || artistFilter !== "ALL" || artworkFilter !== "ALL") && (
+              {(statusFilter !== "ALL" || artistFilter !== "ALL" || artworkFilter !== "ALL" || inspectionFilter !== "ALL") && (
                 <button
                   onClick={() => {
                     setStatusFilter("ALL");
                     setArtistFilter("ALL");
                     setArtworkFilter("ALL");
+                    setInspectionFilter("ALL");
                   }}
                   className="text-amber-400 hover:text-amber-300 underline font-medium"
                 >
@@ -387,40 +455,38 @@ export default function AdminPage() {
                   >
                     {/* Left: Thumbnail & Core Details */}
                     <div className="flex gap-4 items-start w-full md:w-auto">
-                      {/* Left: Thumbnail Preview (Single Collaged Image for Completed Orders) */}
+                      {/* Left: Thumbnail Preview (Reference image until published, except when waiting for admin inspection) */}
                       {o.status === "COMPLETED" && (o.collage_image_url || o.final_image_url) ? (
                         <CollageThumbnail
-                          sizeClass="w-24 h-24"
+                          sizeClass="w-20 aspect-[4/5] sm:w-24 sm:aspect-[4/5]"
                           finalImageUrl={resolveImage(o.original_final_image_url || o.final_image_url!)}
                           refImageUrl={o.reference_image_url ? resolveImage(o.reference_image_url) : undefined}
                           collageImageUrl={o.collage_image_url ? resolveImage(o.collage_image_url) : undefined}
                           onClick={() => setInspectingOrder(o)}
-                          badgeText={o.collage_image_url ? "Collage" : "Artwork"}
+                          badgeText={o.is_published_to_gallery ? "Published" : "To Inspect"}
                         />
                       ) : (
-                        o.reference_image_url && (
-                          <div
-                            onClick={() => setSelectedPhoto(resolveImage(o.reference_image_url))}
-                            className="relative w-24 h-24 rounded-xl overflow-hidden bg-slate-800 flex-shrink-0 cursor-pointer border border-slate-700 group shadow"
-                            title="Click to view full reference photo"
-                          >
-                            <img
-                              src={resolveImage(o.reference_image_url)}
-                              alt="Customer Reference"
-                              className="w-full h-full object-cover group-hover:scale-105 transition"
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs text-white">
-                              View Ref
-                            </div>
+                        <div
+                          onClick={() => setSelectedPhoto(resolveImage(o.reference_image_url || "/uploads/customer_ref_photo.jpg"))}
+                          className="relative w-20 aspect-[4/5] sm:w-24 sm:aspect-[4/5] rounded-xl overflow-hidden bg-slate-800 flex-shrink-0 cursor-pointer border border-slate-700 group shadow"
+                          title="Click to view full reference photo"
+                        >
+                          <img
+                            src={resolveImage(o.reference_image_url || "/uploads/customer_ref_photo.jpg")}
+                            alt="Customer Reference"
+                            className="w-full h-full object-cover group-hover:scale-105 transition"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = `${API_URL}/uploads/customer_ref_photo.jpg`;
+                            }}
+                          />
+                          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs font-semibold text-white">
+                            View Ref
                           </div>
-                        )
+                        </div>
                       )}
 
                       <div className="space-y-1.5 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-xs text-slate-400" title={o.order_id}>
-                            #{o.order_id.slice(0, 8)}
-                          </span>
                           <span
                             className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getStatusBadge(
                               o.status
@@ -460,15 +526,19 @@ export default function AdminPage() {
                           </p>
                         </div>
 
-                        {o.final_image_url && (
-                          <div className="pt-1 flex items-center gap-2">
-                            <span className="text-xs text-emerald-400 font-medium">✦ Finished Artwork & Collage:</span>
-                            <button
-                              onClick={() => setInspectingOrder(o)}
-                              className="text-xs text-emerald-400 hover:text-emerald-300 underline font-semibold flex items-center gap-1"
-                            >
-                              <span>👁️</span> Inspect Artwork & Collage
-                            </button>
+                        {o.status === "ASSIGNED_ARTIST" && (
+                          <div className="pt-1">
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-purple-500/10 border border-purple-500/30 px-2.5 py-1 text-xs text-purple-300 font-medium">
+                              <span>⏳</span> Assigned to {assignedArtist?.full_name || "Artist"} (Awaiting Artist Confirmation)
+                            </span>
+                          </div>
+                        )}
+
+                        {o.is_published_to_gallery && (
+                          <div className="pt-1">
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-purple-500/10 border border-purple-500/30 px-2.5 py-1 text-xs text-purple-300 font-medium">
+                              <span>✦</span> Inspected & Published to Public Gallery
+                            </span>
                           </div>
                         )}
                       </div>
@@ -476,126 +546,43 @@ export default function AdminPage() {
 
                     {/* Right: Actions Bar */}
                     <div className="flex flex-wrap md:flex-col items-stretch md:items-end gap-2 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-slate-800">
-                      {/* 1. If PLACED (Unconfirmed / Unpaid): Only allow Confirming Payment or Cancelling */}
+                      {/* 1. If PLACED (Unconfirmed / Unpaid): Only allow Confirming Order (Cancel is customer-initiated only) */}
                       {o.status === "PLACED" && (
-                        <>
-                          <button
-                            onClick={() => statusMutation.mutate({ orderId: o.order_id, status: "CONFIRMED" })}
-                            disabled={statusMutation.isPending}
-                            className="rounded-lg bg-amber-500 hover:bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-black transition flex items-center justify-center gap-1 shadow-sm"
-                          >
-                            <span>✓</span> Confirm Payment & Order
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (window.confirm("Are you sure you want to cancel this order?")) {
-                                statusMutation.mutate({ orderId: o.order_id, status: "CANCELLED" });
-                              }
-                            }}
-                            className="text-xs text-rose-400 hover:text-rose-300 py-1 transition"
-                          >
-                            Cancel Order
-                          </button>
-                        </>
+                        <button
+                          onClick={() => statusMutation.mutate({ orderId: o.order_id, status: "CONFIRMED" })}
+                          disabled={statusMutation.isPending}
+                          className="rounded-lg bg-amber-500 hover:bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-black transition flex items-center justify-center gap-1 shadow-sm"
+                        >
+                          <span>✓</span> Confirm Order
+                        </button>
                       )}
 
-                      {/* 2. If CONFIRMED: Payment is verified, primary action is to Assign a Verified Artist */}
+                      {/* 2. If CONFIRMED: Payment is verified, admin assigns artist (cancel order is hidden) */}
                       {o.status === "CONFIRMED" && (
-                        <>
-                          <button
-                            onClick={() => {
-                              setAssigningOrder(o);
-                              setSelectedArtistId(o.artist_id || "");
-                            }}
-                            className="rounded-lg bg-brand hover:bg-brand/90 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm"
-                          >
-                            <span>👤</span> Assign Verified Artist
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (window.confirm("Are you sure you want to cancel this order?")) {
-                                statusMutation.mutate({ orderId: o.order_id, status: "CANCELLED" });
-                              }
-                            }}
-                            className="text-xs text-rose-400 hover:text-rose-300 py-1 transition"
-                          >
-                            Cancel Order
-                          </button>
-                        </>
+                        <button
+                          onClick={() => {
+                            setAssigningOrder(o);
+                            setSelectedArtistId("");
+                          }}
+                          className="rounded-lg bg-brand hover:bg-brand/90 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm"
+                        >
+                          <span>👤</span> Assign Artist
+                        </button>
                       )}
 
-                      {/* 3. If ASSIGNED_ARTIST: Artist is assigned, awaiting artist to begin drawing */}
-                      {o.status === "ASSIGNED_ARTIST" && (
-                        <>
-                          <span className="text-xs text-purple-300 bg-purple-950/60 border border-purple-500/40 rounded-lg px-2.5 py-1">
-                            ⏳ Assigned to {assignedArtist?.full_name || "Artist"} (Awaiting Start)
-                          </span>
-                          <button
-                            onClick={() => {
-                              setAssigningOrder(o);
-                              setSelectedArtistId(o.artist_id || "");
-                            }}
-                            className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 text-xs font-medium text-slate-300 transition"
-                          >
-                            Reassign Artist
-                          </button>
-                          <button
-                            onClick={() => {
-                              if (window.confirm("Are you sure you want to cancel this order?")) {
-                                statusMutation.mutate({ orderId: o.order_id, status: "CANCELLED" });
-                              }
-                            }}
-                            className="text-xs text-rose-400 hover:text-rose-300 py-1 transition"
-                          >
-                            Cancel Order
-                          </button>
-                        </>
-                      )}
+                      {/* 3. If ASSIGNED_ARTIST: Waiting for artist confirmation */}
 
-                      {/* 4. If IN_PROGRESS: Artist is actively drawing (reassign and cancel not allowed) */}
-                      {o.status === "IN_PROGRESS" && (
-                        <span className="text-xs text-blue-300 bg-blue-950/60 border border-blue-500/40 rounded-lg px-2.5 py-1">
-                          🎨 Drawing actively in progress ({assignedArtist?.full_name || "Artist"})
-                        </span>
-                      )}
+                      {/* 4. If IN_PROGRESS: Artist is actively drawing */}
 
-                      {/* 5. If COMPLETED: Completed successfully */}
-                      {o.status === "COMPLETED" && (
-                        <div className="flex flex-col items-end gap-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-950/70 border border-emerald-500/50 px-3 py-1 text-xs font-semibold text-emerald-300">
-                              <span>✓</span> Completed
-                            </span>
-                            {o.is_published_to_gallery ? (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-purple-950/70 border border-purple-500/40 px-2.5 py-0.5 text-xs font-semibold text-purple-300">
-                                <span>✦</span> Published to Gallery
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-950/70 border border-amber-500/40 px-2.5 py-0.5 text-xs font-semibold text-amber-300">
-                                <span>⏳</span> Pending Gallery Publish
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2 mt-1">
-                            {o.final_image_url && (
-                              <button
-                                onClick={() => setInspectingOrder(o)}
-                                className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-xs font-semibold text-white transition flex items-center gap-1 shadow-sm"
-                              >
-                                <span>👁️</span> Inspect Artwork & Collage
-                              </button>
-                            )}
-                            {!o.is_published_to_gallery && (
-                              <button
-                                onClick={() => confirmGalleryMutation.mutate(o.order_id)}
-                                disabled={confirmGalleryMutation.isPending}
-                                className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition flex items-center gap-1 shadow-sm disabled:opacity-50"
-                              >
-                                <span>✓</span> Confirm & Publish to Gallery
-                              </button>
-                            )}
-                          </div>
-                        </div>
+                      {/* 5. If COMPLETED: Show ONLY Inspect Artwork button when awaiting inspection */}
+                      {o.status === "COMPLETED" && !o.is_published_to_gallery && o.final_image_url && (
+                        <button
+                          onClick={() => setInspectingOrder(o)}
+                          className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 px-3.5 py-1.5 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm"
+                          title="Inspect finished artwork"
+                        >
+                          <span>👁️</span> Inspect Artwork
+                        </button>
                       )}
 
                       {/* 6. If CANCELLED: Archived */}
@@ -723,57 +710,95 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* MODAL: ASSIGN ARTIST */}
-      {assigningOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4">
-            <h3 className="text-lg font-bold text-white">Assign Order to Verified Artist</h3>
-            <p className="text-xs text-slate-400">
-              Select an approved verified artist to create this {assigningOrder.painting_category} portrait (Order #
-              {assigningOrder.order_id.slice(0, 8)}).
-            </p>
+      {/* MODAL: ASSIGN / REASSIGN ARTIST */}
+      {assigningOrder && (() => {
+        const isReassign = Boolean(assigningOrder.artist_id);
+        const currentArtist = verifiedArtists.find((a) => a.artist_id === assigningOrder.artist_id);
+        // Exclude currently assigned artist so the same artist cannot be reassigned
+        const eligibleArtists = isReassign
+          ? verifiedArtists.filter((a) => a.artist_id !== assigningOrder.artist_id)
+          : verifiedArtists;
 
-            <label className="block space-y-1.5 text-xs text-slate-300">
-              <span>Select Verified Artist</span>
-              <select
-                value={selectedArtistId}
-                onChange={(e) => setSelectedArtistId(e.target.value)}
-                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-white text-sm"
-              >
-                <option value="">-- Choose Verified Artist --</option>
-                {verifiedArtists.map((a) => (
-                  <option key={a.artist_id} value={a.artist_id}>
-                    {a.full_name} ({a.experience_years} yrs exp)
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
+            <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4">
+              <h3 className="text-lg font-bold text-white">
+                {isReassign ? "Reassign Order to a Different Artist" : "Assign Order to Artist"}
+              </h3>
+
+              {isReassign ? (
+                <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 space-y-1">
+                  <p>
+                    ⚠️ Currently assigned to: <strong>{currentArtist?.full_name || "Artist"}</strong> (Awaiting start).
+                  </p>
+                  <p className="text-slate-300">
+                    Select a <strong>different</strong> verified artist to take over this {assigningOrder.painting_category} portrait.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">
+                  Select an approved artist to create this {assigningOrder.painting_category} portrait.
+                </p>
+              )}
+
+              <label className="block space-y-1.5 text-xs text-slate-300">
+                <span>Select {isReassign ? "New Different" : ""} Artist</span>
+                <select
+                  value={selectedArtistId}
+                  onChange={(e) => setSelectedArtistId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-white text-sm"
+                >
+                  <option value="">
+                    {isReassign ? "-- Choose a Different Artist --" : "-- Choose Artist --"}
                   </option>
-                ))}
-              </select>
-            </label>
+                  {eligibleArtists.map((a) => (
+                    <option key={a.artist_id} value={a.artist_id}>
+                      {a.full_name} ({a.experience_years} yrs exp)
+                    </option>
+                  ))}
+                  {eligibleArtists.length === 0 && (
+                    <option disabled value="">
+                      No other verified artists available to reassign
+                    </option>
+                  )}
+                </select>
+              </label>
 
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setAssigningOrder(null)}
-                className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={!selectedArtistId || assignMutation.isPending}
-                onClick={() =>
-                  assignMutation.mutate({
-                    orderId: assigningOrder.order_id,
-                    artistId: selectedArtistId,
-                  })
-                }
-                className="rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
-              >
-                {assignMutation.isPending ? "Assigning..." : "Confirm Assignment"}
-              </button>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssigningOrder(null);
+                    setSelectedArtistId("");
+                  }}
+                  className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!selectedArtistId || assignMutation.isPending}
+                  onClick={() =>
+                    assignMutation.mutate({
+                      orderId: assigningOrder.order_id,
+                      artistId: selectedArtistId,
+                    })
+                  }
+                  className="rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                >
+                  {assignMutation.isPending
+                    ? isReassign
+                      ? "Reassigning..."
+                      : "Assigning..."
+                    : isReassign
+                    ? "Confirm Reassignment"
+                    : "Confirm Assignment"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
 
       {/* MODAL: REJECT ARTIST */}

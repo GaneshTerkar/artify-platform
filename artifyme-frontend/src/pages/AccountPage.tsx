@@ -137,7 +137,10 @@ export default function AccountPage() {
         <div className="space-y-4">
           {orders.map((o) => {
             const hasRef = Boolean(o.reference_image_url);
-            const hasFinal = Boolean(o.final_image_url);
+            // Show final collage ONLY when published to gallery, EXCEPT when artist is viewing their own work
+            const showFinalCollage = isArtist
+              ? Boolean(o.final_image_url || o.collage_image_url)
+              : Boolean(o.is_published_to_gallery && (o.collage_image_url || o.final_image_url));
 
             return (
               <div
@@ -197,39 +200,42 @@ export default function AccountPage() {
 
                 {/* Body: Photos & Specs */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
-                  {/* Photo Thumbnail (Single Collaged Image for Completed Orders) */}
+                  {/* Photo Thumbnail */}
                   <div className="flex items-center gap-3 md:col-span-1">
-                    {hasFinal ? (
+                    {showFinalCollage ? (
                       <div>
                         <p className="text-[10px] uppercase font-bold text-emerald-400 mb-1">
                           {o.collage_image_url ? "Artwork Collage" : "Final Artwork"}
                         </p>
                         <CollageThumbnail
-                          sizeClass="h-20 w-20"
+                          sizeClass="w-20 aspect-[4/5]"
                           finalImageUrl={resolveImage(o.original_final_image_url || o.final_image_url!)}
                           refImageUrl={o.reference_image_url ? resolveImage(o.reference_image_url) : undefined}
                           collageImageUrl={o.collage_image_url ? resolveImage(o.collage_image_url) : undefined}
                           onClick={() => setInspectingOrder(o)}
-                          badgeText={o.collage_image_url ? "Collage" : "Artwork"}
+                          badgeText={o.is_published_to_gallery ? "Published" : isArtist ? "Submitted" : "Final"}
                         />
                       </div>
-                    ) : hasRef ? (
+                    ) : (
                       <div>
                         <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
                           {isArtist ? "Client Photo" : "Reference Photo"}
                         </p>
                         <div
-                          onClick={() => setSelectedPhoto(resolveImage(o.reference_image_url))}
-                          className="h-20 w-20 rounded-xl overflow-hidden border border-slate-700 bg-slate-900 cursor-pointer hover:border-slate-500 transition"
+                          onClick={() => setSelectedPhoto(resolveImage(o.reference_image_url || "/uploads/customer_ref_photo.jpg"))}
+                          className="w-20 aspect-[4/5] rounded-xl overflow-hidden border border-slate-700 bg-slate-900 cursor-pointer hover:border-slate-500 transition"
                         >
                           <img
-                            src={resolveImage(o.reference_image_url)}
+                            src={resolveImage(o.reference_image_url || "/uploads/customer_ref_photo.jpg")}
                             alt="Reference"
                             className="h-full w-full object-cover"
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).src = `${API_URL}/uploads/customer_ref_photo.jpg`;
+                            }}
                           />
                         </div>
                       </div>
-                    ) : null}
+                    )}
                   </div>
 
                   {/* Order Specifications */}
@@ -262,18 +268,32 @@ export default function AccountPage() {
                     {/* ARTIST ACTIONS */}
                     {isArtist && (
                       <div className="flex flex-col items-stretch md:items-end gap-2 w-full">
-                        {/* 1. Start Drawing (if Assigned) */}
+                        {/* 1. Confirm or Decline (if Assigned) */}
                         {o.status === "ASSIGNED_ARTIST" && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              statusMutation.mutate({ orderId: o.order_id, status: "IN_PROGRESS" })
-                            }
-                            disabled={statusMutation.isPending}
-                            className="rounded-lg bg-blue-600 hover:bg-blue-500 px-3.5 py-2 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm"
-                          >
-                            <span>✓</span> Confirm & Start Drawing
-                          </button>
+                          <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                statusMutation.mutate({ orderId: o.order_id, status: "IN_PROGRESS" })
+                              }
+                              disabled={statusMutation.isPending}
+                              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-2 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm"
+                            >
+                              <span>✓</span> Confirm & Start Drawing
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm("Are you sure you cannot accept this order? The order will be reverted to Confirmed for admin reassignment.")) {
+                                  statusMutation.mutate({ orderId: o.order_id, status: "CONFIRMED" });
+                                }
+                              }}
+                              disabled={statusMutation.isPending}
+                              className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2 text-xs font-medium text-slate-300 hover:text-rose-300 transition flex items-center justify-center gap-1"
+                            >
+                              <span>✕</span> Decline
+                            </button>
+                          </div>
                         )}
 
                         {/* 2. Complete & Upload Sketch (if In Progress) */}
@@ -298,7 +318,7 @@ export default function AccountPage() {
                             </span>
                           ) : (
                             <span className="text-xs text-amber-300 font-medium text-right flex items-center gap-1">
-                              <span>⏳</span> Pending Admin Inspection before publishing to Gallery
+                              <span>⏳</span> Awaiting Admin Inspection before Gallery Publication
                             </span>
                           )
                         )}
@@ -306,24 +326,56 @@ export default function AccountPage() {
                     )}
 
                     {/* CUSTOMER PREVIEW & DOWNLOAD ACTIONS */}
-                    {!isArtist && o.final_image_url && (
-                      <div className="flex flex-wrap items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setInspectingOrder(o)}
-                          className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-white transition inline-flex items-center gap-1.5 shadow-sm"
-                        >
-                          <span>👁️</span> Preview Sketch & Collage
-                        </button>
-                        <a
-                          href={o.collage_image_url ? resolveImage(o.collage_image_url) : resolveImage(o.final_image_url)}
-                          target="_blank"
-                          rel="noreferrer"
-                          download={`artifyme_${o.collage_image_url ? "collage" : "sketch"}_${o.order_id.slice(0, 8)}.jpg`}
-                          className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 transition inline-flex items-center gap-1"
-                        >
-                          <span>↓</span> Download {o.collage_image_url ? "Collage" : "Artwork"}
-                        </a>
+                    {!isArtist && (
+                      <div className="flex flex-col items-stretch md:items-end gap-2 w-full">
+                        {/* 1. Customer can cancel before payment is made (PLACED) */}
+                        {o.status === "PLACED" && (
+                          <div className="flex flex-col items-stretch md:items-end gap-1.5 w-full">
+                            <span className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2.5 py-1 text-right">
+                              ⏳ Awaiting Payment
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm("Are you sure you want to cancel this order?")) {
+                                  statusMutation.mutate({ orderId: o.order_id, status: "CANCELLED" });
+                                }
+                              }}
+                              disabled={statusMutation.isPending}
+                              className="text-xs text-rose-400 hover:text-rose-300 font-medium py-1 transition flex items-center justify-end gap-1"
+                            >
+                              ✕ Cancel Order
+                            </button>
+                          </div>
+                        )}
+
+                        {/* 2. Customer preview & download for completed artwork */}
+                        {o.status === "COMPLETED" && (
+                          o.is_published_to_gallery && (o.final_image_url || o.collage_image_url) ? (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setInspectingOrder(o)}
+                                className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-white transition inline-flex items-center gap-1.5 shadow-sm"
+                              >
+                                <span>👁️</span> Preview Sketch & Collage
+                              </button>
+                              <a
+                                href={o.collage_image_url ? resolveImage(o.collage_image_url) : resolveImage(o.final_image_url)}
+                                target="_blank"
+                                rel="noreferrer"
+                                download={`artifyme_${o.collage_image_url ? "collage" : "sketch"}_${o.order_id.slice(0, 8)}.jpg`}
+                                className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300 transition inline-flex items-center gap-1"
+                              >
+                                <span>↓</span> Download {o.collage_image_url ? "Collage" : "Artwork"}
+                              </a>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2.5 py-1 text-right">
+                              ⏳ Artwork completed — awaiting admin quality inspection & publishing
+                            </span>
+                          )
+                        )}
                       </div>
                     )}
                   </div>

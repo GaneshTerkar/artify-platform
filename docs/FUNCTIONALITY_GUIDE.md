@@ -113,10 +113,15 @@ The public gallery on the landing page showcases authentic handmade artwork. Unl
 
 ```mermaid
 flowchart LR
-    A["Artist Paintings Table (artist_paintings)"] -->|UNION ALL| C["Dynamic Query (orders.Repository)"]
-    B["Completed Orders (status = 'COMPLETED')"] -->|UNION ALL| C
+    A["Artist Paintings (artist_profiles.verified = TRUE)"] -->|UNION ALL| C["Dynamic Query (orders.Repository)"]
+    B["Completed Orders (status = 'COMPLETED' & artist verified)"] -->|UNION ALL| C
     C -->|GET /api/v1/paintings| D["Frontend HomePage Gallery"]
 ```
+
+> [!IMPORTANT]
+> **Verified Artists Quality Rule**:
+> To protect platform quality, paintings and completed orders are **only displayed if the completing artist is verified** (`artist_profiles.verified = TRUE`). Work created by unverified, pending, or rejected artist accounts is automatically excluded from the public gallery.
+
 
 ### 4.2 Authentic Medium Categorization
 All 22 initial artworks seeded via migration `010_seed_gallery_paintings.up.sql` are classified by their true artistic medium:

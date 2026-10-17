@@ -324,7 +324,9 @@ func (r *Repository) ListGalleryPaintings(ctx context.Context, category string) 
 				'SHOWCASE' AS source,
 				COALESCE(ap.created_at, NOW()) AS created_at
 			FROM artist_paintings ap
+			INNER JOIN artist_profiles apf ON ap.artist_id = apf.artist_id
 			LEFT JOIN users u ON ap.artist_id = u.user_id
+			WHERE apf.verified = TRUE
 
 			UNION ALL
 
@@ -338,10 +340,12 @@ func (r *Repository) ListGalleryPaintings(ctx context.Context, category string) 
 				'COMPLETED_ORDER' AS source,
 				COALESCE(o.updated_at, o.created_at, NOW()) AS created_at
 			FROM orders o
+			INNER JOIN artist_profiles ap ON o.artist_id = ap.artist_id
 			LEFT JOIN users u ON o.artist_id = u.user_id
 			WHERE o.status = 'COMPLETED' 
 			  AND o.final_image_url IS NOT NULL 
 			  AND TRIM(o.final_image_url) != ''
+			  AND ap.verified = TRUE
 		) g
 		WHERE ($1::text IS NULL OR g.category = $1)
 		ORDER BY g.created_at DESC;

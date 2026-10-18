@@ -1377,217 +1377,122 @@ export default function AdminPage() {
       {/* TAB 2: PLATFORM USERS MANAGEMENT */}
       {activeTab === "users" && (
         <div className="space-y-6">
-          {/* Filters & Search Bar */}
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-3.5 space-y-3">
-            {/* ROW 1: Role Navigation Tabs (Left) + Policy & Export Actions (Right) */}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              {/* Role Navigation Tabs */}
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-                {(
-                  [
-                    { id: "ALL", label: "ALL", symbol: "👥", count: userCounts.ALL },
-                    { id: "CUSTOMER", label: "CUSTOMERS", symbol: "👤", count: userCounts.CUSTOMER },
-                    { id: "ARTIST", label: "ARTISTS", symbol: "🎨", count: userCounts.ARTIST },
-                    { id: "DELIVERY_AGENT", label: "DELIVERY AGENTS", symbol: "🚚", count: userCounts.DELIVERY_AGENT },
-                    { id: "ADMIN", label: "ADMINS", symbol: "👑", count: userCounts.ADMIN },
-                  ] as const
-                ).map((pill) => {
-                  const isActive = userRoleFilter === pill.id;
-                  return (
-                    <button
-                      key={pill.id}
-                      onClick={() => {
-                        setUserRoleFilter(pill.id);
-                        setUserSubFilter("ALL");
-                      }}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition ${
-                        isActive
-                          ? "bg-slate-700 text-white font-semibold border border-slate-500 shadow-sm"
-                          : "bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-transparent"
-                      }`}
-                    >
-                      <span>{pill.symbol}</span>
-                      <span>{pill.label}</span>
-                      <span
-                        className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
-                          isActive ? "bg-slate-900 text-white" : "bg-slate-700 text-slate-300"
-                        }`}
-                      >
-                        {pill.count}
-                      </span>
-                      {pill.id === "ARTIST" && userCounts.PENDING_REVIEW > 0 && (
-                        <span className="rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 text-[10px] font-semibold">
-                          {userCounts.PENDING_REVIEW} to review
-                        </span>
-                      )}
-                      {pill.id === "DELIVERY_AGENT" && pill.count > 0 && (
-                        <span className="rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40 px-1.5 py-0.2 text-[10px] font-semibold">
-                          Logistics
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Right Side: Global Administrative Actions */}
-              <div className="flex items-center gap-2 ml-auto">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTempPolicy(policyThresholds);
-                    setIsPolicyModalOpen(true);
-                  }}
-                  className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white transition flex items-center gap-1.5 shadow-sm whitespace-nowrap"
-                  title="Adjust policy thresholds for account risk and admin elevation"
-                >
-                  <span>⚙️</span>
-                  <span>Policy Thresholds</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => exportUsersToCSV(filteredUsers)}
-                  className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition flex items-center gap-1 shadow-sm whitespace-nowrap"
-                  title="Export current user list to CSV for Excel"
-                >
-                  <span>📥</span> <span>Export CSV</span>
-                </button>
-
-                <span className="text-slate-400 text-xs whitespace-nowrap hidden sm:inline ml-1 font-medium">
-                  <strong className="text-white">{filteredUsers.length}</strong>/{allUsers.length}
-                </span>
-              </div>
+          {/* Users Filters Bar: Single Responsive Inline Toolbar */}
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-3 flex flex-wrap lg:flex-nowrap items-center gap-3 text-xs">
+            {/* Role Dropdown */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1">
+                <span>👥</span> Role:
+              </label>
+              <select
+                value={userRoleFilter}
+                onChange={(e) => {
+                  setUserRoleFilter(e.target.value as any);
+                  setUserSubFilter("ALL");
+                }}
+                className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm cursor-pointer"
+              >
+                <option value="ALL">All ({userCounts.ALL})</option>
+                <option value="CUSTOMER">👤 Customers ({userCounts.CUSTOMER})</option>
+                <option value="ARTIST">
+                  🎨 Artists ({userCounts.ARTIST}){userCounts.PENDING_REVIEW > 0 ? ` (${userCounts.PENDING_REVIEW} to review)` : ""}
+                </option>
+                <option value="DELIVERY_AGENT">
+                  🚚 Delivery Partners ({userCounts.DELIVERY_AGENT})
+                </option>
+                <option value="ADMIN">👑 Admins ({userCounts.ADMIN})</option>
+              </select>
             </div>
 
-            {/* ROW 2: Quick Search (Left) + Contextual Filters (Right) */}
-            <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-800/60 text-xs">
-              {/* Quick Search */}
-              <div className="relative min-w-[220px] max-w-sm flex-1">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
-                <input
-                  type="text"
-                  value={userSearchQuery}
-                  onChange={(e) => setUserSearchQuery(e.target.value)}
-                  placeholder="Search by name, email, phone, username..."
-                  className="rounded-lg bg-slate-800 border border-slate-700 pl-7 pr-7 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
-                />
-                {userSearchQuery && (
-                  <button
-                    onClick={() => setUserSearchQuery("")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-
-              {/* Contextual Sub-filters */}
-              {userRoleFilter !== "ADMIN" && (
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <div className="flex items-center gap-1.5 mr-1">
-                    <span className="text-slate-500 font-medium text-[11px] uppercase tracking-wider">
-                      Filter:
-                    </span>
-                    {userSubFilter !== "ALL" && (
-                      <button
-                        type="button"
-                        onClick={() => setUserSubFilter("ALL")}
-                        className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700 hover:border-slate-600 transition flex items-center gap-1 shadow-sm"
-                        title="Clear active filter"
-                      >
-                        <span>✕</span>
-                        <span>Clear</span>
-                      </button>
-                    )}
-                  </div>
-
-                  {/* 1. Verified (Artists only) */}
-                  {userRoleFilter === "ARTIST" && (
-                    <button
-                      type="button"
-                      onClick={() => setUserSubFilter(userSubFilter === "VERIFIED" ? "ALL" : "VERIFIED")}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                        userSubFilter === "VERIFIED"
-                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold shadow-sm"
-                          : "bg-slate-800/90 text-slate-400 hover:text-emerald-300 border border-transparent"
-                      }`}
-                    >
-                      <FacebookVerifiedBadge size={14} className="w-3.5 h-3.5" />
-                      <span>Verified</span>
-                      <span className="rounded-full bg-emerald-500/30 text-emerald-200 px-1.5 py-0.2 text-[10px] font-bold">
-                        {userCounts.VERIFIED_ARTIST}
-                      </span>
-                    </button>
-                  )}
-
-                  {/* 2. Pending Review (Artists or Delivery Agents) */}
-                  {(userRoleFilter === "ARTIST" || userRoleFilter === "DELIVERY_AGENT") && (
-                    <button
-                      type="button"
-                      onClick={() => setUserSubFilter(userSubFilter === "PENDING_REVIEW" ? "ALL" : "PENDING_REVIEW")}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                        userSubFilter === "PENDING_REVIEW"
-                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold shadow-sm"
-                          : "bg-slate-800/90 text-slate-400 hover:text-amber-300 border border-transparent"
-                      }`}
-                    >
-                      <span>⏳</span>
-                      <span>Pending Approval</span>
-                      <span className="rounded-full bg-amber-500/30 text-amber-200 px-1.5 py-0.2 text-[10px] font-bold">
-                        {userCounts.PENDING_REVIEW}
-                      </span>
-                    </button>
-                  )}
-
-                  {/* 3. At-Risk / Needs Attention */}
-                  <button
-                    type="button"
-                    onClick={() => setUserSubFilter(userSubFilter === "AT_RISK" ? "ALL" : "AT_RISK")}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                      userSubFilter === "AT_RISK"
-                        ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 font-semibold shadow-sm"
-                        : "bg-slate-800/90 text-slate-400 hover:text-rose-300 border border-transparent"
-                    }`}
-                    title={
-                      userRoleFilter === "CUSTOMER"
-                        ? "Show customers with excessive cancellations or unconfirmed placed orders"
-                        : userRoleFilter === "ARTIST"
-                        ? "Show artists with stalled assignments or cancellations"
-                        : userRoleFilter === "DELIVERY_AGENT"
-                        ? "Show delivery partners flagged for delivery issues"
-                        : "Show accounts flagged as needing attention"
-                    }
-                  >
-                    <span>⚠️</span>
-                    <span>Needs Attention</span>
-                    <span className="rounded-full bg-rose-500/30 text-rose-200 px-1.5 py-0.2 text-[10px] font-bold">
-                      {userRiskCounts.atRisk}
-                    </span>
-                  </button>
-
-                  {/* 4. Admin-Eligible (Artists or All only - Hidden for Customers & Delivery Agents) */}
+            {/* Filter / Sub-filter Dropdown */}
+            {userRoleFilter !== "ADMIN" && (
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1">
+                  <span>🏷️</span> Filter:
+                </label>
+                <select
+                  value={userSubFilter}
+                  onChange={(e) => setUserSubFilter(e.target.value as any)}
+                  className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm cursor-pointer"
+                >
+                  <option value="ALL">All ({userRoleFilter === "ALL" ? allUsers.length : userCounts[userRoleFilter] || 0})</option>
+                  <option value="AT_RISK">⚠️ Needs Attention ({userRiskCounts.atRisk})</option>
                   {userRoleFilter !== "CUSTOMER" && userRoleFilter !== "DELIVERY_AGENT" && (
-                    <button
-                      type="button"
-                      onClick={() => setUserSubFilter(userSubFilter === "ADMIN_ELIGIBLE" ? "ALL" : "ADMIN_ELIGIBLE")}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                        userSubFilter === "ADMIN_ELIGIBLE"
-                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold shadow-sm"
-                          : "bg-slate-800/90 text-slate-400 hover:text-amber-300 border border-transparent"
-                      }`}
-                      title={`Show verified artists with at least ${policyThresholds.minArtistCompletedOrders} completed commissions and 0 stalled assignments`}
-                    >
-                      <span>⭐</span>
-                      <span>Admin-Eligible</span>
-                      <span className="rounded-full bg-amber-500/30 text-amber-200 px-1.5 py-0.2 text-[10px] font-bold">
-                        {userRiskCounts.adminEligible}
-                      </span>
-                    </button>
+                    <option value="ADMIN_ELIGIBLE">⭐ Admin-Eligible ({userRiskCounts.adminEligible})</option>
                   )}
-                </div>
+                  {(userRoleFilter === "ALL" || userRoleFilter === "ARTIST" || userRoleFilter === "DELIVERY_AGENT") && (
+                    <option value="PENDING_REVIEW">⏳ Pending Approval ({userCounts.PENDING_REVIEW})</option>
+                  )}
+                  {(userRoleFilter === "ALL" || userRoleFilter === "ARTIST") && (
+                    <option value="VERIFIED">🛡️ Verified ({userCounts.VERIFIED_ARTIST})</option>
+                  )}
+                </select>
+              </div>
+            )}
+
+            {/* Search Bar */}
+            <div className="flex items-center gap-2 flex-1 min-w-[200px] relative">
+              <span className="text-slate-400 absolute left-3 pointer-events-none text-xs">🔍</span>
+              <input
+                type="text"
+                value={userSearchQuery}
+                onChange={(e) => setUserSearchQuery(e.target.value)}
+                placeholder="Search by name, email, phone, username..."
+                className="rounded-lg bg-slate-800/90 border border-slate-700 pl-8 pr-14 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
+              />
+              {userSearchQuery && (
+                <button
+                  onClick={() => setUserSearchQuery("")}
+                  className="absolute right-2.5 text-slate-400 hover:text-white text-[11px] underline"
+                >
+                  Clear
+                </button>
               )}
             </div>
+
+            {/* Reset Shortcut */}
+            {(userRoleFilter !== "ALL" || userSubFilter !== "ALL" || userSearchQuery.trim() !== "") && (
+              <button
+                onClick={() => {
+                  setUserRoleFilter("ALL");
+                  setUserSubFilter("ALL");
+                  setUserSearchQuery("");
+                }}
+                className="text-xs text-amber-400 hover:text-amber-300 underline font-medium whitespace-nowrap flex items-center gap-1 flex-shrink-0"
+              >
+                <span>↺</span> Clear filters
+              </button>
+            )}
+
+            {/* Policy Thresholds Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setTempPolicy(policyThresholds);
+                setIsPolicyModalOpen(true);
+              }}
+              className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white transition flex items-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0 cursor-pointer"
+              title="Adjust policy thresholds for account risk and admin elevation"
+            >
+              <span>⚙️</span>
+              <span>Policy Thresholds</span>
+            </button>
+
+            {/* Export CSV Button */}
+            <button
+              type="button"
+              onClick={() => exportUsersToCSV(filteredUsers)}
+              className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition flex items-center gap-1 shadow-sm whitespace-nowrap flex-shrink-0 cursor-pointer"
+              title="Export current user list to CSV for Excel"
+            >
+              <span>📥</span> <span>Export CSV</span>
+            </button>
+
+            {/* Showing Count */}
+            <span className="text-slate-400 text-xs whitespace-nowrap flex-shrink-0">
+              Showing <strong className="text-white">{filteredUsers.length}</strong> of{" "}
+              <strong className="text-white">{allUsers.length}</strong> users
+            </span>
           </div>
 
           {/* Users List */}

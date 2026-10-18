@@ -1464,19 +1464,28 @@ export default function AdminPage() {
               </button>
             )}
 
-            {/* Policy Thresholds Button */}
-            <button
-              type="button"
-              onClick={() => {
-                setTempPolicy(policyThresholds);
-                setIsPolicyModalOpen(true);
-              }}
-              className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white transition flex items-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0 cursor-pointer"
-              title="Adjust policy thresholds for account risk and admin elevation"
-            >
-              <span>⚙️</span>
-              <span>Policy Thresholds</span>
-            </button>
+            {/* Policy Thresholds Icon Button with Tooltip */}
+            <div className="relative group flex items-center flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setTempPolicy(policyThresholds);
+                  setIsPolicyModalOpen(true);
+                }}
+                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white transition flex items-center justify-center shadow-sm cursor-pointer"
+                title="Policy Thresholds: Adjust account risk and admin elevation rules"
+                aria-label="Policy Thresholds"
+              >
+                <span className="text-sm">⚙️</span>
+              </button>
+              {/* Tooltip on Hover */}
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center pointer-events-none z-30">
+                <span className="rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-200 shadow-xl whitespace-nowrap">
+                  Policy Thresholds
+                </span>
+                <span className="w-1.5 h-1.5 bg-slate-950 border-r border-b border-slate-700 transform rotate-45 -mt-1"></span>
+              </div>
+            </div>
 
             {/* Export CSV Button */}
             <button

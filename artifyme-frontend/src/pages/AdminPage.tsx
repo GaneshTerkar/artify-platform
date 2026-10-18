@@ -1279,7 +1279,7 @@ export default function AdminPage() {
                     </div>
 
                     {/* Right: Actions Bar */}
-                    {["PLACED", "CONFIRMED", "COMPLETED", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED"].includes(o.status) && (
+                    {["PLACED", "CONFIRMED", "COMPLETED", "DELIVERY_FAILED", "DELIVERED"].includes(o.status) && (
                       <div className="flex flex-wrap md:flex-col items-stretch md:items-end gap-2 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-slate-800 flex-shrink-0">
                         {/* 1. If PLACED (Unconfirmed / Unpaid): Only allow Confirming Order */}
                         {o.status === "PLACED" && (
@@ -1318,14 +1318,7 @@ export default function AdminPage() {
                           </div>
                         )}
 
-                        {/* 4. If ASSIGNED_DELIVERY_AGENT: Waiting for courier confirmation (handled in delivery agent portal) */}
-
-                        {/* 5. If OUT_FOR_DELIVERY: Out for delivery */}
-                        {o.status === "OUT_FOR_DELIVERY" && (
-                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 px-2.5 py-1 text-xs text-sky-300 font-medium animate-pulse">
-                            <span>🛵</span> Out for Doorstep Delivery
-                          </span>
-                        )}
+                        {/* 4. If ASSIGNED_DELIVERY_AGENT / IN_TRANSIT / OUT_FOR_DELIVERY: Managed by Delivery Agent in courier portal */}
 
                         {/* 6. If DELIVERY_FAILED: Courier logged failed attempt */}
                         {o.status === "DELIVERY_FAILED" && (

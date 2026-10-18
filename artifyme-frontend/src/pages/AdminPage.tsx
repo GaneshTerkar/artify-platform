@@ -1305,7 +1305,6 @@ export default function AdminPage() {
             <div className="grid gap-4">
               {filteredUsers.map((u) => {
                 const isArtist = u.role === "ARTIST";
-                const isCustomer = u.role === "CUSTOMER";
                 const isPendingArtist = isArtist && !u.is_verified_artist;
                 const metrics = getUserOrderMetrics(u, allOrders, policyThresholds);
                 const initials = u.full_name
@@ -1324,17 +1323,38 @@ export default function AdminPage() {
                   >
                     {/* Left: Avatar & Details */}
                     <div className="flex gap-4 items-start w-full md:w-auto flex-1">
-                      {/* Avatar */}
-                      <div
-                        className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm flex-shrink-0 shadow border ${
-                          u.role === "ADMIN"
-                            ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
-                            : isArtist
-                            ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
-                            : "bg-blue-500/20 text-blue-300 border-blue-500/40"
-                        }`}
-                      >
-                        {initials}
+                      {/* Avatar with Docked Account Status Badge */}
+                      <div className="relative flex-shrink-0">
+                        <div
+                          className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm shadow border ${
+                            u.role === "ADMIN"
+                              ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                              : isArtist
+                              ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
+                              : "bg-blue-500/20 text-blue-300 border-blue-500/40"
+                          }`}
+                        >
+                          {initials}
+                        </div>
+                        {/* Status Symbol Badge */}
+                        <span
+                          title={
+                            u.status === "ACTIVE"
+                              ? "Account Status: Active"
+                              : u.status === "PENDING"
+                              ? "Account Status: Pending Approval"
+                              : "Account Status: Suspended"
+                          }
+                          className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border flex items-center justify-center text-[10px] shadow-md cursor-help ${
+                            u.status === "ACTIVE"
+                              ? "bg-slate-900 border-emerald-500/60"
+                              : u.status === "PENDING"
+                              ? "bg-slate-900 border-amber-500/60"
+                              : "bg-slate-900 border-rose-500/60"
+                          }`}
+                        >
+                          {u.status === "ACTIVE" ? "🟢" : u.status === "PENDING" ? "🟡" : "🔴"}
+                        </span>
                       </div>
 
                       {/* Content */}
@@ -1360,26 +1380,6 @@ export default function AdminPage() {
                             }`}
                           >
                             {u.role === "ADMIN" ? "👑" : isArtist ? "🎨" : "👤"}
-                          </span>
-
-                          {/* Account Status Symbol Badge */}
-                          <span
-                            title={
-                              u.status === "ACTIVE"
-                                ? "Account Status: Active"
-                                : u.status === "PENDING"
-                                ? "Account Status: Pending Approval"
-                                : "Account Status: Suspended"
-                            }
-                            className={`inline-flex items-center justify-center w-6 h-6 rounded-full border text-xs shadow-sm cursor-help transition-transform hover:scale-110 ${
-                              u.status === "ACTIVE"
-                                ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                                : u.status === "PENDING"
-                                ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
-                                : "bg-rose-500/20 text-rose-300 border-rose-500/40"
-                            }`}
-                          >
-                            {u.status === "ACTIVE" ? "🟢" : u.status === "PENDING" ? "🟡" : "🔴"}
                           </span>
 
                           {/* Verified Artist Badge (Styled consistently with role and status symbols) */}
@@ -1459,45 +1459,11 @@ export default function AdminPage() {
                             </p>
                           )}
 
-                          {/* Role-specific statistics */}
-                          {isCustomer && (
-                            <p className="text-blue-300 font-medium pt-0.5 flex flex-wrap items-center gap-x-2">
-                              <span>📦 {u.orders_count} portrait order{u.orders_count === 1 ? "" : "s"} placed</span>
-                              {metrics.completed > 0 && <span className="text-emerald-400 font-semibold">• {metrics.completed} completed</span>}
-                              {metrics.cancelled > 0 && <span className="text-rose-400 font-semibold">• {metrics.cancelled} cancelled</span>}
-                              {metrics.unconfirmed > 0 && <span className="text-amber-400 font-semibold">• {metrics.unconfirmed} unconfirmed</span>}
+                          {/* Bio */}
+                          {isArtist && u.bio && (
+                            <p className="italic text-slate-300 bg-slate-800/40 rounded-lg p-2.5 border border-slate-800 mt-1">
+                              "{u.bio}"
                             </p>
-                          )}
-
-                          {isArtist && (
-                            <div className="space-y-0.5 pt-0.5">
-                              <p className="text-purple-300 font-medium flex flex-wrap items-center gap-x-2">
-                                <span>🎨 {u.assigned_orders_count} commission{u.assigned_orders_count === 1 ? "" : "s"} assigned</span>
-                                <span>• {u.experience_years} year{u.experience_years === 1 ? "" : "s"} exp</span>
-                                {metrics.unconfirmed > 0 && (
-                                  <span className="text-amber-400 font-semibold">• ⚠️ {metrics.unconfirmed} unconfirmed / stalled</span>
-                                )}
-                              </p>
-                              {(() => {
-                                const artistCompletedOrders = allOrders.filter(
-                                  (o) => o.artist_id === u.user_id && (o.status === "COMPLETED" || o.status === "PUBLISHED")
-                                );
-                                const totalEarned = Math.round(
-                                  artistCompletedOrders.reduce((sum, o) => sum + (Number(o.total_price) || 0), 0) *
-                                    ARTIST_COMMISSION_PERCENTAGE
-                                );
-                                return (
-                                  <p className="text-emerald-400 font-semibold text-xs pt-0.5 flex items-center gap-1.5">
-                                    <span>💰</span> 40% Commission: ₹{totalEarned.toLocaleString("en-IN")} ({artistCompletedOrders.length} completed)
-                                  </p>
-                                );
-                              })()}
-                              {u.bio && (
-                                <p className="italic text-slate-300 bg-slate-800/40 rounded-lg p-2.5 border border-slate-800 mt-1">
-                                  "{u.bio}"
-                                </p>
-                              )}
-                            </div>
                           )}
                         </div>
                       </div>

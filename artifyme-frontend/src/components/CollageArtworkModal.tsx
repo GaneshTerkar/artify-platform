@@ -13,6 +13,7 @@ interface CollageArtworkModalProps {
   isPublishedToGallery?: boolean;
   onConfirmPublish?: () => void;
   isConfirming?: boolean;
+  onAssignDeliveryAgent?: () => void;
 }
 
 export const CollageArtworkModal: React.FC<CollageArtworkModalProps> = ({
@@ -28,6 +29,7 @@ export const CollageArtworkModal: React.FC<CollageArtworkModalProps> = ({
   isPublishedToGallery,
   onConfirmPublish,
   isConfirming,
+  onAssignDeliveryAgent,
 }) => {
   const [viewMode, setViewMode] = useState<"collage" | "sketch" | "reference" | "split">("collage");
 
@@ -133,6 +135,15 @@ export const CollageArtworkModal: React.FC<CollageArtworkModalProps> = ({
 
           {/* Action Download & Publish Buttons */}
           <div className="flex items-center gap-2">
+            {onAssignDeliveryAgent && (
+              <button
+                type="button"
+                onClick={onAssignDeliveryAgent}
+                className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-3.5 py-1.5 font-semibold text-white transition inline-flex items-center gap-1.5 shadow-sm text-xs"
+              >
+                <span>🚚</span> Assign Delivery Agent
+              </button>
+            )}
             {onConfirmPublish && (
               isPublishedToGallery ? (
                 <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-950/70 border border-emerald-500/50 px-3 py-1.5 text-xs font-semibold text-emerald-300">

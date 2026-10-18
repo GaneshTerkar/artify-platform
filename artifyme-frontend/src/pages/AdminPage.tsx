@@ -1297,27 +1297,15 @@ export default function AdminPage() {
 
                       {/* 4. If IN_PROGRESS: Artist is actively drawing */}
 
-                      {/* 5. If COMPLETED: Studio quality inspection & Assign Delivery Partner (No publish until doorstep delivery) */}
+                      {/* 5. If COMPLETED: Studio quality inspection (Assign Delivery Agent is handled inside the inspection modal) */}
                       {o.status === "COMPLETED" && (
                         <div className="flex flex-col sm:flex-row md:flex-col items-stretch md:items-end gap-1.5">
-                          {o.final_image_url && (
-                            <button
-                              onClick={() => setInspectingOrder(o)}
-                              className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 px-3 py-1.5 text-xs font-medium transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
-                              title="Inspect finished artwork & collage"
-                            >
-                              <span>👁️</span> Inspect Artwork
-                            </button>
-                          )}
                           <button
-                            onClick={() => {
-                              setAssigningDeliveryOrder(o);
-                              setSelectedDeliveryAgentId(o.delivery_agent_id || "");
-                            }}
-                            className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
-                            title="Dispatch packaged artwork to active delivery partner"
+                            onClick={() => setInspectingOrder(o)}
+                            className="rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white px-3.5 py-1.5 text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
+                            title="Inspect finished artwork & assign delivery agent"
                           >
-                            <span>🚚</span> {o.delivery_agent_id ? "Reassign Courier" : "Assign Delivery Partner"}
+                            <span>👁️</span> Inspect Artwork
                           </button>
                         </div>
                       )}
@@ -2580,19 +2568,33 @@ export default function AdminPage() {
       )}
 
       {/* COLLAGE ARTWORK INSPECTION MODAL */}
-      {inspectingOrder && inspectingOrder.final_image_url && (
+      {inspectingOrder && (inspectingOrder.final_image_url || inspectingOrder.collage_image_url) && (
         <CollageArtworkModal
           isOpen={Boolean(inspectingOrder)}
           onClose={() => setInspectingOrder(null)}
           orderId={inspectingOrder.order_id}
-          finalImageUrl={resolveImage(inspectingOrder.original_final_image_url || inspectingOrder.final_image_url)}
+          finalImageUrl={resolveImage(inspectingOrder.original_final_image_url || inspectingOrder.final_image_url || "/uploads/final_art.jpg")}
           refImageUrl={inspectingOrder.reference_image_url ? resolveImage(inspectingOrder.reference_image_url) : undefined}
           collageImageUrl={inspectingOrder.collage_image_url ? resolveImage(inspectingOrder.collage_image_url) : undefined}
           category={inspectingOrder.painting_category}
           size={inspectingOrder.size}
           artistName={verifiedArtists.find((a) => a.artist_id === inspectingOrder.artist_id)?.full_name}
           isPublishedToGallery={inspectingOrder.is_published_to_gallery}
-          onConfirmPublish={() => confirmGalleryMutation.mutate(inspectingOrder.order_id)}
+          onAssignDeliveryAgent={
+            inspectingOrder.status === "COMPLETED"
+              ? () => {
+                  const target = inspectingOrder;
+                  setInspectingOrder(null);
+                  setAssigningDeliveryOrder(target);
+                  setSelectedDeliveryAgentId(target.delivery_agent_id || "");
+                }
+              : undefined
+          }
+          onConfirmPublish={
+            inspectingOrder.status === "DELIVERED"
+              ? () => confirmGalleryMutation.mutate(inspectingOrder.order_id)
+              : undefined
+          }
           isConfirming={confirmGalleryMutation.isPending}
         />
       )}

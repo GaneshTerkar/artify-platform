@@ -86,7 +86,7 @@ export const CollageArtworkModal: React.FC<CollageArtworkModalProps> = ({
 
         {/* View Mode Toolbar */}
         <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-2.5 border-b border-slate-800 bg-slate-950/60 text-xs">
-          <div className="flex items-center gap-1.5 p-1 bg-slate-900 rounded-lg border border-slate-800">
+          <div className="flex items-center gap-1.5 p-1 bg-slate-900 rounded-lg border border-slate-800 overflow-x-auto max-w-full">
             <button
               onClick={() => setViewMode("collage")}
               className={`px-3 py-1.5 rounded-md font-medium transition ${
@@ -134,7 +134,7 @@ export const CollageArtworkModal: React.FC<CollageArtworkModalProps> = ({
           </div>
 
           {/* Action Download & Publish Buttons */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {onAssignDeliveryAgent && (
               <button
                 type="button"
@@ -267,7 +267,7 @@ export const CollageArtworkModal: React.FC<CollageArtworkModalProps> = ({
         </div>
 
         {/* Footer info note */}
-        <div className="px-5 py-2.5 bg-slate-900 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
+        <div className="px-5 py-2.5 bg-slate-900 border-t border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 sm:gap-0 text-[11px] text-slate-400">
           <span>
             {viewMode === "collage"
               ? "✓ Reference photo is composited in the bottom-left corner with authentic border"

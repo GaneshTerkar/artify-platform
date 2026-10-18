@@ -54,34 +54,236 @@ export default function HomePage() {
 
   return (
     <div className="space-y-10">
-      {/* Hero Section */}
-      <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-muted via-slate-900 to-brand-dark p-6 sm:p-10 border border-slate-700/60 shadow-xl">
-        <div className="max-w-2xl space-y-4">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand/20 border border-brand/30 px-3 py-1 text-xs font-semibold text-brand tracking-wide uppercase">
-            Handmade Portrait Gallery
-          </span>
-          <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
-            Original Hand-Drawn & Painted Portrait Sketches
-          </h1>
-          <p className="text-sm sm:text-base text-slate-300 leading-relaxed">
-            Explore authentic hand-drawn portraits created by our master artists. Pick your favorite style—from
-            detailed pencil sketches to rich oil paintings—and order your personalized sketch today.
-          </p>
-          <div className="flex flex-wrap gap-3 pt-2">
-            {user?.role !== "ADMIN" && (
-              <Link
-                to="/order"
-                className="rounded-xl bg-brand px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand/30 hover:opacity-90 transition"
+      {/* Impressive Artistic Hero Section */}
+      <section className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-[#0e1629] to-[#1a0f2e] p-6 sm:p-10 lg:p-12 shadow-2xl backdrop-blur-xl">
+        {/* Ambient Decorative Lighting */}
+        <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-gradient-to-br from-amber-500/15 via-rose-500/10 to-transparent blur-3xl pointer-events-none" />
+        <div className="absolute top-1/2 -right-20 -translate-y-1/2 w-96 h-96 rounded-full bg-gradient-to-br from-cyan-500/15 via-purple-600/15 to-pink-500/10 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-20 left-1/3 w-72 h-72 rounded-full bg-gradient-to-br from-blue-600/10 via-teal-500/10 to-transparent blur-3xl pointer-events-none" />
+
+        {/* Subtle Canvas Grain / Grid Texture overlay */}
+        <div
+          className="absolute inset-0 opacity-[0.03] pointer-events-none"
+          style={{
+            backgroundImage: `radial-gradient(circle at 1px 1px, #ffffff 1px, transparent 0)`,
+            backgroundSize: "24px 24px",
+          }}
+        />
+
+        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
+          {/* Left Column: Inspiring Artistic Copy & Actions */}
+          <div className="lg:col-span-7 space-y-5">
+            {/* Artistic Studio Pill Badge */}
+            <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-gradient-to-r from-amber-500/15 via-rose-500/15 to-purple-500/15 px-3.5 py-1 text-xs font-semibold text-amber-300 shadow-inner backdrop-blur-md">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-400" />
+              </span>
+              <span className="tracking-wide uppercase text-[11px] font-bold">Handmade Fine Art Studio</span>
+              <span className="text-white/40">•</span>
+              <span className="text-xs text-rose-300">100% Real Artists</span>
+            </div>
+
+            {/* Main Headline */}
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white leading-[1.14]">
+              Original Hand-Drawn & Painted{" "}
+              <span className="bg-gradient-to-r from-cyan-400 via-pink-400 to-amber-300 bg-clip-text text-transparent">
+                Portrait Sketches
+              </span>
+            </h1>
+
+            {/* Subtitle */}
+            <p className="text-sm sm:text-base text-slate-300 leading-relaxed max-w-xl">
+              Turn your treasured photographs into authentic, handcrafted fine art. Created by verified master artists on 300 GSM archival cotton — from expressive pencil sketches to vibrant watercolors and rich oils.
+            </p>
+
+            {/* CTAs */}
+            <div className="flex flex-wrap items-center gap-3 pt-1">
+              {user?.role !== "ADMIN" ? (
+                <Link
+                  to="/order"
+                  className="rounded-xl bg-gradient-to-r from-cyan-500 via-pink-500 to-amber-400 text-slate-950 font-extrabold px-6 py-3.5 text-sm shadow-lg shadow-pink-500/25 hover:shadow-pink-500/40 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center gap-2"
+                >
+                  <span>✨</span>
+                  <span>Order Custom Sketch</span>
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    to="/admin"
+                    className="rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 text-white font-bold px-5 py-3.5 text-sm shadow-lg shadow-purple-500/25 hover:opacity-90 transition flex items-center gap-2"
+                  >
+                    <span>👑</span>
+                    <span>Admin Studio Operations</span>
+                  </Link>
+                  <Link
+                    to="/order"
+                    className="rounded-xl border border-brand/50 bg-brand/10 hover:bg-brand/20 text-brand font-semibold px-4 py-3.5 text-sm transition flex items-center gap-2"
+                  >
+                    <span>🎨</span>
+                    <span>Preview Order Flow</span>
+                  </Link>
+                </>
+              )}
+
+              <a
+                href="#gallery"
+                className="rounded-xl border border-slate-700 bg-slate-800/80 hover:bg-slate-700/80 px-5 py-3.5 text-sm font-semibold text-slate-200 hover:text-white transition backdrop-blur-md flex items-center gap-2 shadow-sm"
               >
-                Order Custom Sketch
-              </Link>
-            )}
-            <a
-              href="#gallery"
-              className="rounded-xl border border-slate-600 bg-slate-800/60 px-5 py-3 text-sm font-medium text-slate-200 hover:bg-slate-700/60 transition"
-            >
-              Browse Category Gallery ↓
-            </a>
+                <span>Browse Gallery Styles</span>
+                <span>↓</span>
+              </a>
+            </div>
+
+            {/* Trust Badges */}
+            <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-400">
+              <div className="flex items-center gap-1.5">
+                <span className="text-emerald-400 font-bold">✓</span>
+                <span className="text-slate-300">100% Hand-Crafted (No AI Filters)</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-cyan-400 font-bold">✓</span>
+                <span className="text-slate-300">5 Historic Art Styles</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-amber-400 font-bold">✓</span>
+                <span className="text-slate-300">Safe Doorstep Delivery</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Column: Visual Artistic Studio Showcase */}
+          <div className="lg:col-span-5 relative flex justify-center">
+            {/* Outer Decorative Glow Ring */}
+            <div className="absolute inset-0 rounded-3xl bg-gradient-to-tr from-pink-500/20 via-cyan-500/10 to-amber-500/20 blur-xl -rotate-2 scale-105 pointer-events-none" />
+
+            {/* Floating Top Badge */}
+            <div className="absolute -top-3 -right-2 sm:-right-4 z-20 flex items-center gap-2 rounded-xl border border-amber-400/40 bg-slate-900/90 px-3 py-1.5 text-xs font-semibold text-amber-300 shadow-xl backdrop-blur-md rotate-2">
+              <span>⭐</span>
+              <span>4.9/5 Master Rating</span>
+            </div>
+
+            {/* Floating Bottom Badge */}
+            <div className="absolute -bottom-3 -left-2 sm:-left-4 z-20 flex items-center gap-2 rounded-xl border border-cyan-400/40 bg-slate-900/90 px-3 py-1.5 text-xs font-semibold text-cyan-300 shadow-xl backdrop-blur-md -rotate-2">
+              <span>🖌️</span>
+              <span>100% Archival Canvas</span>
+            </div>
+
+            {/* Main Studio Showcase Card */}
+            <div className="relative w-full max-w-sm rounded-2xl border border-slate-700/80 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-xl space-y-3.5">
+              {/* Studio Canvas Header */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="font-bold text-white tracking-wide">ArtifyMe Fine Art Studio</span>
+                </div>
+                <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider bg-slate-800 px-2 py-0.5 rounded">
+                  Live Gallery
+                </span>
+              </div>
+
+              {/* Artwork Preview Area */}
+              {paintings.length > 0 ? (
+                /* Display Featured Live Painting from Backend */
+                <div
+                  className="group relative aspect-[4/5] rounded-xl overflow-hidden bg-slate-950 border border-slate-800 cursor-pointer shadow-inner"
+                  onClick={() => setSelectedPainting(paintings[0])}
+                >
+                  <img
+                    src={paintings[0].image_url.startsWith("http") ? paintings[0].image_url : `${API_URL}${paintings[0].image_url}`}
+                    alt={paintings[0].title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-80" />
+                  <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between">
+                    <div>
+                      <span className="text-[10px] font-bold text-brand uppercase tracking-wider block">
+                        {paintings[0].category_label}
+                      </span>
+                      <h4 className="text-sm font-bold text-white drop-shadow">{paintings[0].title}</h4>
+                      {paintings[0].artist_name && (
+                        <p className="text-[11px] text-slate-300">By {paintings[0].artist_name}</p>
+                      )}
+                    </div>
+                    <span className="rounded-lg bg-black/70 border border-white/20 px-2 py-1 text-xs font-bold text-white shadow">
+                      From ₹{paintings[0].starting_price}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                /* Bespoke Artistic Easel Composition when no paintings are in catalog */
+                <div className="relative aspect-[4/5] rounded-xl overflow-hidden bg-gradient-to-b from-slate-950 via-[#101728] to-slate-950 border border-slate-800/80 p-4 flex flex-col justify-between shadow-inner">
+                  {/* Subtle Background Sketch Grid & Splatter Effect */}
+                  <div className="absolute inset-0 opacity-15 pointer-events-none bg-[radial-gradient(#ec4899_1px,transparent_1px)] [background-size:16px_16px]" />
+                  
+                  {/* Top: Fine Art Medium Swatches Palette */}
+                  <div className="relative z-10 flex items-center justify-between">
+                    <span className="text-[11px] font-mono text-amber-300/90 font-semibold tracking-wider uppercase">
+                      ✦ Hand-Drawn Techniques
+                    </span>
+                    <span className="text-[10px] text-slate-400">Custom Commission</span>
+                  </div>
+
+                  {/* Center: Artistic Illustration Display */}
+                  <div className="relative z-10 text-center py-2 space-y-3">
+                    <div className="mx-auto w-20 h-20 rounded-2xl bg-gradient-to-tr from-purple-500/20 via-pink-500/20 to-amber-500/20 border border-white/10 flex items-center justify-center text-4xl shadow-xl shadow-purple-500/10">
+                      🎨
+                    </div>
+                    <div>
+                      <h4 className="text-base font-extrabold text-white">Bespoke Portrait Art</h4>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Drawn on 300 GSM Cold-Pressed Archival Paper
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Bottom: 5 Medium Swatches Palette */}
+                  <div className="relative z-10 space-y-2 bg-slate-950/80 rounded-xl p-2.5 border border-slate-800">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400">
+                      <span>Available Mediums</span>
+                      <span className="text-emerald-400 font-semibold">Artist Certified</span>
+                    </div>
+                    <div className="grid grid-cols-5 gap-1.5 text-center text-[10px]">
+                      <div className="rounded-lg bg-slate-800/90 border border-slate-700/80 py-1.5 text-slate-200 font-medium">
+                        ✏️ Pencil
+                      </div>
+                      <div className="rounded-lg bg-slate-800/90 border border-slate-700/80 py-1.5 text-slate-200 font-medium">
+                        🖤 Charcoal
+                      </div>
+                      <div className="rounded-lg bg-slate-800/90 border border-slate-700/80 py-1.5 text-slate-200 font-medium">
+                        🌊 Water
+                      </div>
+                      <div className="rounded-lg bg-slate-800/90 border border-slate-700/80 py-1.5 text-slate-200 font-medium">
+                        🎨 Acrylic
+                      </div>
+                      <div className="rounded-lg bg-slate-800/90 border border-slate-700/80 py-1.5 text-slate-200 font-medium">
+                        🖼️ Oil
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Filter Swatch Links below canvas */}
+              <div className="pt-1 flex items-center justify-between text-[11px] text-slate-400">
+                <span className="font-medium text-slate-300">Tap to browse style:</span>
+                <div className="flex items-center gap-1.5">
+                  {CATEGORIES.filter((c) => c.id !== "ALL").slice(0, 3).map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        setActiveCategory(c.id);
+                        document.getElementById("gallery")?.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className="rounded-md bg-slate-800 hover:bg-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-300 hover:text-white transition border border-slate-700"
+                    >
+                      {c.label.split(" ")[0]}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

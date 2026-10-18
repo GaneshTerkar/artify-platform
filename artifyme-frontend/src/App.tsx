@@ -58,7 +58,7 @@ function Shell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   return (
     <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 pb-12 pt-6">
-      <header className="mb-8 flex items-center justify-between border-b border-slate-800 pb-4">
+      <header className="mb-6 sm:mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-slate-800 pb-4">
         <Link to="/" className="text-xl font-bold tracking-tight text-white flex items-center gap-2.5 group">
           <img
             src="/artifyme-icon.png"
@@ -69,7 +69,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             ArtifyMe
           </span>
         </Link>
-        <nav className="flex items-center gap-3 text-sm">
+        <nav className="flex flex-wrap items-center justify-start sm:justify-end gap-2 sm:gap-3 text-xs sm:text-sm">
           {user?.role !== "ADMIN" && (
             <Link
               to="/order"
@@ -98,13 +98,17 @@ function Shell({ children }: { children: React.ReactNode }) {
                     to="/admin?tab=payroll"
                     className="text-slate-300 hover:text-white transition"
                   >
-                    Payroll Due
+                    Payroll
                   </Link>
                 </>
               )}
               {user.role !== "ADMIN" && (
                 <Link to="/account" className="text-slate-300 hover:text-white transition">
-                  {user.role === "ARTIST" ? "🎨 My Commissions" : "Orders"}
+                  {user.role === "ARTIST"
+                    ? "🎨 My Commissions"
+                    : user.role === "DELIVERY_AGENT"
+                    ? "🚚 My Deliveries"
+                    : "My Orders"}
                 </Link>
               )}
               <button

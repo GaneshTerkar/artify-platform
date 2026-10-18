@@ -27,6 +27,16 @@ export const DEFAULT_POLICY_THRESHOLDS: PolicyThresholds = {
   maxArtistStalledForRisk: 1,
 };
 
+export interface CommissionSplitConfig {
+  artistPercentage: number;
+  deliveryPercentage: number;
+}
+
+export const DEFAULT_COMMISSION_SPLIT: CommissionSplitConfig = {
+  artistPercentage: 30,
+  deliveryPercentage: 10,
+};
+
 export interface WarningEntry {
   warningNumber: number;
   reason: string;
@@ -118,9 +128,22 @@ export function getUserOrderMetrics(
 export default function AdminPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const ARTIST_COMMISSION_PERCENTAGE = 0.30;
-  const DELIVERY_COMMISSION_PERCENTAGE = 0.10;
-  const PLATFORM_MARGIN_PERCENTAGE = 0.60;
+  // Configurable Commission Split Policy (persisted to localStorage)
+  const [commissionSplit, setCommissionSplit] = useState<CommissionSplitConfig>(() => {
+    try {
+      const saved = localStorage.getItem("artifyme_commission_split");
+      if (saved) return { ...DEFAULT_COMMISSION_SPLIT, ...JSON.parse(saved) };
+    } catch {}
+    return DEFAULT_COMMISSION_SPLIT;
+  });
+  const [isCommissionModalOpen, setIsCommissionModalOpen] = useState(false);
+  const [tempCommission, setTempCommission] = useState<CommissionSplitConfig>(commissionSplit);
+
+  const ARTIST_COMMISSION_PERCENTAGE = commissionSplit.artistPercentage / 100;
+  const DELIVERY_COMMISSION_PERCENTAGE = commissionSplit.deliveryPercentage / 100;
+  const platformMarginPercentage = Math.max(0, 100 - commissionSplit.artistPercentage - commissionSplit.deliveryPercentage);
+  const PLATFORM_MARGIN_PERCENTAGE = platformMarginPercentage / 100;
+  const totalPayrollPercentage = commissionSplit.artistPercentage + commissionSplit.deliveryPercentage;
 
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
@@ -612,6 +635,7 @@ export default function AdminPage() {
   }, [payrollCompletedOrders]);
   const totalArtistCommissions = Math.round(totalGrossRevenue * ARTIST_COMMISSION_PERCENTAGE);
   const totalDeliveryCommissions = Math.round(totalGrossRevenue * DELIVERY_COMMISSION_PERCENTAGE);
+  const totalCommissions = totalArtistCommissions + totalDeliveryCommissions;
   const totalPlatformMargin = Math.round(totalGrossRevenue * PLATFORM_MARGIN_PERCENTAGE);
 
   const artistPayrollList = useMemo(() => {
@@ -891,56 +915,56 @@ export default function AdminPage() {
         </div>
 
         {/* Quick Stats & Tab Switchers */}
-        <div className="flex items-center gap-3">
+        <div className="grid grid-cols-3 gap-2 w-full sm:flex sm:w-auto sm:items-center sm:gap-3">
           <button
             type="button"
             onClick={() => handleTabChange("orders")}
-            className={`rounded-xl px-5 py-2.5 text-center transition border cursor-pointer ${
+            className={`rounded-xl px-2.5 sm:px-5 py-2 sm:py-2.5 text-center transition border cursor-pointer ${
               activeTab === "orders"
                 ? "bg-slate-800 border-brand shadow-lg ring-1 ring-brand/50"
                 : "bg-slate-800/80 border-slate-700 hover:border-slate-500 hover:bg-slate-800"
             }`}
           >
-            <p className={`text-xs uppercase tracking-wider font-semibold ${
+            <p className={`text-[10px] sm:text-xs uppercase tracking-wider font-semibold ${
               activeTab === "orders" ? "text-brand" : "text-slate-400"
             }`}>
               Orders
             </p>
-            <p className="text-xl font-bold text-white">{allOrders.length}</p>
+            <p className="text-base sm:text-xl font-bold text-white">{allOrders.length}</p>
           </button>
 
           <button
             type="button"
             onClick={() => handleTabChange("users")}
-            className={`rounded-xl px-5 py-2.5 text-center transition border cursor-pointer ${
+            className={`rounded-xl px-2.5 sm:px-5 py-2 sm:py-2.5 text-center transition border cursor-pointer ${
               activeTab === "users"
                 ? "bg-slate-800 border-brand shadow-lg ring-1 ring-brand/50"
                 : "bg-slate-800/80 border-slate-700 hover:border-slate-500 hover:bg-slate-800"
             }`}
           >
-            <p className={`text-xs uppercase tracking-wider font-semibold ${
+            <p className={`text-[10px] sm:text-xs uppercase tracking-wider font-semibold ${
               activeTab === "users" ? "text-brand" : "text-emerald-400"
             }`}>
               Users
             </p>
-            <p className="text-xl font-bold text-emerald-300">{allUsers.length}</p>
+            <p className="text-base sm:text-xl font-bold text-emerald-300">{allUsers.length}</p>
           </button>
 
           <button
             type="button"
             onClick={() => handleTabChange("payroll")}
-            className={`rounded-xl px-5 py-2.5 text-center transition border cursor-pointer ${
+            className={`rounded-xl px-2.5 sm:px-5 py-2 sm:py-2.5 text-center transition border cursor-pointer ${
               activeTab === "payroll"
                 ? "bg-slate-800 border-brand shadow-lg ring-1 ring-brand/50"
                 : "bg-slate-800/80 border-slate-700 hover:border-slate-500 hover:bg-slate-800"
             }`}
           >
-            <p className={`text-xs uppercase tracking-wider font-semibold ${
+            <p className={`text-[10px] sm:text-xs uppercase tracking-wider font-semibold ${
               activeTab === "payroll" ? "text-brand" : "text-amber-400"
             }`}>
-              Payroll Due (40%)
+              Payroll ({totalPayrollPercentage}%)
             </p>
-            <p className="text-xl font-bold text-amber-300">₹{totalArtistCommissions.toLocaleString("en-IN")}</p>
+            <p className="text-base sm:text-xl font-bold text-amber-300">₹{totalCommissions.toLocaleString("en-IN")}</p>
           </button>
         </div>
       </div>
@@ -959,7 +983,7 @@ export default function AdminPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex border-b border-slate-800 text-sm font-medium">
+      <div className="flex border-b border-slate-800 text-sm font-medium overflow-x-auto whitespace-nowrap">
         <button
           onClick={() => handleTabChange("orders")}
           className={`pb-3 px-4 border-b-2 transition flex items-center gap-2 ${
@@ -995,9 +1019,9 @@ export default function AdminPage() {
               : "border-transparent text-slate-400 hover:text-white"
           }`}
         >
-          <span>💰 Payroll Due</span>
+          <span>💰 Payroll</span>
           <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">
-            ₹{totalArtistCommissions.toLocaleString("en-IN")}
+            ₹{totalCommissions.toLocaleString("en-IN")}
           </span>
         </button>
       </div>
@@ -1804,7 +1828,7 @@ export default function AdminPage() {
                                 })
                               }
                               className="w-8 h-8 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 transition flex items-center justify-center text-sm shadow-sm hover:scale-110"
-                              title="View Payroll: Monthly earnings, 30% commission breakdown & performance graph"
+                              title={`View Payroll: Monthly earnings, ${commissionSplit.artistPercentage}% commission breakdown & performance graph`}
                             >
                               💰
                             </button>
@@ -1824,7 +1848,7 @@ export default function AdminPage() {
                                 })
                               }
                               className="w-8 h-8 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-300 transition flex items-center justify-center text-sm shadow-sm hover:scale-110"
-                              title="View Delivery Payroll: Delivered parcels, 10% commission breakdown & earnings"
+                              title={`View Delivery Payroll: Delivered parcels, ${commissionSplit.deliveryPercentage}% commission breakdown & earnings`}
                             >
                               💰
                             </button>
@@ -1956,7 +1980,7 @@ export default function AdminPage() {
                   <span>💰</span> Commissions & Monthly Payroll
                 </h2>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Automated monthly salary calculation based on completed and published portrait orders.
+                  Automated monthly payroll calculation based on completed and published portrait orders.
                 </p>
               </div>
 
@@ -1988,25 +2012,36 @@ export default function AdminPage() {
               <div className="flex items-center gap-2 text-slate-300">
                 <span className="text-amber-400 text-sm">💡</span>
                 <span>
-                  <strong>Commission Split Rule:</strong> Verified Artists earn <strong>30%</strong>, Delivery Agents earn <strong>10%</strong>, and ArtifyMe retains <strong>60%</strong> platform margin.
+                  <strong>Commission Split Rule:</strong> Verified Artists earn <strong>{commissionSplit.artistPercentage}%</strong>, Delivery Agents earn <strong>{commissionSplit.deliveryPercentage}%</strong>, and ArtifyMe retains <strong>{platformMarginPercentage}%</strong> platform margin.
                 </span>
               </div>
               <div className="flex items-center gap-2 text-xs font-semibold flex-wrap">
                 <span className="text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1">
-                  🎨 Artist Share: 30%
+                  🎨 Artist Share: {commissionSplit.artistPercentage}%
                 </span>
                 <span className="text-sky-400 bg-sky-500/10 border border-sky-500/30 rounded-lg px-2.5 py-1">
-                  🚚 Delivery Agent: 10%
+                  🚚 Delivery Agent: {commissionSplit.deliveryPercentage}%
                 </span>
                 <span className="text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 rounded-lg px-2.5 py-1">
-                  👑 Platform Margin: 60%
+                  👑 Platform Margin: {platformMarginPercentage}%
                 </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempCommission(commissionSplit);
+                    setIsCommissionModalOpen(true);
+                  }}
+                  className="rounded-lg bg-slate-700/80 hover:bg-slate-700 border border-slate-600 hover:border-slate-400 text-white px-2.5 py-1 text-xs font-semibold transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer"
+                  title="Configure commission split percentages"
+                >
+                  <span>⚙️</span> Configure Split
+                </button>
               </div>
             </div>
           </div>
 
           {/* 5 Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
             <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 space-y-1 shadow">
               <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Completed Portraits</p>
               <p className="text-2xl font-bold text-white">{payrollCompletedOrders.length}</p>
@@ -2020,19 +2055,19 @@ export default function AdminPage() {
             </div>
 
             <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4 space-y-1 shadow">
-              <p className="text-xs text-emerald-400 font-medium uppercase tracking-wider">Artist Salary Due (30%)</p>
+              <p className="text-xs text-emerald-400 font-medium uppercase tracking-wider">Artist Payroll ({commissionSplit.artistPercentage}%)</p>
               <p className="text-2xl font-bold text-emerald-300">₹{totalArtistCommissions.toLocaleString("en-IN")}</p>
-              <p className="text-[11px] text-emerald-500/80">Total payout to artists</p>
+              <p className="text-[11px] text-emerald-500/80">Total artist payroll</p>
             </div>
 
             <div className="rounded-2xl border border-sky-500/30 bg-sky-950/20 p-4 space-y-1 shadow">
-              <p className="text-xs text-sky-400 font-medium uppercase tracking-wider">Delivery Payout Due (10%)</p>
+              <p className="text-xs text-sky-400 font-medium uppercase tracking-wider">Delivery Agent Payroll ({commissionSplit.deliveryPercentage}%)</p>
               <p className="text-2xl font-bold text-sky-300">₹{totalDeliveryCommissions.toLocaleString("en-IN")}</p>
-              <p className="text-[11px] text-sky-500/80">Total delivery payouts</p>
+              <p className="text-[11px] text-sky-500/80">Total delivery agent payroll</p>
             </div>
 
-            <div className="rounded-2xl border border-cyan-500/30 bg-cyan-950/20 p-4 space-y-1 shadow">
-              <p className="text-xs text-cyan-400 font-medium uppercase tracking-wider">Platform Margin (60%)</p>
+            <div className="rounded-2xl border border-cyan-500/30 bg-cyan-950/20 p-4 space-y-1 shadow col-span-1 sm:col-span-2 lg:col-span-1">
+              <p className="text-xs text-cyan-400 font-medium uppercase tracking-wider">Platform Margin ({platformMarginPercentage}%)</p>
               <p className="text-2xl font-bold text-cyan-300">₹{totalPlatformMargin.toLocaleString("en-IN")}</p>
               <p className="text-[11px] text-cyan-500/80">ArtifyMe retained revenue</p>
             </div>
@@ -2091,8 +2126,8 @@ export default function AdminPage() {
                         <th className="py-3 px-4">Artist</th>
                         <th className="py-3 px-4 text-center">Completed Work</th>
                         <th className="py-3 px-4 text-right">Order Sales (100%)</th>
-                        <th className="py-3 px-4 text-right text-emerald-300 font-bold">Artist Salary (30%)</th>
-                        <th className="py-3 px-4 text-right text-cyan-300">Studio Share (60%)</th>
+                        <th className="py-3 px-4 text-right text-emerald-300 font-bold">Artist Payroll ({commissionSplit.artistPercentage}%)</th>
+                        <th className="py-3 px-4 text-right text-cyan-300">Studio Share ({platformMarginPercentage}%)</th>
                         <th className="py-3 px-4 text-center">Breakdown</th>
                       </tr>
                     </thead>
@@ -2168,8 +2203,8 @@ export default function AdminPage() {
                         <th className="py-3 px-4">Delivery Agent</th>
                         <th className="py-3 px-4 text-center">Delivered Orders</th>
                         <th className="py-3 px-4 text-right">Order Sales (100%)</th>
-                        <th className="py-3 px-4 text-right text-sky-300 font-bold">Delivery Fee (10%)</th>
-                        <th className="py-3 px-4 text-right text-cyan-300">Studio Share (60%)</th>
+                        <th className="py-3 px-4 text-right text-sky-300 font-bold">Delivery Agent Payroll ({commissionSplit.deliveryPercentage}%)</th>
+                        <th className="py-3 px-4 text-right text-cyan-300">Studio Share ({platformMarginPercentage}%)</th>
                         <th className="py-3 px-4 text-center">Breakdown</th>
                       </tr>
                     </thead>
@@ -2257,8 +2292,8 @@ export default function AdminPage() {
           : verifiedArtists;
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 overflow-y-auto">
+            <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4 my-auto max-h-[92vh] overflow-y-auto">
               <h3 className="text-lg font-bold text-white">
                 {isReassign ? "Reassign Order to a Different Artist" : "Assign Order to Artist"}
               </h3>
@@ -2346,8 +2381,8 @@ export default function AdminPage() {
         const isFailed = assigningDeliveryOrder.status === "DELIVERY_FAILED";
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in">
-            <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+            <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4 my-auto max-h-[92vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
                   <span>🚚</span> Assign Delivery Agent
@@ -2371,7 +2406,7 @@ export default function AdminPage() {
                   <strong>Destination:</strong> {assigningDeliveryOrder.delivery_address}
                 </p>
                 <p className="text-cyan-300">
-                  <strong>Agent Payout (10%):</strong> ₹{(Number(assigningDeliveryOrder.total_price) * DELIVERY_COMMISSION_PERCENTAGE).toFixed(2)}
+                  <strong>Delivery Agent Payroll ({commissionSplit.deliveryPercentage}%):</strong> ₹{(Number(assigningDeliveryOrder.total_price) * DELIVERY_COMMISSION_PERCENTAGE).toFixed(2)}
                 </p>
               </div>
 
@@ -2436,8 +2471,8 @@ export default function AdminPage() {
 
       {/* MODAL: REJECT ARTIST */}
       {rejectingArtist && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4">
-          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 overflow-y-auto">
+          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4 my-auto max-h-[92vh] overflow-y-auto">
             <h3 className="text-lg font-bold text-rose-300">Reject Artist Application</h3>
             <p className="text-xs text-slate-400">
               Rejecting <strong className="text-white">{rejectingArtist.full_name}</strong>. Please provide a clear
@@ -2617,7 +2652,7 @@ export default function AdminPage() {
                       <span>💰</span> Artist Payroll Dashboard: {selectedArtistBreakdown.full_name}
                     </h3>
                     <p className="text-xs text-slate-400">
-                      {selectedArtistBreakdown.email || "Verified Studio Artist"} • 30% Commission Tier • 60% Platform Margin
+                      {selectedArtistBreakdown.email || "Verified Studio Artist"} • {commissionSplit.artistPercentage}% Commission Tier • {platformMarginPercentage}% Platform Margin
                     </p>
                   </div>
                 </div>
@@ -2637,7 +2672,7 @@ export default function AdminPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3.5 space-y-1 shadow-sm">
                     <p className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <span>💰</span> Payroll Due (30%)
+                      <span>💰</span> Payroll ({commissionSplit.artistPercentage}%)
                     </p>
                     <p className="text-xl font-extrabold text-emerald-300">
                       ₹{lifetimeCommission.toLocaleString("en-IN")}
@@ -2667,7 +2702,7 @@ export default function AdminPage() {
 
                   <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-3.5 space-y-1 shadow-sm">
                     <p className="text-[11px] font-semibold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <span>🏢</span> Studio Margin (60%)
+                      <span>🏢</span> Studio Margin ({platformMarginPercentage}%)
                     </p>
                     <p className="text-xl font-extrabold text-amber-300">
                       ₹{lifetimeStudioShare.toLocaleString("en-IN")}
@@ -2681,7 +2716,7 @@ export default function AdminPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                        <span>📊</span> Monthly Earnings Progression (40% Commission)
+                        <span>📊</span> Monthly Earnings Progression ({commissionSplit.artistPercentage}% Commission)
                       </h4>
                       <p className="text-[11px] text-slate-400">Historical monthly payout trend</p>
                     </div>
@@ -2923,9 +2958,9 @@ export default function AdminPage() {
                               <p className="text-xs text-slate-400">Order: ₹{orderPrice.toLocaleString("en-IN")}</p>
                               <p className="text-sm font-bold text-emerald-300">
                                 +₹{artistShare.toLocaleString("en-IN")}{" "}
-                                <span className="text-[10px] font-normal text-emerald-400">(40%)</span>
+                                <span className="text-[10px] font-normal text-emerald-400">({commissionSplit.artistPercentage}%)</span>
                               </p>
-                              <p className="text-[10px] text-slate-500">Studio: ₹{platformShare.toLocaleString("en-IN")} (60%)</p>
+                              <p className="text-[10px] text-slate-500">Studio: ₹{platformShare.toLocaleString("en-IN")} ({platformMarginPercentage}%)</p>
                             </div>
                           </div>
                         );
@@ -2977,10 +3012,10 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <h3 className="text-base font-bold text-white flex items-center gap-2">
-                      <span>🚚</span> Delivery Partner Payroll: {selectedDeliveryBreakdown.full_name}
+                      <span>🚚</span> Delivery Agent Payroll: {selectedDeliveryBreakdown.full_name}
                     </h3>
                     <p className="text-xs text-slate-400">
-                      {selectedDeliveryBreakdown.email || "Platform Delivery Partner"} • 10% Delivery Commission • 60% Platform Margin
+                      {selectedDeliveryBreakdown.email || "Platform Delivery Agent"} • {commissionSplit.deliveryPercentage}% Delivery Agent Payroll • {platformMarginPercentage}% Platform Margin
                     </p>
                     {selectedDeliveryBreakdown.phone && (
                       <p className="text-[11px] text-slate-400 mt-0.5">
@@ -3019,10 +3054,10 @@ export default function AdminPage() {
                   </div>
                   <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-4 space-y-1 shadow">
                     <p className="text-[11px] text-sky-400 uppercase tracking-wider font-semibold">
-                      Delivery Payout (10%)
+                      Delivery Agent Payroll ({commissionSplit.deliveryPercentage}%)
                     </p>
                     <p className="text-2xl font-bold text-sky-300">₹{lifetimeCommission.toLocaleString("en-IN")}</p>
-                    <p className="text-[11px] text-sky-500/80">Logistics commission due</p>
+                    <p className="text-[11px] text-sky-500/80">Logistics payroll</p>
                   </div>
                 </div>
 
@@ -3030,7 +3065,7 @@ export default function AdminPage() {
                 <div className="rounded-xl border border-slate-800 overflow-hidden bg-slate-900/60 shadow">
                   <div className="p-3 bg-slate-800/60 border-b border-slate-800 flex items-center justify-between">
                     <p className="text-xs font-bold text-white">Dispatched Portrait Parcels ({lifetimeCount})</p>
-                    <span className="text-[11px] text-slate-400">Fixed 10% delivery fee per order</span>
+                    <span className="text-[11px] text-slate-400">Fixed {commissionSplit.deliveryPercentage}% delivery payroll per order</span>
                   </div>
                   {activeOrdersList.length === 0 ? (
                     <p className="text-center py-8 text-xs text-slate-500">No delivered orders assigned to this agent yet.</p>
@@ -3043,8 +3078,8 @@ export default function AdminPage() {
                             <th className="py-2.5 px-3">Date</th>
                             <th className="py-2.5 px-3">Delivery Address</th>
                             <th className="py-2.5 px-3 text-right">Order Price (100%)</th>
-                            <th className="py-2.5 px-3 text-right text-sky-300 font-bold">Delivery Fee (10%)</th>
-                            <th className="py-2.5 px-3 text-right text-slate-400">Studio Share (60%)</th>
+                            <th className="py-2.5 px-3 text-right text-sky-300 font-bold">Delivery Agent Payroll ({commissionSplit.deliveryPercentage}%)</th>
+                            <th className="py-2.5 px-3 text-right text-slate-400">Studio Share ({platformMarginPercentage}%)</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-800">
@@ -3085,7 +3120,7 @@ export default function AdminPage() {
               {/* Footer */}
               <div className="p-4 border-t border-slate-800 bg-slate-900/90 flex items-center justify-between">
                 <span className="text-xs text-slate-400">
-                  Total Delivery Payout: <strong className="text-sky-300">₹{lifetimeCommission.toLocaleString("en-IN")}</strong>
+                  Total Delivery Agent Payroll: <strong className="text-sky-300">₹{lifetimeCommission.toLocaleString("en-IN")}</strong>
                 </span>
                 <button
                   type="button"
@@ -3104,8 +3139,8 @@ export default function AdminPage() {
       {elevatingArtist && (() => {
         const m = getUserOrderMetrics(elevatingArtist, allOrders, policyThresholds);
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 overflow-y-auto">
+            <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4 my-auto max-h-[92vh] overflow-y-auto">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <span>⭐</span> Promote Artist to Admin
               </h3>
@@ -3348,8 +3383,8 @@ export default function AdminPage() {
         const priorHistory = userRec?.history || [];
 
         return (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
-            <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 overflow-y-auto">
+            <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4 my-auto max-h-[92vh] overflow-y-auto">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <span>{suspendingUser.targetStatus === "SUSPENDED" ? "⛔" : "🔄"}</span>
                 {suspendingUser.targetStatus === "SUSPENDED" ? "Suspend Account" : "Reactivate Account"}
@@ -3699,6 +3734,246 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* MODAL: COMMISSION SPLIT CONFIGURATOR */}
+      {isCommissionModalOpen && (() => {
+        const tempArtist = tempCommission.artistPercentage;
+        const tempDelivery = tempCommission.deliveryPercentage;
+        const tempPlatform = Math.max(0, 100 - tempArtist - tempDelivery);
+        const isInvalidSplit = tempArtist + tempDelivery > 100;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 overflow-y-auto">
+            <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-5 my-8">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xl">⚙️</span>
+                  <div>
+                    <h3 className="text-base font-bold text-white">Commission Split & Revenue Distribution</h3>
+                    <p className="text-[11px] text-slate-400">Configure how customer order revenue is distributed</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsCommissionModalOpen(false)}
+                  className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 text-lg leading-none"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Explanatory description */}
+              <p className="text-xs text-slate-300 leading-relaxed">
+                Adjust the percentage of gross portrait sales awarded to Artists and Delivery Agents. The platform margin automatically absorbs the remainder to maintain an exact 100% balance.
+              </p>
+
+              {/* Visual Segmented Distribution Bar */}
+              <div className="space-y-1.5 bg-slate-950/60 p-3 rounded-xl border border-slate-800">
+                <div className="flex justify-between text-[11px] text-slate-400 font-semibold">
+                  <span>100% Split Distribution</span>
+                  <span className={isInvalidSplit ? "text-rose-400 font-bold" : "text-slate-300"}>
+                    {tempArtist + tempDelivery}% Allocated • {tempPlatform}% Retained
+                  </span>
+                </div>
+                <div className="h-6 w-full rounded-lg overflow-hidden flex bg-slate-800 border border-slate-700 font-semibold text-[10px] select-none shadow-inner">
+                  {tempArtist > 0 && (
+                    <div
+                      style={{ width: `${Math.min(100, tempArtist)}%` }}
+                      className="bg-emerald-600 flex items-center justify-center text-white transition-all overflow-hidden px-1"
+                      title={`Artist: ${tempArtist}%`}
+                    >
+                      {tempArtist >= 12 ? `Artist ${tempArtist}%` : `${tempArtist}%`}
+                    </div>
+                  )}
+                  {tempDelivery > 0 && (
+                    <div
+                      style={{ width: `${Math.min(100 - tempArtist, tempDelivery)}%` }}
+                      className="bg-sky-600 flex items-center justify-center text-white transition-all overflow-hidden px-1"
+                      title={`Delivery Agent: ${tempDelivery}%`}
+                    >
+                      {tempDelivery >= 12 ? `Delivery ${tempDelivery}%` : `${tempDelivery}%`}
+                    </div>
+                  )}
+                  {tempPlatform > 0 && (
+                    <div
+                      style={{ width: `${tempPlatform}%` }}
+                      className="bg-cyan-700 flex items-center justify-center text-white transition-all overflow-hidden px-1"
+                      title={`Platform Margin: ${tempPlatform}%`}
+                    >
+                      {tempPlatform >= 12 ? `Margin ${tempPlatform}%` : `${tempPlatform}%`}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {isInvalidSplit && (
+                <div className="rounded-xl bg-rose-500/10 border border-rose-500/30 p-3 text-xs text-rose-300 flex items-center gap-2">
+                  <span>⚠️</span>
+                  <span>Combined Artist and Delivery Agent shares cannot exceed 100%!</span>
+                </div>
+              )}
+
+              {/* Sliders and Numeric Inputs */}
+              <div className="space-y-4 text-xs">
+                {/* 1. Artist Share */}
+                <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-emerald-300 flex items-center gap-1.5">
+                      <span>🎨</span> Verified Artist Share (%)
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        max={80}
+                        value={tempCommission.artistPercentage}
+                        onChange={(e) => {
+                          const val = Math.min(90, Math.max(0, parseInt(e.target.value) || 0));
+                          setTempCommission((prev) => ({ ...prev, artistPercentage: val }));
+                        }}
+                        className="w-16 rounded-lg bg-slate-800 border border-slate-700 px-2 py-1 text-center font-bold text-white focus:outline-none focus:border-emerald-500"
+                      />
+                      <span className="text-slate-400 font-semibold">%</span>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={80}
+                    step={1}
+                    value={tempCommission.artistPercentage}
+                    onChange={(e) =>
+                      setTempCommission((prev) => ({ ...prev, artistPercentage: parseInt(e.target.value) || 0 }))
+                    }
+                    className="w-full accent-emerald-500 cursor-pointer"
+                  />
+                  <p className="text-[10px] text-slate-400">
+                    Paid directly to the verified portrait artist upon completing and submitting artwork.
+                  </p>
+                </div>
+
+                {/* 2. Delivery Agent Share */}
+                <div className="rounded-xl bg-sky-500/10 border border-sky-500/20 p-3.5 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-sky-300 flex items-center gap-1.5">
+                      <span>🚚</span> Delivery Agent Share (%)
+                    </label>
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="number"
+                        min={0}
+                        max={40}
+                        value={tempCommission.deliveryPercentage}
+                        onChange={(e) => {
+                          const val = Math.min(50, Math.max(0, parseInt(e.target.value) || 0));
+                          setTempCommission((prev) => ({ ...prev, deliveryPercentage: val }));
+                        }}
+                        className="w-16 rounded-lg bg-slate-800 border border-slate-700 px-2 py-1 text-center font-bold text-white focus:outline-none focus:border-sky-500"
+                      />
+                      <span className="text-slate-400 font-semibold">%</span>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={40}
+                    step={1}
+                    value={tempCommission.deliveryPercentage}
+                    onChange={(e) =>
+                      setTempCommission((prev) => ({ ...prev, deliveryPercentage: parseInt(e.target.value) || 0 }))
+                    }
+                    className="w-full accent-sky-500 cursor-pointer"
+                  />
+                  <p className="text-[10px] text-slate-400">
+                    Paid directly to the delivery agent upon successful doorstep customer handover.
+                  </p>
+                </div>
+
+                {/* 3. Resulting Platform Margin Box */}
+                <div className="rounded-xl bg-cyan-500/10 border border-cyan-500/20 p-3.5 flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <p className="font-bold text-cyan-300 flex items-center gap-1.5">
+                      <span>👑</span> Resulting Platform Margin
+                    </p>
+                    <p className="text-[10px] text-slate-400">ArtifyMe retained revenue for operational & hosting costs</p>
+                  </div>
+                  <span className="text-lg font-extrabold text-cyan-300 bg-cyan-950/40 border border-cyan-500/30 px-3 py-1 rounded-lg shadow-sm">
+                    {tempPlatform}%
+                  </span>
+                </div>
+
+                {/* Live Simulation Calculator */}
+                <div className="rounded-xl bg-slate-800/40 border border-slate-700/60 p-3 space-y-1.5">
+                  <p className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                    <span>💡</span> Example Payout on a ₹2,000 Portrait Order:
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 text-[10px] text-center pt-1">
+                    <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                      <p className="text-slate-400">Artist</p>
+                      <p className="text-xs font-bold text-emerald-400">
+                        ₹{Math.round((2000 * tempArtist) / 100).toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                      <p className="text-slate-400">Delivery Agent</p>
+                      <p className="text-xs font-bold text-sky-400">
+                        ₹{Math.round((2000 * tempDelivery) / 100).toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                    <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                      <p className="text-slate-400">ArtifyMe Margin</p>
+                      <p className="text-xs font-bold text-cyan-400">
+                        ₹{Math.round((2000 * tempPlatform) / 100).toLocaleString("en-IN")}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-between border-t border-slate-800 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setTempCommission(DEFAULT_COMMISSION_SPLIT)}
+                  className="text-xs text-slate-400 hover:text-amber-400 font-semibold underline underline-offset-2 transition"
+                >
+                  Reset to Defaults (30% / 10% / 60%)
+                </button>
+                <div className="flex items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setIsCommissionModalOpen(false)}
+                    className="rounded-lg bg-slate-800 px-3.5 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-700"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isInvalidSplit}
+                    onClick={() => {
+                      setCommissionSplit(tempCommission);
+                      try {
+                        localStorage.setItem("artifyme_commission_split", JSON.stringify(tempCommission));
+                      } catch {
+                        // ignore
+                      }
+                      setIsCommissionModalOpen(false);
+                      showMessage(
+                        `Commission split updated: Artist ${tempCommission.artistPercentage}%, Delivery ${tempCommission.deliveryPercentage}%, Platform ${tempPlatform}%!`,
+                        "success"
+                      );
+                    }}
+                    className="rounded-lg bg-brand hover:bg-brand/90 px-4 py-2 text-xs font-semibold text-white transition flex items-center gap-1.5 shadow-md shadow-brand/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <span>💾</span> Save & Apply Split
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

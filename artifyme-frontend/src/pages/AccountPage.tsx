@@ -600,8 +600,8 @@ export default function AccountPage() {
 
       {/* MODAL: COMPLETE & UPLOAD SKETCH FOR ARTIST */}
       {completingOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-brand-muted p-6 shadow-2xl space-y-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-brand-muted p-6 shadow-2xl space-y-5 my-auto max-h-[92vh] overflow-y-auto">
             <div>
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
                 <span>🎨</span> Complete & Upload Finished Sketch
@@ -683,8 +683,8 @@ export default function AccountPage() {
       )}
       {/* MODAL: LOG DELIVERY ATTEMPT FAILED */}
       {failingOrder && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in">
-          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-brand-muted p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in overflow-y-auto">
+          <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-brand-muted p-6 shadow-2xl space-y-4 my-auto max-h-[92vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <h3 className="text-base font-bold text-white flex items-center gap-2">
                 <span>⚠️</span> Log Unsuccessful Delivery Attempt

@@ -230,7 +230,7 @@ export default function AdminPage() {
   const ROLE_STATUS_MAP: Record<string, string[]> = {
     CUSTOMER: ["PLACED", "CONFIRMED", "CANCELLED"],
     ARTIST: ["ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED"],
-    DELIVERY_AGENT: ["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED"],
+    DELIVERY_AGENT: ["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED", "PUBLISHED"],
   };
 
   const showArtistFilter =
@@ -343,7 +343,7 @@ export default function AdminPage() {
         customer++;
       } else if (["ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED"].includes(o.status)) {
         artist++;
-      } else if (["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED"].includes(o.status)) {
+      } else if (["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED", "PUBLISHED"].includes(o.status)) {
         delivery++;
       }
     }
@@ -364,7 +364,7 @@ export default function AdminPage() {
       } else if (orderRoleFilter === "ARTIST") {
         if (!["ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED"].includes(o.status)) return false;
       } else if (orderRoleFilter === "DELIVERY_AGENT") {
-        if (!["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED"].includes(o.status)) return false;
+        if (!["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED", "PUBLISHED"].includes(o.status)) return false;
       }
 
       // 2. Status Filter
@@ -1034,6 +1034,7 @@ export default function AdminPage() {
                     <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
                     <option value="DELIVERY_FAILED">DELIVERY FAILED ({statusCounts["DELIVERY_FAILED"] || 0})</option>
                     <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
+                    <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
                   </>
                 )}
               </select>

@@ -37,6 +37,30 @@ export function getOrderStatusBadge(status: string): string {
   }
 }
 
+export function getOrderMilestoneStep(status: string): number {
+  switch (status) {
+    case "PLACED":
+      return 1;
+    case "CONFIRMED":
+      return 2;
+    case "ASSIGNED_ARTIST":
+      return 2;
+    case "IN_PROGRESS":
+    case "COMPLETED":
+      return 3;
+    case "ASSIGNED_DELIVERY_AGENT":
+    case "IN_TRANSIT":
+    case "OUT_FOR_DELIVERY":
+    case "DELIVERY_FAILED":
+      return 4;
+    case "DELIVERED":
+    case "PUBLISHED":
+      return 5;
+    default:
+      return 0;
+  }
+}
+
 export interface OrderCardProps {
   order: Order;
   role: "ADMIN" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT";
@@ -142,7 +166,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             >
               {role === "ARTIST" && order.status === "COMPLETED"
                 ? "Collage Processing"
-                : order.status.replace("_", " ")}
+                : order.status.replaceAll("_", " ")}
             </span>
           )}
           <span className="rounded-md bg-slate-800 border border-slate-700/70 px-2 py-0.5 text-xs font-medium text-slate-300">
@@ -320,41 +344,186 @@ export const OrderCard: React.FC<OrderCardProps> = ({
         </div>
       </div>
 
+      {/* 2.5 VISUAL PROGRESS STEPPER (When not cancelled) */}
+      {order.status !== "CANCELLED" && (
+        <div className="rounded-xl bg-slate-950/40 border border-slate-800/60 px-4 py-3">
+          <div className="flex items-center justify-between relative">
+            {/* Background connecting bar */}
+            <div className="absolute left-4 right-4 top-1/2 -translate-y-1/2 h-0.5 bg-slate-800 -z-0" />
+
+            {[
+              { step: 1, label: "Placed & Paid", icon: "✓" },
+              { step: 2, label: "Artist Assigned", icon: "🎨" },
+              { step: 3, label: "Painting Studio", icon: "🖌️" },
+              { step: 4, label: "Out for Delivery", icon: "🚚" },
+              { step: 5, label: "Delivered", icon: "🌟" },
+            ].map((m) => {
+              const currentStep = getOrderMilestoneStep(order.status);
+              const isPast = m.step < currentStep;
+              const isCurrent = m.step === currentStep;
+
+              return (
+                <div key={m.step} className="flex flex-col items-center gap-1.5 relative z-10">
+                  <div
+                    className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all shadow-sm ${
+                      isPast
+                        ? "bg-emerald-500 text-black border-2 border-emerald-400"
+                        : isCurrent
+                        ? "bg-brand text-white border-2 border-brand-light ring-4 ring-brand/20 animate-pulse"
+                        : "bg-slate-900 text-slate-500 border border-slate-700"
+                    }`}
+                  >
+                    {isPast ? "✓" : m.icon}
+                  </div>
+                  <span
+                    className={`text-[10px] font-medium hidden sm:inline whitespace-nowrap ${
+                      isCurrent
+                        ? "text-brand-light font-bold"
+                        : isPast
+                        ? "text-emerald-400"
+                        : "text-slate-500"
+                    }`}
+                  >
+                    {m.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 3. FOOTER ROW: Contextual Status on Left, Actions on Right */}
       <div className="border-t border-slate-800/80 pt-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
         {/* Left: Role-specific Contextual Status or Order Date */}
         <div className="text-xs">
-          {role === "ARTIST" && order.status === "COMPLETED" && (
-            <span className="text-amber-300 font-medium flex items-center gap-1.5">
-              <span>⏳</span>
-              <span>Collage Processing in Background</span>
-            </span>
+          {/* CUSTOMER CONTEXTUAL STATUS */}
+          {role === "CUSTOMER" && (
+            <div className="flex flex-col gap-0.5">
+              {order.status === "PLACED" && (
+                <span className="text-amber-300 font-medium flex items-center gap-1.5">
+                  <span>⏳</span> Awaiting payment — Complete checkout to start canvas painting
+                </span>
+              )}
+              {order.status === "CONFIRMED" && (
+                <span className="text-amber-300 font-medium flex items-center gap-1.5">
+                  <span>✓</span> Payment confirmed — Curator is assigning a verified master artist
+                </span>
+              )}
+              {order.status === "ASSIGNED_ARTIST" && (
+                <span className="text-purple-300 font-medium flex items-center gap-1.5">
+                  <span>🎨</span> Master painter assigned ({artistName || "Studio Artist"}) — Preparing canvas
+                </span>
+              )}
+              {order.status === "IN_PROGRESS" && (
+                <span className="text-blue-300 font-medium flex items-center gap-1.5">
+                  <span>🖌️</span> Active fine-art hand-painting in progress by {artistName || "your artist"}
+                </span>
+              )}
+              {order.status === "COMPLETED" && (
+                <span className="text-amber-300 font-medium flex items-center gap-1.5">
+                  <span>✨</span> Portrait finished — Undergoing quality inspection & collage framing
+                </span>
+              )}
+              {order.status === "ASSIGNED_DELIVERY_AGENT" && (
+                <span className="text-cyan-300 font-medium flex items-center gap-1.5">
+                  <span>📦</span> Museum-grade packaged — Assigned to doorstep delivery courier
+                </span>
+              )}
+              {order.status === "IN_TRANSIT" && (
+                <span className="text-indigo-300 font-medium flex items-center gap-1.5">
+                  <span>🚚</span> In transit — Dispatched from studio hub to your city
+                </span>
+              )}
+              {order.status === "OUT_FOR_DELIVERY" && (
+                <span className="text-sky-300 font-medium flex items-center gap-1.5">
+                  <span>🛵</span> Out for delivery today — Courier is en route to your address
+                </span>
+              )}
+              {order.status === "DELIVERED" && (
+                <span className="text-emerald-400 font-medium flex items-center gap-1.5">
+                  <span>✅</span> Handover complete — Masterpiece delivered safely to your doorstep!
+                </span>
+              )}
+              {order.status === "PUBLISHED" && (
+                <span className="text-emerald-300 font-medium flex items-center gap-1.5">
+                  <span>🌟</span> Delivered & published to public art gallery showcase!
+                </span>
+              )}
+              {order.status === "DELIVERY_FAILED" && (
+                <span className="text-rose-400 font-medium flex items-center gap-1.5">
+                  <span>⚠️</span> Delivery attempt unsuccessful — Courier will reattempt delivery shortly
+                </span>
+              )}
+              {order.status === "CANCELLED" && (
+                <span className="text-rose-400 font-medium flex items-center gap-1.5">
+                  <span>✕</span> Order cancelled
+                </span>
+              )}
+              {order.created_at && (
+                <span className="text-slate-500 text-[10px]">
+                  Order Placed: {new Date(order.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
+                </span>
+              )}
+            </div>
           )}
-          {role === "ARTIST" && ["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "PUBLISHED"].includes(order.status) && (
-            <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
-              <span>✓</span>
-              <span>{order.is_published_to_gallery ? "Published to Studio Gallery" : "Commission Completed & Handed Over"}</span>
-            </span>
+
+          {/* ARTIST CONTEXTUAL STATUS */}
+          {role === "ARTIST" && (
+            <div className="flex flex-col gap-0.5">
+              {order.status === "COMPLETED" && (
+                <span className="text-amber-300 font-medium flex items-center gap-1.5">
+                  <span>⏳</span> Collage processing in background & awaiting courier dispatch
+                </span>
+              )}
+              {["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "PUBLISHED"].includes(order.status) && (
+                <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                  <span>✓</span> {order.is_published_to_gallery ? "Published to Studio Gallery" : "Commission Completed & Handed Over"}
+                </span>
+              )}
+              {order.created_at && (
+                <span className="text-slate-500 text-[10px]">
+                  Assigned Date: {new Date(order.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
+                </span>
+              )}
+            </div>
           )}
-          {role === "ADMIN" && order.status === "ASSIGNED_ARTIST" && (
-            <span className="inline-flex items-center gap-1.5 text-purple-300 font-medium">
-              <span>⏳</span> Assigned to {assignedArtist?.full_name || "Artist"} (Awaiting Confirmation)
-            </span>
+
+          {/* ADMIN CONTEXTUAL STATUS */}
+          {role === "ADMIN" && (
+            <div className="flex flex-col gap-0.5">
+              {order.status === "ASSIGNED_ARTIST" && (
+                <span className="inline-flex items-center gap-1.5 text-purple-300 font-medium">
+                  <span>⏳</span> Assigned to {assignedArtist?.full_name || "Artist"} (Awaiting Confirmation)
+                </span>
+              )}
+              {order.status === "ASSIGNED_DELIVERY_AGENT" && (
+                <span className="inline-flex items-center gap-1.5 text-cyan-300 font-medium">
+                  <span>⏳</span> Assigned to {assignedDeliveryAgent?.full_name || "Delivery Agent"} (Awaiting Confirmation)
+                </span>
+              )}
+              {order.created_at && (
+                <span className="text-slate-500 text-[10px]">
+                  Created: {new Date(order.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
+                </span>
+              )}
+            </div>
           )}
-          {role === "ADMIN" && order.status === "ASSIGNED_DELIVERY_AGENT" && (
-            <span className="inline-flex items-center gap-1.5 text-cyan-300 font-medium">
-              <span>⏳</span> Assigned to {assignedDeliveryAgent?.full_name || "Delivery Agent"} (Awaiting Confirmation)
-            </span>
-          )}
-          {role === "DELIVERY_AGENT" && (order.status === "DELIVERED" || order.status === "PUBLISHED") && (
-            <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
-              <span>✓</span> Handover Verified
-            </span>
-          )}
-          {order.created_at && !["COMPLETED", "ASSIGNED_ARTIST", "ASSIGNED_DELIVERY_AGENT"].includes(order.status) && (
-            <span className="text-slate-500 text-[11px]">
-              Order Date: {new Date(order.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
-            </span>
+
+          {/* DELIVERY AGENT CONTEXTUAL STATUS */}
+          {role === "DELIVERY_AGENT" && (
+            <div className="flex flex-col gap-0.5">
+              {(order.status === "DELIVERED" || order.status === "PUBLISHED") && (
+                <span className="text-emerald-400 font-semibold flex items-center gap-1.5">
+                  <span>✓</span> Handover Verified
+                </span>
+              )}
+              {order.created_at && (
+                <span className="text-slate-500 text-[10px]">
+                  Assigned: {new Date(order.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
+                </span>
+              )}
+            </div>
           )}
         </div>
 

@@ -127,7 +127,7 @@ export default function AccountPage() {
     if (isArtist && status === "COMPLETED") {
       return "Collage Processing";
     }
-    return status.replace("_", " ");
+    return status.replaceAll("_", " ");
   }
 
   // 2. Artist Specific Queries
@@ -254,7 +254,7 @@ export default function AccountPage() {
   // Customer Stats
   const placedCount = orders.filter((o) => o.status === "PLACED").length;
   const inProgressCustomerCount = orders.filter((o) =>
-    ["CONFIRMED", "ASSIGNED_ARTIST", "IN_PROGRESS", "ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY"].includes(o.status)
+    ["CONFIRMED", "ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED", "ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED"].includes(o.status)
   ).length;
   const deliveredCustomerCount = orders.filter((o) =>
     ["DELIVERED", "PUBLISHED"].includes(o.status)

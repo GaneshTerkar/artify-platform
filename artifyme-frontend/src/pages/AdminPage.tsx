@@ -185,7 +185,7 @@ export default function AdminPage() {
   const [elevatingArtist, setElevatingArtist] = useState<PlatformUser | null>(null);
   const [suspendingUser, setSuspendingUser] = useState<{ user: PlatformUser; targetStatus: "ACTIVE" | "SUSPENDED" } | null>(null);
   const [suspensionReason, setSuspensionReason] = useState<string>("Frequent unconfirmed or cancelled orders");
-  const [userRiskFilter, setUserRiskFilter] = useState<"ALL" | "AT_RISK" | "ADMIN_ELIGIBLE">("ALL");
+  const [userSubFilter, setUserSubFilter] = useState<"ALL" | "VERIFIED" | "PENDING_REVIEW" | "AT_RISK" | "ADMIN_ELIGIBLE">("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [artistFilter, setArtistFilter] = useState<string>("ALL");
   const [orderSearchQuery, setOrderSearchQuery] = useState<string>("");
@@ -199,7 +199,6 @@ export default function AdminPage() {
     }
   };
   const [userRoleFilter, setUserRoleFilter] = useState<"ALL" | "CUSTOMER" | "ARTIST" | "ADMIN">("ALL");
-  const [artistStatusFilter, setArtistStatusFilter] = useState<"ALL" | "VERIFIED" | "PENDING_REVIEW">("ALL");
   const [userSearchQuery, setUserSearchQuery] = useState<string>("");
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
@@ -418,15 +417,13 @@ export default function AdminPage() {
     return allUsers.filter((u) => {
       if (userRoleFilter === "CUSTOMER" && u.role !== "CUSTOMER") return false;
       if (userRoleFilter === "ADMIN" && u.role !== "ADMIN") return false;
-      if (userRoleFilter === "ARTIST") {
-        if (u.role !== "ARTIST") return false;
-        if (artistStatusFilter === "VERIFIED" && !u.is_verified_artist) return false;
-        if (artistStatusFilter === "PENDING_REVIEW" && u.is_verified_artist) return false;
-      }
+      if (userRoleFilter === "ARTIST" && u.role !== "ARTIST") return false;
 
       const metrics = getUserOrderMetrics(u, allOrders, policyThresholds);
-      if (userRiskFilter === "AT_RISK" && !metrics.isAtRisk) return false;
-      if (userRiskFilter === "ADMIN_ELIGIBLE" && !metrics.isAdminEligible) return false;
+      if (userSubFilter === "VERIFIED" && !u.is_verified_artist) return false;
+      if (userSubFilter === "PENDING_REVIEW" && u.is_verified_artist) return false;
+      if (userSubFilter === "AT_RISK" && !metrics.isAtRisk) return false;
+      if (userSubFilter === "ADMIN_ELIGIBLE" && !metrics.isAdminEligible) return false;
 
       if (userSearchQuery.trim()) {
         const q = userSearchQuery.toLowerCase();
@@ -438,7 +435,7 @@ export default function AdminPage() {
       }
       return true;
     });
-  }, [allUsers, allOrders, userRoleFilter, artistStatusFilter, userRiskFilter, userSearchQuery, policyThresholds]);
+  }, [allUsers, allOrders, userRoleFilter, userSubFilter, userSearchQuery, policyThresholds]);
 
   // Payroll calculations (40% Artist / 60% Studio)
   const availableMonths = useMemo(() => {
@@ -1082,128 +1079,163 @@ export default function AdminPage() {
       {activeTab === "users" && (
         <div className="space-y-6">
           {/* Filters & Search Bar */}
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
-            {/* Role Filter Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-              {(
-                [
-                  { id: "ALL", label: "ALL", count: userCounts.ALL },
-                  { id: "CUSTOMER", label: "CUSTOMERS", count: userCounts.CUSTOMER },
-                  { id: "ARTIST", label: "ARTISTS", count: userCounts.ARTIST },
-                  { id: "ADMIN", label: "ADMINS", count: userCounts.ADMIN },
-                ] as const
-              ).map((pill) => {
-                const isActive = userRoleFilter === pill.id;
-                return (
-                  <button
-                    key={pill.id}
-                    onClick={() => {
-                      setUserRoleFilter(pill.id);
-                      if (pill.id !== "ARTIST") {
-                        setArtistStatusFilter("ALL");
-                      }
-                      if (pill.id === "CUSTOMER" && userRiskFilter === "ADMIN_ELIGIBLE") {
-                        setUserRiskFilter("ALL");
-                      }
-                      if (pill.id === "ADMIN") {
-                        setUserRiskFilter("ALL");
-                      }
-                    }}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition ${
-                      isActive
-                        ? "bg-slate-700 text-white font-semibold border border-slate-500 shadow-sm"
-                        : "bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white"
-                    }`}
-                  >
-                    <span>{pill.label}</span>
-                    <span
-                      className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
-                        isActive ? "bg-slate-900 text-white" : "bg-slate-700 text-slate-300"
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-3.5 space-y-2.5">
+            {/* ROW 1: Role Filter Pills (Left) + Search & Export (Right) */}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              {/* Role Filter Pills */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+                {(
+                  [
+                    { id: "ALL", label: "ALL", count: userCounts.ALL },
+                    { id: "CUSTOMER", label: "CUSTOMERS", count: userCounts.CUSTOMER },
+                    { id: "ARTIST", label: "ARTISTS", count: userCounts.ARTIST },
+                    { id: "ADMIN", label: "ADMINS", count: userCounts.ADMIN },
+                  ] as const
+                ).map((pill) => {
+                  const isActive = userRoleFilter === pill.id;
+                  return (
+                    <button
+                      key={pill.id}
+                      onClick={() => {
+                        setUserRoleFilter(pill.id);
+                        setUserSubFilter("ALL");
+                      }}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition ${
+                        isActive
+                          ? "bg-slate-700 text-white font-semibold border border-slate-500 shadow-sm"
+                          : "bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-transparent"
                       }`}
                     >
-                      {pill.count}
-                    </span>
-                    {pill.id === "ARTIST" && userCounts.PENDING_REVIEW > 0 && (
-                      <span className="rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 text-[10px] font-semibold">
-                        {userCounts.PENDING_REVIEW} to review
+                      <span>{pill.label}</span>
+                      <span
+                        className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                          isActive ? "bg-slate-900 text-white" : "bg-slate-700 text-slate-300"
+                        }`}
+                      >
+                        {pill.count}
                       </span>
-                    )}
-                  </button>
-                );
-              })}
+                      {pill.id === "ARTIST" && userCounts.PENDING_REVIEW > 0 && (
+                        <span className="rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 text-[10px] font-semibold">
+                          {userCounts.PENDING_REVIEW} to review
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Right Side: Quick Search & Export CSV */}
+              <div className="flex items-center gap-2 flex-1 sm:flex-initial justify-end">
+                <div className="relative min-w-[200px] max-w-xs flex-1">
+                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+                  <input
+                    type="text"
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    placeholder="Search users..."
+                    className="rounded-lg bg-slate-800 border border-slate-700 pl-7 pr-7 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
+                  />
+                  {userSearchQuery && (
+                    <button
+                      onClick={() => setUserSearchQuery("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => exportUsersToCSV(filteredUsers)}
+                  className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition flex items-center gap-1 shadow-sm whitespace-nowrap"
+                  title="Export current user list to CSV for Excel"
+                >
+                  <span>📥</span> <span className="hidden sm:inline">Export</span> CSV
+                </button>
+                <span className="text-slate-400 text-xs whitespace-nowrap hidden lg:inline">
+                  <strong className="text-white">{filteredUsers.length}</strong>/{allUsers.length}
+                </span>
+              </div>
             </div>
 
-            {/* Artist Status Sub-filters (Visible when ARTISTS is selected) */}
-            {userRoleFilter === "ARTIST" && (
-              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800/60 text-xs">
-                <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider">
-                  Artist Status:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setArtistStatusFilter("ALL")}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-                    artistStatusFilter === "ALL"
-                      ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 font-semibold"
-                      : "bg-slate-800 text-slate-400 hover:text-white border border-transparent"
-                  }`}
-                >
-                  All Artists ({userCounts.ARTIST})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setArtistStatusFilter("VERIFIED")}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-                    artistStatusFilter === "VERIFIED"
-                      ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold"
-                      : "bg-slate-800 text-slate-400 hover:text-white border border-transparent"
-                  }`}
-                >
-                  ✓ Verified ({userCounts.VERIFIED_ARTIST})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setArtistStatusFilter("PENDING_REVIEW")}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-                    artistStatusFilter === "PENDING_REVIEW"
-                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold"
-                      : "bg-slate-800 text-slate-400 hover:text-white border border-transparent"
-                  }`}
-                >
-                  ⏳ Pending Review ({userCounts.PENDING_REVIEW})
-                </button>
-              </div>
-            )}
-
-            {/* Risk & Qualification Filter Pills (Role-Aware Visibility) */}
+            {/* ROW 2: Contextual Sub-filters & Policy Button (Hidden for ADMINS) */}
             {userRoleFilter !== "ADMIN" && (
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60 text-xs">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider">
-                    Risk & Criteria:
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-slate-800/60 text-xs">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-slate-500 font-medium text-[11px] uppercase tracking-wider mr-1">
+                    Filter:
                   </span>
+
+                  {/* 1. All */}
                   <button
                     type="button"
-                    onClick={() => setUserRiskFilter("ALL")}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-                      userRiskFilter === "ALL"
+                    onClick={() => setUserSubFilter("ALL")}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
+                      userSubFilter === "ALL"
                         ? "bg-slate-700 text-white border border-slate-500 font-semibold shadow-sm"
-                        : "bg-slate-800 text-slate-400 hover:text-white border border-transparent"
+                        : "bg-slate-800/90 text-slate-400 hover:text-white border border-transparent"
                     }`}
                   >
-                    {userRoleFilter === "CUSTOMER"
-                      ? "All Customers"
-                      : userRoleFilter === "ARTIST"
-                      ? "All Artists"
-                      : "All Accounts"}
+                    <span>
+                      {userRoleFilter === "CUSTOMER"
+                        ? "All Customers"
+                        : userRoleFilter === "ARTIST"
+                        ? "All Artists"
+                        : "All Accounts"}
+                    </span>
+                    <span className="rounded-full bg-slate-900/80 px-1.5 py-0.2 text-[10px] font-bold text-slate-300">
+                      {userRoleFilter === "CUSTOMER"
+                        ? userCounts.CUSTOMER
+                        : userRoleFilter === "ARTIST"
+                        ? userCounts.ARTIST
+                        : userCounts.ALL}
+                    </span>
                   </button>
+
+                  {/* 2. Verified (Artists only) */}
+                  {userRoleFilter === "ARTIST" && (
+                    <button
+                      type="button"
+                      onClick={() => setUserSubFilter("VERIFIED")}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
+                        userSubFilter === "VERIFIED"
+                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold"
+                          : "bg-slate-800/90 text-slate-400 hover:text-emerald-300 border border-transparent"
+                      }`}
+                    >
+                      <span>✓ Verified</span>
+                      <span className="rounded-full bg-emerald-500/30 text-emerald-200 px-1.5 py-0.2 text-[10px] font-bold">
+                        {userCounts.VERIFIED_ARTIST}
+                      </span>
+                    </button>
+                  )}
+
+                  {/* 3. Pending Review (Artists only) */}
+                  {userRoleFilter === "ARTIST" && (
+                    <button
+                      type="button"
+                      onClick={() => setUserSubFilter("PENDING_REVIEW")}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
+                        userSubFilter === "PENDING_REVIEW"
+                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold"
+                          : "bg-slate-800/90 text-slate-400 hover:text-amber-300 border border-transparent"
+                      }`}
+                    >
+                      <span>⏳ Pending Review</span>
+                      <span className="rounded-full bg-amber-500/30 text-amber-200 px-1.5 py-0.2 text-[10px] font-bold">
+                        {userCounts.PENDING_REVIEW}
+                      </span>
+                    </button>
+                  )}
+
+                  {/* 4. At-Risk / Needs Attention */}
                   <button
                     type="button"
-                    onClick={() => setUserRiskFilter("AT_RISK")}
+                    onClick={() => setUserSubFilter("AT_RISK")}
                     className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                      userRiskFilter === "AT_RISK"
+                      userSubFilter === "AT_RISK"
                         ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 font-semibold shadow-sm"
-                        : "bg-slate-800 text-slate-400 hover:text-rose-300 border border-transparent"
+                        : "bg-slate-800/90 text-slate-400 hover:text-rose-300 border border-transparent"
                     }`}
                     title={
                       userRoleFilter === "CUSTOMER"
@@ -1219,22 +1251,22 @@ export default function AdminPage() {
                         ? "At-Risk Customers"
                         : userRoleFilter === "ARTIST"
                         ? "Needs Attention"
-                        : "At-Risk / Needs Attention"}
+                        : "Needs Attention"}
                     </span>
                     <span className="rounded-full bg-rose-500/30 text-rose-200 px-1.5 py-0.2 text-[10px] font-bold">
                       {userRiskCounts.atRisk}
                     </span>
                   </button>
 
-                  {/* Admin-Eligible pill: ONLY shown for Artists and All Accounts (Hidden for Customers) */}
+                  {/* 5. Admin-Eligible (Artists or All only - Hidden for Customers) */}
                   {userRoleFilter !== "CUSTOMER" && (
                     <button
                       type="button"
-                      onClick={() => setUserRiskFilter("ADMIN_ELIGIBLE")}
+                      onClick={() => setUserSubFilter("ADMIN_ELIGIBLE")}
                       className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                        userRiskFilter === "ADMIN_ELIGIBLE"
+                        userSubFilter === "ADMIN_ELIGIBLE"
                           ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold shadow-sm"
-                          : "bg-slate-800 text-slate-400 hover:text-amber-300 border border-transparent"
+                          : "bg-slate-800/90 text-slate-400 hover:text-amber-300 border border-transparent"
                       }`}
                       title={`Show verified artists with at least ${policyThresholds.minArtistCompletedOrders} completed commissions and 0 stalled assignments`}
                     >
@@ -1254,51 +1286,14 @@ export default function AdminPage() {
                     setTempPolicy(policyThresholds);
                     setIsPolicyModalOpen(true);
                   }}
-                  className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white transition flex items-center gap-1.5 shadow-sm"
+                  className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 px-2.5 py-1 text-xs font-medium text-slate-300 hover:text-white transition flex items-center gap-1.5 shadow-sm ml-auto"
                   title="Adjust policy thresholds for account risk and admin elevation"
                 >
                   <span>⚙️</span>
-                  <span>Adjust Policy Thresholds</span>
+                  <span>Policy Thresholds</span>
                 </button>
               </div>
             )}
-
-            {/* Search and Summary */}
-            <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-800/60 text-xs">
-              <div className="flex items-center gap-2 flex-1 min-w-[240px]">
-                <span className="text-slate-400">🔍</span>
-                <input
-                  type="text"
-                  value={userSearchQuery}
-                  onChange={(e) => setUserSearchQuery(e.target.value)}
-                  placeholder="Search users by name, email, phone, username..."
-                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
-                />
-                {userSearchQuery && (
-                  <button
-                    onClick={() => setUserSearchQuery("")}
-                    className="text-slate-400 hover:text-white text-xs underline"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3 ml-auto">
-                <button
-                  type="button"
-                  onClick={() => exportUsersToCSV(filteredUsers)}
-                  className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-200 transition flex items-center gap-1.5 shadow-sm"
-                  title="Export current user list to CSV for Excel"
-                >
-                  <span>📥</span> Export CSV
-                </button>
-                <span className="text-slate-400 text-xs">
-                  Showing <strong className="text-white">{filteredUsers.length}</strong> of{" "}
-                  <strong className="text-white">{allUsers.length}</strong> users
-                </span>
-              </div>
-            </div>
           </div>
 
           {/* Users List */}
@@ -1310,7 +1305,7 @@ export default function AdminPage() {
               <button
                 onClick={() => {
                   setUserRoleFilter("ALL");
-                  setArtistStatusFilter("ALL");
+                  setUserSubFilter("ALL");
                   setUserSearchQuery("");
                 }}
                 className="rounded-lg bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-slate-700 transition"

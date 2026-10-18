@@ -1036,92 +1036,8 @@ export default function AdminPage() {
       {activeTab === "orders" && (
         <div className="space-y-6">
           {/* Filters Bar */}
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3.5">
-            {/* 1. Primary Role Stage Selector Tabs (Never overflows or scrolls) */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pb-1 border-b border-slate-800/60">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs font-semibold text-slate-400 mr-1 flex items-center gap-1">
-                  <span>🎭</span> Role Stage:
-                </span>
-                {ROLE_TABS.map((tab) => {
-                  const isActive = orderRoleFilter === tab.id;
-                  return (
-                    <button
-                      key={tab.id}
-                      onClick={() => handleRoleFilterChange(tab.id as any)}
-                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
-                        isActive
-                          ? "bg-brand text-white shadow-sm ring-1 ring-white/20"
-                          : "bg-slate-800/70 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/50"
-                      }`}
-                    >
-                      <span>{tab.icon}</span>
-                      <span>{tab.label}</span>
-                      <span
-                        className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
-                          isActive
-                            ? "bg-black/30 text-white"
-                            : "bg-slate-900 text-slate-400"
-                        }`}
-                      >
-                        {tab.count}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Reset shortcut */}
-              {(orderRoleFilter !== "ALL" || statusFilter !== "ALL" || artistFilter !== "ALL" || deliveryPartnerFilter !== "ALL" || orderSearchQuery.trim() !== "") && (
-                <button
-                  onClick={() => {
-                    setOrderRoleFilter("ALL");
-                    setStatusFilter("ALL");
-                    setArtistFilter("ALL");
-                    setDeliveryPartnerFilter("ALL");
-                    setOrderSearchQuery("");
-                  }}
-                  className="text-xs text-amber-400 hover:text-amber-300 underline font-medium flex items-center gap-1"
-                >
-                  <span>↺</span> Reset all filters
-                </button>
-              )}
-            </div>
-
-            {/* 2. Aligned Status Quick-Pills for the Active Role (Wraps cleanly, NO horizontal scrollbar!) */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-medium text-slate-400 mr-1">Status:</span>
-              {activeStatusPills.map((pill) => {
-                const isActive = statusFilter === pill.id;
-                return (
-                  <button
-                    key={pill.id}
-                    onClick={() => handleStatusFilterChange(pill.id)}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-                      isActive
-                        ? "bg-slate-700 text-white font-semibold border border-slate-500 shadow-sm"
-                        : "bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/30"
-                    }`}
-                  >
-                    <span>{pill.label}</span>
-                    <span
-                      className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
-                        isActive
-                          ? "bg-slate-900 text-white"
-                          : pill.id === "COMPLETED" && needsInspectionCount > 0
-                          ? "bg-amber-500/30 text-amber-300 border border-amber-500/50"
-                          : "bg-slate-700 text-slate-300"
-                      }`}
-                    >
-                      {pill.count}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* 3. Search and Dropdown Controls Row */}
-            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-800/60 text-xs">
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+            <div className="flex flex-wrap items-center gap-3 text-xs">
               {/* Search Bar */}
               <div className="flex items-center gap-2 flex-1 min-w-[240px]">
                 <span className="text-slate-400">🔍</span>
@@ -1130,7 +1046,7 @@ export default function AdminPage() {
                   value={orderSearchQuery}
                   onChange={(e) => setOrderSearchQuery(e.target.value)}
                   placeholder="Search by ID, customer, artist, courier, address, notes..."
-                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
+                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
                 />
                 {orderSearchQuery && (
                   <button
@@ -1142,39 +1058,43 @@ export default function AdminPage() {
                 )}
               </div>
 
-              {/* Role Dropdown */}
+              {/* Users Dropdown */}
               <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 font-medium whitespace-nowrap">Role:</span>
+                <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1">
+                  <span>👥</span> Users:
+                </label>
                 <select
                   value={orderRoleFilter}
                   onChange={(e) => handleRoleFilterChange(e.target.value as any)}
-                  className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
+                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm"
                 >
-                  <option value="ALL">🌐 All Roles ({allOrders.length})</option>
-                  <option value="CUSTOMER">👤 Customer Phase ({roleCounts.CUSTOMER})</option>
-                  <option value="ARTIST">🎨 Artist Stage ({roleCounts.ARTIST})</option>
+                  <option value="ALL">All Users ({allOrders.length})</option>
+                  <option value="CUSTOMER">👤 Customer ({roleCounts.CUSTOMER})</option>
+                  <option value="ARTIST">🎨 Artist ({roleCounts.ARTIST})</option>
                   <option value="DELIVERY_AGENT">🚚 Delivery Partner ({roleCounts.DELIVERY_AGENT})</option>
                   <option value="PUBLISHED">🌟 Gallery Showcase ({roleCounts.PUBLISHED})</option>
                 </select>
               </div>
 
-              {/* Aligned Status Dropdown */}
+              {/* Order Status Dropdown */}
               <div className="flex items-center gap-1.5">
-                <span className="text-slate-400 font-medium whitespace-nowrap">Status:</span>
+                <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1">
+                  <span>📦</span> Order Status:
+                </label>
                 <select
                   value={statusFilter}
                   onChange={(e) => handleStatusFilterChange(e.target.value)}
-                  className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
+                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm"
                 >
                   {orderRoleFilter === "ALL" && (
                     <>
-                      <option value="ALL">All Statuses ({allOrders.length})</option>
-                      <optgroup label="👤 Customer Phase">
+                      <option value="ALL">All Order Statuses ({allOrders.length})</option>
+                      <optgroup label="👤 Customer">
                         <option value="PLACED">PLACED ({statusCounts["PLACED"] || 0})</option>
                         <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
                         <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
                       </optgroup>
-                      <optgroup label="🎨 Artist Stage">
+                      <optgroup label="🎨 Artist">
                         <option value="ASSIGNED_ARTIST">ASSIGNED ARTIST ({statusCounts["ASSIGNED_ARTIST"] || 0})</option>
                         <option value="IN_PROGRESS">IN PROGRESS ({statusCounts["IN_PROGRESS"] || 0})</option>
                         <option value="COMPLETED">STUDIO READY ({statusCounts["COMPLETED"] || 0})</option>
@@ -1230,14 +1150,16 @@ export default function AdminPage() {
                 </select>
               </div>
 
-              {/* Artist Filter Dropdown (Visible for Artist stage or All) */}
+              {/* Artist Filter Dropdown */}
               {showArtistFilter && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-400 font-medium whitespace-nowrap">Artist:</span>
+                  <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1">
+                    <span>🖌️</span> Artist:
+                  </label>
                   <select
                     value={artistFilter}
                     onChange={(e) => setArtistFilter(e.target.value)}
-                    className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
+                    className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-white focus:outline-none focus:border-brand shadow-sm"
                   >
                     <option value="ALL">All Artists</option>
                     <option value="ASSIGNED">Any Assigned</option>
@@ -1251,14 +1173,16 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* Delivery Partner Filter Dropdown (Visible for Delivery stage or All) */}
+              {/* Delivery Partner Filter Dropdown */}
               {showDeliveryFilter && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-slate-400 font-medium whitespace-nowrap">Courier:</span>
+                  <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1">
+                    <span>🛵</span> Courier:
+                  </label>
                   <select
                     value={deliveryPartnerFilter}
                     onChange={(e) => setDeliveryPartnerFilter(e.target.value)}
-                    className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
+                    className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-white focus:outline-none focus:border-brand shadow-sm"
                   >
                     <option value="ALL">All Couriers</option>
                     <option value="ASSIGNED">Any Assigned</option>
@@ -1270,6 +1194,22 @@ export default function AdminPage() {
                     ))}
                   </select>
                 </div>
+              )}
+
+              {/* Reset shortcut */}
+              {(orderRoleFilter !== "ALL" || statusFilter !== "ALL" || artistFilter !== "ALL" || deliveryPartnerFilter !== "ALL" || orderSearchQuery.trim() !== "") && (
+                <button
+                  onClick={() => {
+                    setOrderRoleFilter("ALL");
+                    setStatusFilter("ALL");
+                    setArtistFilter("ALL");
+                    setDeliveryPartnerFilter("ALL");
+                    setOrderSearchQuery("");
+                  }}
+                  className="text-xs text-amber-400 hover:text-amber-300 underline font-medium whitespace-nowrap flex items-center gap-1"
+                >
+                  <span>↺</span> Clear filters
+                </button>
               )}
 
               <span className="text-slate-400 text-xs ml-auto whitespace-nowrap">

@@ -38,9 +38,12 @@ require (
 	github.com/go-openapi/spec v0.20.4 // indirect
 	github.com/go-openapi/swag v0.19.15 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
+	github.com/klauspost/compress v1.15.11 // indirect
 	github.com/lib/pq v1.10.9 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
+	github.com/pierrec/lz4/v4 v4.1.16 // indirect
 	github.com/redis/go-redis/v9 v9.23.0 // indirect
+	github.com/segmentio/kafka-go v0.4.51 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
 	golang.org/x/image v0.24.0 // indirect
 	golang.org/x/mod v0.31.0 // indirect

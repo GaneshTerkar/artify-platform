@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/config"
+	"github.com/ganeshterkar/artifyme-backend/cmd/internal/events"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/middleware"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/modules/artists"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/modules/auth"
@@ -16,7 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, workerPool ...*worker.Pool) {
+func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, workerPool *worker.Pool, eventsRepo events.Repository, eventsRelay *events.Relay) {
 	// ======================
 	// Root & Health Check
 	// ======================
@@ -204,7 +205,7 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, worke
 	// ======================
 	baseURL := "http://localhost:" + cfg.App.Port
 	orderRepo := orders.NewRepository(pool)
-	orderService := orders.NewService(orderRepo, filesService, baseURL, workerPool...)
+	orderService := orders.NewService(orderRepo, filesService, baseURL, workerPool, eventsRepo, eventsRelay)
 	orderHandler := orders.NewHandler(orderService, cfg)
 
 	v1 := r.Group("/api/v1")
@@ -242,6 +243,7 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, worke
 		v1Admin.PATCH("/users/:id/status", orderHandler.AdminUpdateUserStatus)
 		v1Admin.PATCH("/users/:id/role", orderHandler.AdminElevateArtist)
 		v1Admin.GET("/worker/stats", orderHandler.GetWorkerStats)
+		v1Admin.GET("/events/stats", orderHandler.GetEventStats)
 	}
 
 	r.POST("/webhooks/stripe", orderHandler.StripeWebhook)

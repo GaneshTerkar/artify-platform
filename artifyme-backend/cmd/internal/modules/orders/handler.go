@@ -502,3 +502,13 @@ func (h *Handler) GetWorkerStats(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
+func (h *Handler) GetEventStats(c *gin.Context) {
+	stats := h.service.OutboxStats(c.Request.Context())
+	if stats == nil {
+		c.JSON(http.StatusOK, gin.H{"status": "outbox relay not initialized"})
+		return
+	}
+	c.JSON(http.StatusOK, stats)
+}
+
+

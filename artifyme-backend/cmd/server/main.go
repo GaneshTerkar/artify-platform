@@ -17,6 +17,7 @@ import (
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/cache"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/config"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/db"
+	"github.com/ganeshterkar/artifyme-backend/cmd/internal/events"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/logger"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/middleware"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/routes"
@@ -100,8 +101,14 @@ func main() {
 	workerPool.Start()
 	defer workerPool.Stop()
 
+	// Initialize Transactional Outbox Relay for Redpanda / Kafka event streaming
+	eventsRepo := events.NewRepository(pool)
+	eventsRelay := events.NewRelay(eventsRepo, cfg.Kafka.Brokers, cfg.Kafka.Topic, cfg.Kafka.Enabled)
+	eventsRelay.Start()
+	defer eventsRelay.Stop()
+
 	// Routes
-	routes.RegisterRoutes(r, pool, cfg, workerPool)
+	routes.RegisterRoutes(r, pool, cfg, workerPool, eventsRepo, eventsRelay)
 
 	slog.Info("Server running", "port", cfg.App.Port)
 

@@ -59,7 +59,41 @@ services:
     depends_on:
       - redis
 
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: artify-redpanda
+    command:
+      - redpanda start
+      - --mode dev-container
+      - --smp 1
+      - --memory 512M
+      - --overprovisioned
+      - --kafka-addr internal://0.0.0.0:29092,external://0.0.0.0:9092
+      - --advertise-kafka-addr internal://artify-redpanda:29092,external://localhost:9092
+    ports:
+      - "9092:9092"
+      - "9644:9644"
+    volumes:
+      - artify_redpanda_data:/var/lib/redpanda/data
+    healthcheck:
+      test: ["CMD-SHELL", "rpk cluster health | grep -E 'Healthy:.+true' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redpanda-console:
+    image: docker.redpanda.com/redpandadata/console:latest
+    container_name: artify-redpanda-console
+    environment:
+      KAFKA_BROKERS: "artify-redpanda:29092"
+    ports:
+      - "8088:8080"
+    depends_on:
+      redpanda:
+        condition: service_healthy
+
 volumes:
   artify_pg_data:
   artify_minio_data:
   artify_redis_data:
+  artify_redpanda_data:

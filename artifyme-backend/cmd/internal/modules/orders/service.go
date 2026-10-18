@@ -9,28 +9,69 @@ import (
 	"time"
 
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/cache"
+	"github.com/ganeshterkar/artifyme-backend/cmd/internal/events"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/worker"
 	"github.com/google/uuid"
 )
 
 type Service struct {
-	repo     *Repository
-	uploader FileUploader
-	baseURL  string
-	pool     *worker.Pool
+	repo       *Repository
+	uploader   FileUploader
+	baseURL    string
+	pool       *worker.Pool
+	eventsRepo events.Repository
+	relay      *events.Relay
 }
 
-func NewService(repo *Repository, uploader FileUploader, baseURL string, workerPool ...*worker.Pool) *Service {
-	var p *worker.Pool
-	if len(workerPool) > 0 && workerPool[0] != nil {
-		p = workerPool[0]
-	}
+func NewService(repo *Repository, uploader FileUploader, baseURL string, pool *worker.Pool, eventsRepo events.Repository, relay *events.Relay) *Service {
 	return &Service{
-		repo:     repo,
-		uploader: uploader,
-		baseURL:  baseURL,
-		pool:     p,
+		repo:       repo,
+		uploader:   uploader,
+		baseURL:    baseURL,
+		pool:       pool,
+		eventsRepo: eventsRepo,
+		relay:      relay,
 	}
+}
+
+func (s *Service) emitEvent(ctx context.Context, aggregateID string, eventType string, payload map[string]interface{}) {
+	if s.eventsRepo == nil {
+		return
+	}
+	if err := s.eventsRepo.RecordEvent(ctx, "ORDER", aggregateID, eventType, events.TopicArtifyEvents, payload); err != nil {
+		slog.Error("failed to record outbox event", "event_type", eventType, "aggregate_id", aggregateID, "error", err)
+	}
+}
+
+func (s *Service) emitDeliveryEvent(ctx context.Context, o *Order, status OrderStatus, actorID uuid.UUID, role string) {
+	var evt string
+	switch status {
+	case StatusInTransit:
+		evt = events.EventOrderInTransit
+	case StatusOutForDelivery:
+		evt = events.EventOrderOutForDelivery
+	case StatusDelivered:
+		evt = events.EventOrderDelivered
+	case StatusDeliveryFailed:
+		evt = events.EventOrderDeliveryFailed
+	}
+	if evt != "" && o != nil {
+		s.emitEvent(ctx, o.OrderID.String(), evt, map[string]interface{}{
+			"order_id": o.OrderID.String(),
+			"status":   string(o.Status),
+			"version":  o.Version,
+			"actor_id": actorID.String(),
+			"role":     role,
+		})
+	}
+}
+
+func (s *Service) OutboxStats(ctx context.Context) *events.RelayStats {
+	if s.relay == nil {
+		return nil
+	}
+	stats := s.relay.Stats(ctx)
+	return &stats
 }
 
 func (s *Service) WorkerStats() *worker.Stats {
@@ -80,7 +121,21 @@ func (s *Service) CreateOrder(ctx context.Context, userID uuid.UUID, in CreateOr
 	if in.ReferenceImageURL == "" || in.DeliveryAddress == "" {
 		return nil, fmt.Errorf("reference_image_url and delivery_address are required")
 	}
-	return s.repo.Create(ctx, in)
+	o, err := s.repo.Create(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	s.emitEvent(ctx, o.OrderID.String(), events.EventOrderPlaced, map[string]interface{}{
+		"order_id":         o.OrderID.String(),
+		"user_id":          o.UserID.String(),
+		"category":         string(o.PaintingCategory),
+		"size":             string(o.Size),
+		"persons_included": string(o.PersonsIncluded),
+		"total_price":      o.TotalPrice,
+		"status":           string(o.Status),
+		"created_at":       o.CreatedAt,
+	})
+	return o, nil
 }
 
 func (s *Service) GetOrder(ctx context.Context, orderID, userID uuid.UUID, role string) (*Order, error) {
@@ -126,7 +181,12 @@ func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actor
 		if o.DeliveryAgentID == nil || *o.DeliveryAgentID != actorID {
 			return nil, errors.New("you can only update status for delivery parcels assigned to you")
 		}
-		return s.repo.UpdateDeliveryStatus(ctx, orderID, newStatus, actorID, failureReason, expectedVersion...)
+		updated, err := s.repo.UpdateDeliveryStatus(ctx, orderID, newStatus, actorID, failureReason, expectedVersion...)
+		if err != nil {
+			return nil, err
+		}
+		s.emitDeliveryEvent(ctx, updated, newStatus, actorID, role)
+		return updated, nil
 	}
 
 	if o.Status == StatusAssignedDeliveryAgent && newStatus == StatusCompleted {
@@ -138,7 +198,12 @@ func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actor
 	}
 
 	if newStatus == StatusDeliveryFailed || newStatus == StatusInTransit || newStatus == StatusOutForDelivery || newStatus == StatusDelivered {
-		return s.repo.UpdateDeliveryStatus(ctx, orderID, newStatus, actorID, failureReason, expectedVersion...)
+		updated, err := s.repo.UpdateDeliveryStatus(ctx, orderID, newStatus, actorID, failureReason, expectedVersion...)
+		if err != nil {
+			return nil, err
+		}
+		s.emitDeliveryEvent(ctx, updated, newStatus, actorID, role)
+		return updated, nil
 	}
 
 	var collageURL *string
@@ -185,7 +250,41 @@ func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actor
 		}
 	}
 
-	return s.repo.UpdateStatus(ctx, orderID, newStatus, actorID, artistID, finalURL, collageURL, expectedVersion...)
+	updated, err := s.repo.UpdateStatus(ctx, orderID, newStatus, actorID, artistID, finalURL, collageURL, expectedVersion...)
+	if err != nil {
+		return nil, err
+	}
+
+	var eventType string
+	switch newStatus {
+	case StatusInProgress:
+		eventType = events.EventOrderInProgress
+	case StatusCompleted:
+		eventType = events.EventOrderCompleted
+	case StatusInTransit:
+		eventType = events.EventOrderInTransit
+	case StatusOutForDelivery:
+		eventType = events.EventOrderOutForDelivery
+	case StatusDelivered:
+		eventType = events.EventOrderDelivered
+	case StatusDeliveryFailed:
+		eventType = events.EventOrderDeliveryFailed
+	case StatusPublished:
+		eventType = events.EventOrderPublished
+	case StatusCancelled:
+		eventType = events.EventOrderCancelled
+	}
+
+	if eventType != "" {
+		s.emitEvent(ctx, updated.OrderID.String(), eventType, map[string]interface{}{
+			"order_id": updated.OrderID.String(),
+			"status":   string(updated.Status),
+			"version":  updated.Version,
+			"actor_id": actorID.String(),
+			"role":     role,
+		})
+	}
+	return updated, nil
 }
 
 func (s *Service) AssignOrder(ctx context.Context, orderID uuid.UUID, actorID uuid.UUID, role string, targetArtistID uuid.UUID, expectedVersion ...int) (*Order, error) {
@@ -239,7 +338,18 @@ func (s *Service) AssignOrder(ctx context.Context, orderID uuid.UUID, actorID uu
 		newStatus = StatusInProgress
 	}
 
-	return s.repo.AssignArtist(ctx, orderID, targetArtistID, actorID, newStatus, expectedVersion...)
+	updated, err := s.repo.AssignArtist(ctx, orderID, targetArtistID, actorID, newStatus, expectedVersion...)
+	if err != nil {
+		return nil, err
+	}
+	s.emitEvent(ctx, updated.OrderID.String(), events.EventOrderAssignedArtist, map[string]interface{}{
+		"order_id":    updated.OrderID.String(),
+		"artist_id":   targetArtistID.String(),
+		"assigned_by": actorID.String(),
+		"status":      string(updated.Status),
+		"version":     updated.Version,
+	})
+	return updated, nil
 }
 
 func (s *Service) AssignDeliveryAgent(ctx context.Context, orderID uuid.UUID, actorID uuid.UUID, role string, targetAgentID uuid.UUID, expectedVersion ...int) (*Order, error) {
@@ -279,7 +389,18 @@ func (s *Service) AssignDeliveryAgent(ctx context.Context, orderID uuid.UUID, ac
 		return nil, errors.New("selected delivery agent is not active or verified")
 	}
 
-	return s.repo.AssignDeliveryAgent(ctx, orderID, targetAgentID, actorID, expectedVersion...)
+	updated, err := s.repo.AssignDeliveryAgent(ctx, orderID, targetAgentID, actorID, expectedVersion...)
+	if err != nil {
+		return nil, err
+	}
+	s.emitEvent(ctx, updated.OrderID.String(), events.EventOrderAssignedDelivery, map[string]interface{}{
+		"order_id":          updated.OrderID.String(),
+		"delivery_agent_id": targetAgentID.String(),
+		"assigned_by":       actorID.String(),
+		"status":            string(updated.Status),
+		"version":           updated.Version,
+	})
+	return updated, nil
 }
 
 func (s *Service) ListActiveDeliveryAgents(ctx context.Context) ([]ActiveDeliveryAgent, error) {
@@ -310,7 +431,17 @@ func (s *Service) ConfirmPaid(ctx context.Context, sessionID string, systemUserI
 	if err != nil {
 		return nil, err
 	}
-	return s.repo.UpdateStatus(ctx, orderID, StatusConfirmed, systemUserID, nil, nil, nil)
+	updated, err := s.repo.UpdateStatus(ctx, orderID, StatusConfirmed, systemUserID, nil, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	s.emitEvent(ctx, updated.OrderID.String(), "order.paid", map[string]interface{}{
+		"order_id":   updated.OrderID.String(),
+		"session_id": sessionID,
+		"status":     string(updated.Status),
+		"version":    updated.Version,
+	})
+	return updated, nil
 }
 
 func canTransition(role string, from, to OrderStatus) bool {
@@ -390,6 +521,12 @@ func (s *Service) ConfirmGalleryPublish(ctx context.Context, orderID, actorID uu
 	res, err := s.repo.ConfirmGalleryPublish(ctx, orderID, actorID, expectedVersion...)
 	if err == nil {
 		_ = cache.DeletePattern(ctx, "cache:gallery:*")
+		s.emitEvent(ctx, res.OrderID.String(), events.EventOrderPublished, map[string]interface{}{
+			"order_id":  res.OrderID.String(),
+			"status":    string(res.Status),
+			"version":   res.Version,
+			"published": true,
+		})
 	}
 	return res, err
 }

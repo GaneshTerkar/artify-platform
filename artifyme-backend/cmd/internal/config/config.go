@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -17,6 +18,13 @@ type Config struct {
 	S3       S3Config
 	Email    EmailConfig
 	Redis    RedisConfig
+	Kafka    KafkaConfig
+}
+
+type KafkaConfig struct {
+	Brokers []string
+	Topic   string
+	Enabled bool
 }
 
 type RedisConfig struct {
@@ -116,6 +124,11 @@ func Load() *Config {
 			Addr:     getEnv("REDIS_ADDR", "localhost:6379"),
 			Password: getEnv("REDIS_PASSWORD", ""),
 			DB:       getEnvAsInt("REDIS_DB", 0),
+		},
+		Kafka: KafkaConfig{
+			Brokers: strings.Split(getEnv("KAFKA_BROKERS", "localhost:9092"), ","),
+			Topic:   getEnv("KAFKA_TOPIC", "artifyme.events"),
+			Enabled: getEnv("KAFKA_ENABLED", "true") == "true",
 		},
 	}
 

@@ -371,7 +371,7 @@ export default function AdminPage() {
     { id: "ASSIGNED_DELIVERY_AGENT", label: "ASSIGNED DELIVERY AGENT", count: statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0 },
     { id: "IN_TRANSIT", label: "IN TRANSIT", count: statusCounts["IN_TRANSIT"] || 0 },
     { id: "OUT_FOR_DELIVERY", label: "OUT FOR DELIVERY", count: statusCounts["OUT_FOR_DELIVERY"] || 0 },
-    { id: "DELIVERY_FAILED", label: "DELIVERY RETRY", count: statusCounts["DELIVERY_FAILED"] || 0 },
+    { id: "DELIVERY_FAILED", label: "DELIVERY FAILED", count: statusCounts["DELIVERY_FAILED"] || 0 },
     { id: "DELIVERED", label: "DELIVERED", count: statusCounts["DELIVERED"] || 0 },
     { id: "PUBLISHED", label: "PUBLISHED", count: statusCounts["PUBLISHED"] || 0 },
     { id: "CANCELLED", label: "CANCELLED", count: statusCounts["CANCELLED"] || 0 },
@@ -1048,7 +1048,7 @@ export default function AdminPage() {
                       <option value="ASSIGNED_DELIVERY_AGENT">ASSIGNED DELIVERY AGENT ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
                       <option value="IN_TRANSIT">IN TRANSIT ({statusCounts["IN_TRANSIT"] || 0})</option>
                       <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
-                      <option value="DELIVERY_FAILED">DELIVERY RETRY ({statusCounts["DELIVERY_FAILED"] || 0})</option>
+                      <option value="DELIVERY_FAILED">DELIVERY FAILED ({statusCounts["DELIVERY_FAILED"] || 0})</option>
                       <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
                       <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
                       <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
@@ -1080,7 +1080,7 @@ export default function AdminPage() {
                       <option value="ASSIGNED_DELIVERY_AGENT">ASSIGNED DELIVERY AGENT ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
                       <option value="IN_TRANSIT">IN TRANSIT ({statusCounts["IN_TRANSIT"] || 0})</option>
                       <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
-                      <option value="DELIVERY_FAILED">DELIVERY RETRY ({statusCounts["DELIVERY_FAILED"] || 0})</option>
+                      <option value="DELIVERY_FAILED">DELIVERY FAILED ({statusCounts["DELIVERY_FAILED"] || 0})</option>
                       <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
                       <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
                     </>

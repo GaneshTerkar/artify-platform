@@ -53,8 +53,12 @@ export default function OrderWizardPage() {
     setBusy(true);
     setError("");
     try {
+      const orderKey = `order-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 7)}`;
       const created = await api<Order>("/api/v1/orders", {
         method: "POST",
+        headers: {
+          "Idempotency-Key": orderKey,
+        },
         body: JSON.stringify({
           painting_category: category,
           size,
@@ -67,7 +71,12 @@ export default function OrderWizardPage() {
       setOrder(created);
       const checkout = await api<{ checkout_url: string }>(
         `/api/v1/orders/${created.order_id}/checkout`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: {
+            "Idempotency-Key": `checkout-${created.order_id}`,
+          },
+        },
       );
       window.location.href = checkout.checkout_url;
     } catch (err) {

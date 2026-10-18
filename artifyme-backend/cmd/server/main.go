@@ -14,11 +14,13 @@ import (
 
 	_ "github.com/ganeshterkar/artifyme-backend/docs"
 
+	"github.com/ganeshterkar/artifyme-backend/cmd/internal/cache"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/config"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/db"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/logger"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/middleware"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/routes"
+	"github.com/ganeshterkar/artifyme-backend/cmd/internal/worker"
 )
 
 // @title ArtifyMe Backend API
@@ -65,6 +67,7 @@ func main() {
 	defer pool.Close()
 
 	slog.Info("PostgreSQL pool connected")
+	_ = cache.Init(cfg.Redis)
 
 	// Run DB migrations
 	if err := db.RunMigrations(
@@ -92,8 +95,13 @@ func main() {
 	// Swagger
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
+	// Initialize asynchronous Worker Pool (4 workers, 100 job capacity)
+	workerPool := worker.NewPool(4, 100)
+	workerPool.Start()
+	defer workerPool.Stop()
+
 	// Routes
-	routes.RegisterRoutes(r, pool, cfg)
+	routes.RegisterRoutes(r, pool, cfg, workerPool)
 
 	slog.Info("Server running", "port", cfg.App.Port)
 

@@ -1,6 +1,7 @@
 package orders
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/config"
@@ -40,6 +41,7 @@ type adminStatusRequest struct {
 	ArtistID      *string `json:"artist_id"`
 	FinalImageURL *string `json:"final_image_url"`
 	FailureReason *string `json:"failure_reason"`
+	Version       *int    `json:"version"`
 }
 
 func (h *Handler) ListProducts(c *gin.Context) {
@@ -311,6 +313,11 @@ func (h *Handler) AdminUpdateStatus(c *gin.Context) {
 		artistID = &id
 	}
 
+	var expVer []int
+	if req.Version != nil && *req.Version > 0 {
+		expVer = append(expVer, *req.Version)
+	}
+
 	o, err := h.service.TransitionStatus(
 		c.Request.Context(),
 		orderID,
@@ -320,11 +327,14 @@ func (h *Handler) AdminUpdateStatus(c *gin.Context) {
 		artistID,
 		req.FinalImageURL,
 		req.FailureReason,
+		expVer...,
 	)
 	if err != nil {
 		status := http.StatusBadRequest
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			status = http.StatusNotFound
+		} else if errors.Is(err, ErrConflict) {
+			status = http.StatusConflict
 		}
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
@@ -338,6 +348,7 @@ func (h *Handler) UpdateOrderStatus(c *gin.Context) {
 
 type assignOrderRequest struct {
 	ArtistID string `json:"artist_id" binding:"required"`
+	Version  *int   `json:"version"`
 }
 
 func (h *Handler) AssignOrder(c *gin.Context) {
@@ -361,13 +372,20 @@ func (h *Handler) AssignOrder(c *gin.Context) {
 		return
 	}
 
-	o, err := h.service.AssignOrder(c.Request.Context(), orderID, actorID, role, targetArtistID)
+	var expVer []int
+	if req.Version != nil && *req.Version > 0 {
+		expVer = append(expVer, *req.Version)
+	}
+
+	o, err := h.service.AssignOrder(c.Request.Context(), orderID, actorID, role, targetArtistID, expVer...)
 	if err != nil {
 		status := http.StatusBadRequest
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			status = http.StatusNotFound
-		} else if err == ErrForbidden {
+		} else if errors.Is(err, ErrForbidden) {
 			status = http.StatusForbidden
+		} else if errors.Is(err, ErrConflict) {
+			status = http.StatusConflict
 		}
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
@@ -417,6 +435,7 @@ func (h *Handler) AdminConfirmGalleryPublish(c *gin.Context) {
 
 type assignDeliveryRequest struct {
 	DeliveryAgentID string `json:"delivery_agent_id" binding:"required"`
+	Version         *int   `json:"version"`
 }
 
 func (h *Handler) AssignDeliveryAgent(c *gin.Context) {
@@ -440,13 +459,20 @@ func (h *Handler) AssignDeliveryAgent(c *gin.Context) {
 		return
 	}
 
-	o, err := h.service.AssignDeliveryAgent(c.Request.Context(), orderID, actorID, role, targetAgentID)
+	var expVer []int
+	if req.Version != nil && *req.Version > 0 {
+		expVer = append(expVer, *req.Version)
+	}
+
+	o, err := h.service.AssignDeliveryAgent(c.Request.Context(), orderID, actorID, role, targetAgentID, expVer...)
 	if err != nil {
 		status := http.StatusBadRequest
-		if err == ErrNotFound {
+		if errors.Is(err, ErrNotFound) {
 			status = http.StatusNotFound
-		} else if err == ErrForbidden {
+		} else if errors.Is(err, ErrForbidden) {
 			status = http.StatusForbidden
+		} else if errors.Is(err, ErrConflict) {
+			status = http.StatusConflict
 		}
 		c.JSON(status, gin.H{"error": err.Error()})
 		return
@@ -465,5 +491,14 @@ func (h *Handler) ListActiveDeliveryAgents(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"delivery_agents": list})
+}
+
+func (h *Handler) GetWorkerStats(c *gin.Context) {
+	stats := h.service.WorkerStats()
+	if stats == nil {
+		c.JSON(http.StatusOK, gin.H{"status": "worker pool not initialized"})
+		return
+	}
+	c.JSON(http.StatusOK, stats)
 }
 

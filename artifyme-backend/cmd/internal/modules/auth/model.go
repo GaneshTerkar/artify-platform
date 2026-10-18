@@ -49,3 +49,18 @@ type User struct {
 	UpdatedAt   time.Time
 }
 
+type UserSession struct {
+	SessionID        uuid.UUID
+	UserID           uuid.UUID
+	DeviceID         string
+	DeviceName       string
+	DeviceType       string
+	IPAddress        string
+	UserAgent        string
+	RefreshTokenHash string
+	CreatedAt        time.Time
+	LastActiveAt     time.Time
+	ExpiresAt        time.Time
+	IsRevoked        bool
+}
+

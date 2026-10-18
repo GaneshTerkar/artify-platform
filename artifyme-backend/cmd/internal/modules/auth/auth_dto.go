@@ -34,3 +34,24 @@ func ToUserDTO(u *User) UserDTO {
 		UpdatedAt:   u.UpdatedAt,
 	}
 }
+
+type UserSessionDTO struct {
+	SessionID    string    `json:"session_id"`
+	DeviceID     string    `json:"device_id"`
+	DeviceName   string    `json:"device_name"`
+	DeviceType   string    `json:"device_type"`
+	IPAddress    string    `json:"ip_address"`
+	CreatedAt    time.Time `json:"created_at"`
+	LastActiveAt time.Time `json:"last_active_at"`
+	ExpiresAt    time.Time `json:"expires_at"`
+	IsCurrent    bool      `json:"is_current"`
+}
+
+type RefreshTokenRequest struct {
+	RefreshToken string `json:"refresh_token" binding:"required"`
+}
+
+type RefreshTokenResponse struct {
+	Token        string `json:"token"`
+	RefreshToken string `json:"refresh_token"`
+}

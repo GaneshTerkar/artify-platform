@@ -31,6 +31,7 @@ type orderDTO struct {
 	CustomerNotes         *string    `json:"customer_notes,omitempty"`
 	CreatedAt             time.Time  `json:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at"`
+	Version               int        `json:"version"`
 }
 
 func lifecycleLabel(status OrderStatus) string {
@@ -90,6 +91,7 @@ func toOrderDTO(o *Order) orderDTO {
 		CustomerNotes:         o.CustomerNotes,
 		CreatedAt:             o.CreatedAt,
 		UpdatedAt:             o.UpdatedAt,
+		Version:               o.Version,
 	}
 	if o.ArtistID != nil {
 		s := o.ArtistID.String()

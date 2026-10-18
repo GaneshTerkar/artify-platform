@@ -10,12 +10,13 @@ import (
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/modules/auth"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/modules/files"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/modules/orders"
+	"github.com/ganeshterkar/artifyme-backend/cmd/internal/worker"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config) {
+func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, workerPool ...*worker.Pool) {
 	// ======================
 	// Root & Health Check
 	// ======================
@@ -53,6 +54,15 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config) {
 	{
 		authGroup.POST("/register", authHandler.RegisterHandler)
 		authGroup.POST("/login", authHandler.LoginHandler)
+		authGroup.POST("/refresh-token", authHandler.RefreshTokenHandler)
+	}
+
+	// Also register under /api/v1/auth
+	v1AuthPublic := r.Group("/api/v1/auth")
+	{
+		v1AuthPublic.POST("/register", authHandler.RegisterHandler)
+		v1AuthPublic.POST("/login", authHandler.LoginHandler)
+		v1AuthPublic.POST("/refresh-token", authHandler.RefreshTokenHandler)
 	}
 
 	// ======================
@@ -60,6 +70,15 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config) {
 	// ======================
 	api := r.Group("/api")
 	api.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+
+	// ----------------------
+	// MULTI-DEVICE SESSIONS
+	// ----------------------
+	api.GET("/auth/sessions", authHandler.ListSessionsHandler)
+	api.DELETE("/auth/sessions/:id", authHandler.RevokeSessionHandler)
+	api.POST("/auth/sessions/:id/revoke", authHandler.RevokeSessionHandler)
+	api.POST("/auth/sessions/revoke-all", authHandler.RevokeAllOtherSessionsHandler)
+	api.POST("/auth/sessions/revoke-others", authHandler.RevokeAllOtherSessionsHandler)
 
 	// ----------------------
 	// USER ROUTES
@@ -185,7 +204,7 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config) {
 	// ======================
 	baseURL := "http://localhost:" + cfg.App.Port
 	orderRepo := orders.NewRepository(pool)
-	orderService := orders.NewService(orderRepo, filesService, baseURL)
+	orderService := orders.NewService(orderRepo, filesService, baseURL, workerPool...)
 	orderHandler := orders.NewHandler(orderService, cfg)
 
 	v1 := r.Group("/api/v1")
@@ -197,7 +216,7 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config) {
 	}
 
 	v1Auth := v1.Group("")
-	v1Auth.Use(middleware.AuthMiddleware(cfg.JWT.Secret))
+	v1Auth.Use(middleware.AuthMiddleware(cfg.JWT.Secret), middleware.IdempotencyMiddleware(pool))
 	{
 		v1Auth.POST("/upload", filesHandler.Upload)
 		v1Auth.POST("/orders", orderHandler.CreateOrder)
@@ -212,7 +231,7 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config) {
 
 
 	v1Admin := v1.Group("/admin")
-	v1Admin.Use(middleware.AuthMiddleware(cfg.JWT.Secret), middleware.RoleMiddleware("ADMIN"))
+	v1Admin.Use(middleware.AuthMiddleware(cfg.JWT.Secret), middleware.RoleMiddleware("ADMIN"), middleware.IdempotencyMiddleware(pool))
 	{
 		v1Admin.GET("/orders", orderHandler.AdminListOrders)
 		v1Admin.PATCH("/orders/:id/status", orderHandler.AdminUpdateStatus)
@@ -222,6 +241,7 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config) {
 		v1Admin.GET("/users", orderHandler.AdminListUsers)
 		v1Admin.PATCH("/users/:id/status", orderHandler.AdminUpdateUserStatus)
 		v1Admin.PATCH("/users/:id/role", orderHandler.AdminElevateArtist)
+		v1Admin.GET("/worker/stats", orderHandler.GetWorkerStats)
 	}
 
 	r.POST("/webhooks/stripe", orderHandler.StripeWebhook)

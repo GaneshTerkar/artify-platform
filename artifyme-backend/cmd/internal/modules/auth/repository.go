@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	dberrors "github.com/ganeshterkar/artifyme-backend/cmd/internal/errors"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/utils"
@@ -214,6 +215,50 @@ func (r *AuthRepository) GetUserByEmail(ctx context.Context, email string) (*Use
 	return &u, nil
 }
 
+func (r *AuthRepository) GetUserByID(ctx context.Context, userID uuid.UUID) (*User, error) {
+	if r.Pool == nil {
+		panic("GetUserByID: r.Pool is nil")
+	}
+	row := r.Pool.QueryRow(ctx, `
+		SELECT 
+			user_id,
+			full_name,
+			user_name,
+			email,
+			address,
+			phone_number,
+			role,
+			status,
+			created_at,
+			updated_at
+		FROM users
+		WHERE user_id = $1
+	`, userID)
+
+	var u User
+	err := row.Scan(
+		&u.UserID,
+		&u.FullName,
+		&u.UserName,
+		&u.Email,
+		&u.Address,
+		&u.PhoneNumber,
+		&u.Role,
+		&u.Status,
+		&u.CreatedAt,
+		&u.UpdatedAt,
+	)
+
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, dberrors.ErrUserNotFound
+		}
+		return nil, err
+	}
+
+	return &u, nil
+}
+
 func (r *AuthRepository) GetUserPasswordHash(ctx context.Context, userId *uuid.UUID) (string, error){
 	if userId == nil || *userId == uuid.Nil {
 		return "", errors.New("user id is required")
@@ -231,4 +276,119 @@ func (r *AuthRepository) GetUserPasswordHash(ctx context.Context, userId *uuid.U
 		return "", err
 	}
 	return hash, nil
+}
+
+func (r *AuthRepository) CreateOrUpdateSession(ctx context.Context, s *UserSession) (uuid.UUID, error) {
+	var sessionID uuid.UUID
+	err := r.Pool.QueryRow(ctx, `
+		INSERT INTO user_sessions (
+			session_id, user_id, device_id, device_name, device_type, ip_address, user_agent, refresh_token_hash, expires_at, is_revoked, last_active_at
+		) VALUES (
+			$1, $2, $3, $4, $5, $6, $7, $8, $9, false, NOW()
+		)
+		ON CONFLICT (user_id, device_id) DO UPDATE SET
+			session_id = EXCLUDED.session_id,
+			device_name = EXCLUDED.device_name,
+			device_type = EXCLUDED.device_type,
+			ip_address = EXCLUDED.ip_address,
+			user_agent = EXCLUDED.user_agent,
+			refresh_token_hash = EXCLUDED.refresh_token_hash,
+			expires_at = EXCLUDED.expires_at,
+			is_revoked = false,
+			last_active_at = NOW()
+		RETURNING session_id;
+	`, s.SessionID, s.UserID, s.DeviceID, s.DeviceName, s.DeviceType, s.IPAddress, s.UserAgent, s.RefreshTokenHash, s.ExpiresAt).Scan(&sessionID)
+	return sessionID, err
+}
+
+func (r *AuthRepository) GetSessionByRefreshHash(ctx context.Context, hash string) (*UserSession, error) {
+	var s UserSession
+	err := r.Pool.QueryRow(ctx, `
+		SELECT session_id, user_id, device_id, device_name, device_type, ip_address, user_agent, refresh_token_hash, created_at, last_active_at, expires_at, is_revoked
+		FROM user_sessions
+		WHERE refresh_token_hash = $1;
+	`, hash).Scan(
+		&s.SessionID, &s.UserID, &s.DeviceID, &s.DeviceName, &s.DeviceType,
+		&s.IPAddress, &s.UserAgent, &s.RefreshTokenHash,
+		&s.CreatedAt, &s.LastActiveAt, &s.ExpiresAt, &s.IsRevoked,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &s, nil
+}
+
+func (r *AuthRepository) RotateRefreshToken(ctx context.Context, sessionID uuid.UUID, newHash string, newExpiresAt time.Time) error {
+	cmd, err := r.Pool.Exec(ctx, `
+		UPDATE user_sessions
+		SET refresh_token_hash = $1, expires_at = $2, last_active_at = NOW()
+		WHERE session_id = $3 AND is_revoked = false;
+	`, newHash, newExpiresAt, sessionID)
+	if err != nil {
+		return err
+	}
+	if cmd.RowsAffected() == 0 {
+		return errors.New("session not found or revoked")
+	}
+	return nil
+}
+
+func (r *AuthRepository) ListUserSessions(ctx context.Context, userID uuid.UUID) ([]UserSessionDTO, error) {
+	rows, err := r.Pool.Query(ctx, `
+		SELECT session_id, device_id, device_name, device_type, ip_address, created_at, last_active_at, expires_at, is_revoked
+		FROM user_sessions
+		WHERE user_id = $1 AND is_revoked = false AND expires_at > NOW()
+		ORDER BY last_active_at DESC;
+	`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var sessions []UserSessionDTO
+	for rows.Next() {
+		var s UserSessionDTO
+		var sessionUUID uuid.UUID
+		if err := rows.Scan(
+			&sessionUUID, &s.DeviceID, &s.DeviceName, &s.DeviceType,
+			&s.IPAddress, &s.CreatedAt, &s.LastActiveAt, &s.ExpiresAt, &s.IsCurrent,
+		); err != nil {
+			return nil, err
+		}
+		s.SessionID = sessionUUID.String()
+		s.IsCurrent = false // Will be set dynamically by service
+		sessions = append(sessions, s)
+	}
+	return sessions, rows.Err()
+}
+
+func (r *AuthRepository) RevokeSession(ctx context.Context, sessionID uuid.UUID, userID uuid.UUID) error {
+	_, err := r.Pool.Exec(ctx, `
+		UPDATE user_sessions
+		SET is_revoked = true
+		WHERE session_id = $1 AND user_id = $2;
+	`, sessionID, userID)
+	return err
+}
+
+func (r *AuthRepository) RevokeAllOtherSessions(ctx context.Context, currentSessionID uuid.UUID, userID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := r.Pool.Query(ctx, `
+		UPDATE user_sessions
+		SET is_revoked = true
+		WHERE user_id = $1 AND session_id != $2 AND is_revoked = false
+		RETURNING session_id;
+	`, userID, currentSessionID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var revokedIDs []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err == nil {
+			revokedIDs = append(revokedIDs, id)
+		}
+	}
+	return revokedIDs, rows.Err()
 }

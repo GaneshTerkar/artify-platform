@@ -74,6 +74,7 @@ type Order struct {
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	UpdatedBy             uuid.UUID
+	Version               int
 }
 
 type StatusHistoryEntry struct {

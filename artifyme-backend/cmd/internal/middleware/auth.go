@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/ganeshterkar/artifyme-backend/cmd/internal/cache"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -103,6 +104,19 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 
 		// status (optional)
 		status, _ := claims["status"].(string)
+
+		// session_id (optional for backward compatibility)
+		if sessionIDStr, ok := claims["session_id"].(string); ok && sessionIDStr != "" {
+			var isRevoked string
+			if cache.Get(c.Request.Context(), "session:revoked:"+sessionIDStr, &isRevoked) {
+				slog.Debug("Session has been revoked", "session_id", sessionIDStr, "user_id", userID)
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
+					"error": "session has been revoked, please log in again",
+				})
+				return
+			}
+			c.Set("session_id", sessionIDStr)
+		}
 
 		// Attach to context
 		c.Set("user_id", userID)

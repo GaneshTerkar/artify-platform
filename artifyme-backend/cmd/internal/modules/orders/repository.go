@@ -27,7 +27,7 @@ const orderColumns = `
 	final_image_url, collage_image_url, original_final_image_url, is_published_to_gallery,
 	size::text, persons_included::text, status::text,
 	delivery_address, COALESCE(delivery_attempts, 0), delivery_failure_reason, last_delivery_attempt_at, total_price, customer_notes,
-	COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by
+	COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by, COALESCE(version, 1)
 `
 
 type CreateOrderInput struct {
@@ -255,14 +255,31 @@ func (r *Repository) UpdateDraft(ctx context.Context, orderID, userID uuid.UUID,
 			reference_image_url = COALESCE(NULLIF($6, ''), reference_image_url),
 			delivery_address = COALESCE(NULLIF($7, ''), delivery_address),
 			customer_notes = COALESCE($8, customer_notes),
+			version = version + 1,
 			updated_at = NOW(),
 			updated_by = $2
 		WHERE order_id = $1 AND user_id = $2 AND status = 'PLACED'
 		RETURNING `+orderColumns, orderID, userID, category, size, persons, refURL, address, notes))
 }
 
-func (r *Repository) UpdateStatus(ctx context.Context, orderID uuid.UUID, newStatus OrderStatus, updatedBy uuid.UUID, artistID *uuid.UUID, finalURL *string, collageURL *string) (*Order, error) {
-	return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
+func (r *Repository) checkConflictOrNotFound(ctx context.Context, orderID uuid.UUID, expectedVersion int, originalErr error) error {
+	if errors.Is(originalErr, ErrNotFound) && expectedVersion > 0 {
+		var currentVer int
+		err := r.pool.QueryRow(ctx, "SELECT COALESCE(version, 1) FROM orders WHERE order_id = $1", orderID).Scan(&currentVer)
+		if err == nil {
+			return ErrConflict
+		}
+	}
+	return originalErr
+}
+
+func (r *Repository) UpdateStatus(ctx context.Context, orderID uuid.UUID, newStatus OrderStatus, updatedBy uuid.UUID, artistID *uuid.UUID, finalURL *string, collageURL *string, expectedVersion ...int) (*Order, error) {
+	expVer := 0
+	if len(expectedVersion) > 0 && expectedVersion[0] > 0 {
+		expVer = expectedVersion[0]
+	}
+
+	row := r.pool.QueryRow(ctx, `
 		UPDATE orders SET
 			status = $2::order_status,
 			artist_id = CASE
@@ -275,23 +292,41 @@ func (r *Repository) UpdateStatus(ctx context.Context, orderID uuid.UUID, newSta
 				WHEN $2::order_status = 'COMPLETED' AND $4 IS NOT NULL AND $4 != '' THEN COALESCE(original_final_image_url, $4)
 				ELSE original_final_image_url 
 			END,
+			version = version + 1,
 			updated_at = NOW(),
 			updated_by = $6
-		WHERE order_id = $1
-		RETURNING `+orderColumns, orderID, string(newStatus), artistID, finalURL, collageURL, updatedBy))
+		WHERE order_id = $1 AND ($7 = 0 OR version = $7)
+		RETURNING `+orderColumns, orderID, string(newStatus), artistID, finalURL, collageURL, updatedBy, expVer)
+
+	o, err := r.scanAndEnrichOrder(ctx, row)
+	if err != nil {
+		return nil, r.checkConflictOrNotFound(ctx, orderID, expVer, err)
+	}
+	return o, nil
 }
 
-func (r *Repository) ConfirmGalleryPublish(ctx context.Context, orderID, adminID uuid.UUID) (*Order, error) {
-	return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
+func (r *Repository) ConfirmGalleryPublish(ctx context.Context, orderID, adminID uuid.UUID, expectedVersion ...int) (*Order, error) {
+	expVer := 0
+	if len(expectedVersion) > 0 && expectedVersion[0] > 0 {
+		expVer = expectedVersion[0]
+	}
+	row := r.pool.QueryRow(ctx, `
 		UPDATE orders SET
 			original_final_image_url = COALESCE(original_final_image_url, final_image_url),
 			final_image_url = COALESCE(collage_image_url, final_image_url),
 			is_published_to_gallery = TRUE,
 			status = 'PUBLISHED'::order_status,
+			version = version + 1,
 			updated_at = NOW(),
 			updated_by = $2
-		WHERE order_id = $1 AND (status = 'DELIVERED' OR status = 'COMPLETED' OR status = 'PUBLISHED')
-		RETURNING `+orderColumns, orderID, adminID))
+		WHERE order_id = $1 AND (status = 'DELIVERED' OR status = 'COMPLETED' OR status = 'PUBLISHED') AND ($3 = 0 OR version = $3)
+		RETURNING `+orderColumns, orderID, adminID, expVer)
+
+	o, err := r.scanAndEnrichOrder(ctx, row)
+	if err != nil {
+		return nil, r.checkConflictOrNotFound(ctx, orderID, expVer, err)
+	}
+	return o, nil
 }
 
 func (r *Repository) UpdateCollageURL(ctx context.Context, orderID uuid.UUID, collageURL string) error {
@@ -366,7 +401,7 @@ func (r *Repository) scanOrder(row pgx.Row) (*Order, error) {
 		&finalURL, &collageURL, &origFinalURL, &isPublished,
 		&o.Size, &o.PersonsIncluded, &o.Status, &o.DeliveryAddress,
 		&o.DeliveryAttempts, &failureReason, &lastAttempt,
-		&o.TotalPrice, &notes, &o.CreatedAt, &o.UpdatedAt, &o.UpdatedBy,
+		&o.TotalPrice, &notes, &o.CreatedAt, &o.UpdatedAt, &o.UpdatedBy, &o.Version,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -406,7 +441,7 @@ func scanOrderRow(row scannable) (*Order, error) {
 		&finalURL, &collageURL, &origFinalURL, &isPublished,
 		&o.Size, &o.PersonsIncluded, &o.Status, &o.DeliveryAddress,
 		&o.DeliveryAttempts, &failureReason, &lastAttempt,
-		&o.TotalPrice, &notes, &o.CreatedAt, &o.UpdatedAt, &o.UpdatedBy,
+		&o.TotalPrice, &notes, &o.CreatedAt, &o.UpdatedAt, &o.UpdatedBy, &o.Version,
 	)
 	if err != nil {
 		return nil, err
@@ -578,37 +613,67 @@ func (r *Repository) ListVerifiedArtists(ctx context.Context) ([]VerifiedArtist,
 	return list, rows.Err()
 }
 
-func (r *Repository) AssignArtist(ctx context.Context, orderID uuid.UUID, artistID uuid.UUID, updatedBy uuid.UUID, newStatus OrderStatus) (*Order, error) {
-	return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
+func (r *Repository) AssignArtist(ctx context.Context, orderID uuid.UUID, artistID uuid.UUID, updatedBy uuid.UUID, newStatus OrderStatus, expectedVersion ...int) (*Order, error) {
+	expVer := 0
+	if len(expectedVersion) > 0 && expectedVersion[0] > 0 {
+		expVer = expectedVersion[0]
+	}
+	row := r.pool.QueryRow(ctx, `
 		UPDATE orders SET
 			artist_id = $2,
 			status = $3::order_status,
+			version = version + 1,
 			updated_at = NOW(),
 			updated_by = $4
-		WHERE order_id = $1
-		RETURNING `+orderColumns, orderID, artistID, string(newStatus), updatedBy))
+		WHERE order_id = $1 AND ($5 = 0 OR version = $5)
+		RETURNING `+orderColumns, orderID, artistID, string(newStatus), updatedBy, expVer)
+	o, err := r.scanAndEnrichOrder(ctx, row)
+	if err != nil {
+		return nil, r.checkConflictOrNotFound(ctx, orderID, expVer, err)
+	}
+	return o, nil
 }
 
-func (r *Repository) AssignDeliveryAgent(ctx context.Context, orderID uuid.UUID, agentID uuid.UUID, updatedBy uuid.UUID) (*Order, error) {
-	return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
+func (r *Repository) AssignDeliveryAgent(ctx context.Context, orderID uuid.UUID, agentID uuid.UUID, updatedBy uuid.UUID, expectedVersion ...int) (*Order, error) {
+	expVer := 0
+	if len(expectedVersion) > 0 && expectedVersion[0] > 0 {
+		expVer = expectedVersion[0]
+	}
+	row := r.pool.QueryRow(ctx, `
 		UPDATE orders SET
 			delivery_agent_id = $2,
 			status = 'ASSIGNED_DELIVERY_AGENT'::order_status,
+			version = version + 1,
 			updated_at = NOW(),
 			updated_by = $3
-		WHERE order_id = $1
-		RETURNING `+orderColumns, orderID, agentID, updatedBy))
+		WHERE order_id = $1 AND ($4 = 0 OR version = $4)
+		RETURNING `+orderColumns, orderID, agentID, updatedBy, expVer)
+	o, err := r.scanAndEnrichOrder(ctx, row)
+	if err != nil {
+		return nil, r.checkConflictOrNotFound(ctx, orderID, expVer, err)
+	}
+	return o, nil
 }
 
-func (r *Repository) UnassignDeliveryAgent(ctx context.Context, orderID uuid.UUID, updatedBy uuid.UUID) (*Order, error) {
-	return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
+func (r *Repository) UnassignDeliveryAgent(ctx context.Context, orderID uuid.UUID, updatedBy uuid.UUID, expectedVersion ...int) (*Order, error) {
+	expVer := 0
+	if len(expectedVersion) > 0 && expectedVersion[0] > 0 {
+		expVer = expectedVersion[0]
+	}
+	row := r.pool.QueryRow(ctx, `
 		UPDATE orders SET
 			delivery_agent_id = NULL,
 			status = 'COMPLETED'::order_status,
+			version = version + 1,
 			updated_at = NOW(),
 			updated_by = $2
-		WHERE order_id = $1
-		RETURNING `+orderColumns, orderID, updatedBy))
+		WHERE order_id = $1 AND ($3 = 0 OR version = $3)
+		RETURNING `+orderColumns, orderID, updatedBy, expVer)
+	o, err := r.scanAndEnrichOrder(ctx, row)
+	if err != nil {
+		return nil, r.checkConflictOrNotFound(ctx, orderID, expVer, err)
+	}
+	return o, nil
 }
 
 func (r *Repository) ListActiveDeliveryAgents(ctx context.Context) ([]ActiveDeliveryAgent, error) {
@@ -643,40 +708,54 @@ func (r *Repository) ListActiveDeliveryAgents(ctx context.Context) ([]ActiveDeli
 	return list, rows.Err()
 }
 
-func (r *Repository) UpdateDeliveryStatus(ctx context.Context, orderID uuid.UUID, newStatus OrderStatus, actorID uuid.UUID, failureReason *string) (*Order, error) {
+func (r *Repository) UpdateDeliveryStatus(ctx context.Context, orderID uuid.UUID, newStatus OrderStatus, actorID uuid.UUID, failureReason *string, expectedVersion ...int) (*Order, error) {
+	expVer := 0
+	if len(expectedVersion) > 0 && expectedVersion[0] > 0 {
+		expVer = expectedVersion[0]
+	}
+
+	var row pgx.Row
 	if newStatus == StatusDeliveryFailed {
 		reason := "Customer unavailable / delivery attempt unsuccessful"
 		if failureReason != nil && *failureReason != "" {
 			reason = *failureReason
 		}
-		return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
+		row = r.pool.QueryRow(ctx, `
 			UPDATE orders SET
 				status = $2::order_status,
 				delivery_attempts = delivery_attempts + 1,
 				delivery_failure_reason = $3,
 				last_delivery_attempt_at = NOW(),
+				version = version + 1,
 				updated_at = NOW(),
 				updated_by = $4
-			WHERE order_id = $1
-			RETURNING `+orderColumns, orderID, string(newStatus), reason, actorID))
+			WHERE order_id = $1 AND ($5 = 0 OR version = $5)
+			RETURNING `+orderColumns, orderID, string(newStatus), reason, actorID, expVer)
 	} else if newStatus == StatusOutForDelivery {
-		return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
+		row = r.pool.QueryRow(ctx, `
 			UPDATE orders SET
 				status = $2::order_status,
 				last_delivery_attempt_at = NOW(),
+				version = version + 1,
 				updated_at = NOW(),
 				updated_by = $3
-			WHERE order_id = $1
-			RETURNING `+orderColumns, orderID, string(newStatus), actorID))
+			WHERE order_id = $1 AND ($4 = 0 OR version = $4)
+			RETURNING `+orderColumns, orderID, string(newStatus), actorID, expVer)
 	} else {
-		return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
+		row = r.pool.QueryRow(ctx, `
 			UPDATE orders SET
 				status = $2::order_status,
+				version = version + 1,
 				updated_at = NOW(),
 				updated_by = $3
-			WHERE order_id = $1
-			RETURNING `+orderColumns, orderID, string(newStatus), actorID))
+			WHERE order_id = $1 AND ($4 = 0 OR version = $4)
+			RETURNING `+orderColumns, orderID, string(newStatus), actorID, expVer)
 	}
+	o, err := r.scanAndEnrichOrder(ctx, row)
+	if err != nil {
+		return nil, r.checkConflictOrNotFound(ctx, orderID, expVer, err)
+	}
+	return o, nil
 }
 
 func (r *Repository) ListAllUsers(ctx context.Context) ([]UserItemDTO, error) {

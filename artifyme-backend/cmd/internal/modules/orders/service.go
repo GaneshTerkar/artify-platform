@@ -5,7 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
+	"time"
 
+	"github.com/ganeshterkar/artifyme-backend/cmd/internal/cache"
+	"github.com/ganeshterkar/artifyme-backend/cmd/internal/worker"
 	"github.com/google/uuid"
 )
 
@@ -13,18 +17,51 @@ type Service struct {
 	repo     *Repository
 	uploader FileUploader
 	baseURL  string
+	pool     *worker.Pool
 }
 
-func NewService(repo *Repository, uploader FileUploader, baseURL string) *Service {
+func NewService(repo *Repository, uploader FileUploader, baseURL string, workerPool ...*worker.Pool) *Service {
+	var p *worker.Pool
+	if len(workerPool) > 0 && workerPool[0] != nil {
+		p = workerPool[0]
+	}
 	return &Service{
 		repo:     repo,
 		uploader: uploader,
 		baseURL:  baseURL,
+		pool:     p,
 	}
 }
 
+func (s *Service) WorkerStats() *worker.Stats {
+	if s.pool == nil {
+		return nil
+	}
+	stats := s.pool.Stats()
+	return &stats
+}
+
 func (s *Service) ListGalleryPaintings(ctx context.Context, category string) ([]PaintingItem, error) {
-	return s.repo.ListGalleryPaintings(ctx, category)
+	normCat := strings.ToUpper(strings.TrimSpace(category))
+	if normCat == "" {
+		normCat = "ALL"
+	}
+	cacheKey := fmt.Sprintf("cache:gallery:%s", normCat)
+
+	var cached []PaintingItem
+	if cache.Get(ctx, cacheKey, &cached) {
+		slog.Debug("Gallery cache HIT", "key", cacheKey, "count", len(cached))
+		return cached, nil
+	}
+
+	paintings, err := s.repo.ListGalleryPaintings(ctx, category)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cache in Redis for 10 minutes
+	_ = cache.Set(ctx, cacheKey, paintings, 10*time.Minute)
+	return paintings, nil
 }
 
 func (s *Service) ListProducts() []Product {
@@ -69,7 +106,7 @@ func (s *Service) UpdateDraft(ctx context.Context, orderID, userID uuid.UUID, fi
 	return s.repo.UpdateDraft(ctx, orderID, userID, fields)
 }
 
-func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actorID uuid.UUID, role string, newStatus OrderStatus, artistID *uuid.UUID, finalURL *string, failureReason *string) (*Order, error) {
+func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actorID uuid.UUID, role string, newStatus OrderStatus, artistID *uuid.UUID, finalURL *string, failureReason *string, expectedVersion ...int) (*Order, error) {
 	o, err := s.repo.GetByID(ctx, orderID)
 	if err != nil {
 		return nil, err
@@ -89,19 +126,19 @@ func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actor
 		if o.DeliveryAgentID == nil || *o.DeliveryAgentID != actorID {
 			return nil, errors.New("you can only update status for delivery parcels assigned to you")
 		}
-		return s.repo.UpdateDeliveryStatus(ctx, orderID, newStatus, actorID, failureReason)
+		return s.repo.UpdateDeliveryStatus(ctx, orderID, newStatus, actorID, failureReason, expectedVersion...)
 	}
 
 	if o.Status == StatusAssignedDeliveryAgent && newStatus == StatusCompleted {
-		return s.repo.UnassignDeliveryAgent(ctx, orderID, actorID)
+		return s.repo.UnassignDeliveryAgent(ctx, orderID, actorID, expectedVersion...)
 	}
 
 	if newStatus == StatusPublished {
-		return s.ConfirmGalleryPublish(ctx, orderID, actorID, role)
+		return s.ConfirmGalleryPublish(ctx, orderID, actorID, role, expectedVersion...)
 	}
 
 	if newStatus == StatusDeliveryFailed || newStatus == StatusInTransit || newStatus == StatusOutForDelivery || newStatus == StatusDelivered {
-		return s.repo.UpdateDeliveryStatus(ctx, orderID, newStatus, actorID, failureReason)
+		return s.repo.UpdateDeliveryStatus(ctx, orderID, newStatus, actorID, failureReason, expectedVersion...)
 	}
 
 	var collageURL *string
@@ -111,11 +148,29 @@ func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actor
 		}
 
 		if o.ReferenceImageURL != "" {
-			cURL, err := GenerateCollage(ctx, orderID, *finalURL, o.ReferenceImageURL, s.uploader, s.baseURL)
-			if err != nil {
-				slog.Error("failed to generate artwork collage", "order_id", orderID, "error", err)
+			finalURLVal := *finalURL
+			refURLVal := o.ReferenceImageURL
+
+			if s.pool != nil {
+				// Non-blocking asynchronous collage processing in worker pool!
+				s.pool.Enqueue(worker.Job{
+					Name: fmt.Sprintf("collage-order-%s", orderID),
+					Handler: func(ctx context.Context) error {
+						cURL, err := GenerateCollage(ctx, orderID, finalURLVal, refURLVal, s.uploader, s.baseURL)
+						if err != nil {
+							slog.Error("failed to generate artwork collage in worker pool", "order_id", orderID, "error", err)
+							return err
+						}
+						return s.repo.UpdateCollageURL(ctx, orderID, cURL)
+					},
+				})
 			} else {
-				collageURL = &cURL
+				cURL, err := GenerateCollage(ctx, orderID, finalURLVal, refURLVal, s.uploader, s.baseURL)
+				if err != nil {
+					slog.Error("failed to generate artwork collage", "order_id", orderID, "error", err)
+				} else {
+					collageURL = &cURL
+				}
 			}
 		}
 	}
@@ -130,13 +185,22 @@ func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actor
 		}
 	}
 
-	return s.repo.UpdateStatus(ctx, orderID, newStatus, actorID, artistID, finalURL, collageURL)
+	return s.repo.UpdateStatus(ctx, orderID, newStatus, actorID, artistID, finalURL, collageURL, expectedVersion...)
 }
 
-func (s *Service) AssignOrder(ctx context.Context, orderID uuid.UUID, actorID uuid.UUID, role string, targetArtistID uuid.UUID) (*Order, error) {
+func (s *Service) AssignOrder(ctx context.Context, orderID uuid.UUID, actorID uuid.UUID, role string, targetArtistID uuid.UUID, expectedVersion ...int) (*Order, error) {
 	if role != "ADMIN" && role != "ARTIST" {
 		return nil, ErrForbidden
 	}
+
+	// Distributed lock to prevent concurrent assignment race conditions
+	lockKey := fmt.Sprintf("order:%s", orderID)
+	lockToken := uuid.New().String()
+	acquired, err := cache.AcquireLock(ctx, lockKey, lockToken, 5*time.Second)
+	if err != nil || !acquired {
+		return nil, errors.New("order is currently being modified by another request, please retry")
+	}
+	defer cache.ReleaseLock(ctx, lockKey, lockToken)
 
 	if role == "ARTIST" {
 		callerVerified, err := s.repo.IsArtistVerified(ctx, actorID)
@@ -175,13 +239,22 @@ func (s *Service) AssignOrder(ctx context.Context, orderID uuid.UUID, actorID uu
 		newStatus = StatusInProgress
 	}
 
-	return s.repo.AssignArtist(ctx, orderID, targetArtistID, actorID, newStatus)
+	return s.repo.AssignArtist(ctx, orderID, targetArtistID, actorID, newStatus, expectedVersion...)
 }
 
-func (s *Service) AssignDeliveryAgent(ctx context.Context, orderID uuid.UUID, actorID uuid.UUID, role string, targetAgentID uuid.UUID) (*Order, error) {
+func (s *Service) AssignDeliveryAgent(ctx context.Context, orderID uuid.UUID, actorID uuid.UUID, role string, targetAgentID uuid.UUID, expectedVersion ...int) (*Order, error) {
 	if role != "ADMIN" {
 		return nil, ErrForbidden
 	}
+
+	// Distributed lock to prevent concurrent delivery assignment race conditions
+	lockKey := fmt.Sprintf("order:%s", orderID)
+	lockToken := uuid.New().String()
+	acquired, err := cache.AcquireLock(ctx, lockKey, lockToken, 5*time.Second)
+	if err != nil || !acquired {
+		return nil, errors.New("order is currently being modified by another request, please retry")
+	}
+	defer cache.ReleaseLock(ctx, lockKey, lockToken)
 
 	o, err := s.repo.GetByID(ctx, orderID)
 	if err != nil {
@@ -206,7 +279,7 @@ func (s *Service) AssignDeliveryAgent(ctx context.Context, orderID uuid.UUID, ac
 		return nil, errors.New("selected delivery agent is not active or verified")
 	}
 
-	return s.repo.AssignDeliveryAgent(ctx, orderID, targetAgentID, actorID)
+	return s.repo.AssignDeliveryAgent(ctx, orderID, targetAgentID, actorID, expectedVersion...)
 }
 
 func (s *Service) ListActiveDeliveryAgents(ctx context.Context) ([]ActiveDeliveryAgent, error) {
@@ -285,7 +358,7 @@ func canTransition(role string, from, to OrderStatus) bool {
 	return false
 }
 
-func (s *Service) ConfirmGalleryPublish(ctx context.Context, orderID, actorID uuid.UUID, role string) (*Order, error) {
+func (s *Service) ConfirmGalleryPublish(ctx context.Context, orderID, actorID uuid.UUID, role string, expectedVersion ...int) (*Order, error) {
 	if role != "ADMIN" {
 		return nil, ErrForbidden
 	}
@@ -314,7 +387,11 @@ func (s *Service) ConfirmGalleryPublish(ctx context.Context, orderID, actorID uu
 		}
 	}
 
-	return s.repo.ConfirmGalleryPublish(ctx, orderID, actorID)
+	res, err := s.repo.ConfirmGalleryPublish(ctx, orderID, actorID, expectedVersion...)
+	if err == nil {
+		_ = cache.DeletePattern(ctx, "cache:gallery:*")
+	}
+	return res, err
 }
 
 func (s *Service) ListAllUsers(ctx context.Context, role string) ([]UserItemDTO, error) {

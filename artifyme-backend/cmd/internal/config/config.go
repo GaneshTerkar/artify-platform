@@ -16,6 +16,13 @@ type Config struct {
 	Stripe   StripeConfig
 	S3       S3Config
 	Email    EmailConfig
+	Redis    RedisConfig
+}
+
+type RedisConfig struct {
+	Addr     string
+	Password string
+	DB       int
 }
 
 type S3Config struct {
@@ -104,6 +111,11 @@ func Load() *Config {
 			Provider: getEnv("EMAIL_PROVIDER", "log"),
 			APIKey:   getEnv("EMAIL_API_KEY", ""),
 			From:     getEnv("EMAIL_FROM", "noreply@artifyme.com"),
+		},
+		Redis: RedisConfig{
+			Addr:     getEnv("REDIS_ADDR", "localhost:6379"),
+			Password: getEnv("REDIS_PASSWORD", ""),
+			DB:       getEnvAsInt("REDIS_DB", 0),
 		},
 	}
 

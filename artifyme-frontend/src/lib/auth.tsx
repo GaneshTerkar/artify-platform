@@ -2,11 +2,12 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
-import { api } from "./api";
+import { api, getDeviceInfo, setTokens, clearTokens } from "./api";
 
 export type User = {
   user_id: string;
@@ -46,8 +47,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return raw ? (JSON.parse(raw) as User) : null;
   });
 
-  const persist = useCallback((t: string, u: User) => {
-    localStorage.setItem("artify_token", t);
+  const persist = useCallback((t: string, u: User, rt?: string) => {
+    setTokens(t, rt);
     localStorage.setItem("artify_user", JSON.stringify(u));
     setToken(t);
     setUser(u);
@@ -55,16 +56,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const res = await api<{ Token: string; User: User }>("/auth/login", {
+      const deviceInfo = getDeviceInfo();
+      const res = await api<{
+        token?: string;
+        Token?: string;
+        refresh_token?: string;
+        user?: User;
+        User?: User;
+      }>("/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({
+          email,
+          password,
+          device_id: deviceInfo.device_id,
+          device_name: deviceInfo.device_name,
+          device_type: deviceInfo.device_type,
+        }),
       });
-      persist(res.Token, res.User);
-      return res.User;
+
+      const authToken = res.token || res.Token;
+      const authUser = res.user || res.User;
+      if (!authToken || !authUser) {
+        throw new Error("Invalid response received from authentication server");
+      }
+
+      persist(authToken, authUser, res.refresh_token);
+      return authUser;
     },
     [persist],
   );
-
 
   const register = useCallback(
     async (payload: RegisterPayload) => {
@@ -78,10 +98,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const logout = useCallback(() => {
-    localStorage.removeItem("artify_token");
-    localStorage.removeItem("artify_user");
+    clearTokens();
     setToken(null);
     setUser(null);
+  }, []);
+
+  useEffect(() => {
+    const onSessionExpired = () => {
+      setToken(null);
+      setUser(null);
+    };
+    window.addEventListener("artify:session_expired", onSessionExpired);
+    return () => window.removeEventListener("artify:session_expired", onSessionExpired);
   }, []);
 
   const updateUser = useCallback((updatedFields: Partial<User>) => {

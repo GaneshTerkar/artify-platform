@@ -196,7 +196,7 @@ export default function AdminPage() {
   const [suspendingUser, setSuspendingUser] = useState<{ user: PlatformUser; targetStatus: "ACTIVE" | "SUSPENDED" } | null>(null);
   const [suspensionReason, setSuspensionReason] = useState<string>("Frequent unconfirmed or cancelled orders");
   const [userSubFilter, setUserSubFilter] = useState<"ALL" | "VERIFIED" | "PENDING_REVIEW" | "AT_RISK" | "ADMIN_ELIGIBLE">("ALL");
-  const [orderRoleFilter, setOrderRoleFilter] = useState<"ALL" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT" | "PUBLISHED">("ALL");
+  const [orderRoleFilter, setOrderRoleFilter] = useState<"ALL" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT">("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [artistFilter, setArtistFilter] = useState<string>("ALL");
   const [deliveryPartnerFilter, setDeliveryPartnerFilter] = useState<string>("ALL");
@@ -206,7 +206,6 @@ export default function AdminPage() {
     CUSTOMER: ["PLACED", "CONFIRMED", "CANCELLED"],
     ARTIST: ["ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED"],
     DELIVERY_AGENT: ["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED"],
-    PUBLISHED: ["PUBLISHED"],
   };
 
   const showArtistFilter =
@@ -225,7 +224,7 @@ export default function AdminPage() {
         "DELIVERED",
       ].includes(statusFilter));
 
-  const handleRoleFilterChange = (role: "ALL" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT" | "PUBLISHED") => {
+  const handleRoleFilterChange = (role: "ALL" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT") => {
     setOrderRoleFilter(role);
     if (role !== "ALL") {
       const allowed = ROLE_STATUS_MAP[role] || [];
@@ -241,9 +240,7 @@ export default function AdminPage() {
       setArtistFilter("ALL");
     }
     if (status !== "ALL") {
-      if (status === "PUBLISHED") {
-        setOrderRoleFilter("PUBLISHED");
-      } else if (ROLE_STATUS_MAP.CUSTOMER.includes(status)) {
+      if (ROLE_STATUS_MAP.CUSTOMER.includes(status)) {
         setOrderRoleFilter("CUSTOMER");
       } else if (ROLE_STATUS_MAP.ARTIST.includes(status)) {
         setOrderRoleFilter("ARTIST");
@@ -268,14 +265,10 @@ export default function AdminPage() {
     OUT_FOR_DELIVERY: 8,
     DELIVERY_FAILED: 9,
     DELIVERED: 10,
-    PUBLISHED: 11,
-    CANCELLED: 12,
+    CANCELLED: 11,
   };
 
   function getOrderLifecycleStatus(order: Order): string {
-    if ((order.status === "COMPLETED" || order.status === "DELIVERED") && order.is_published_to_gallery) {
-      return "PUBLISHED";
-    }
     return order.status;
   }
 
@@ -352,12 +345,8 @@ export default function AdminPage() {
     let customer = 0;
     let artist = 0;
     let delivery = 0;
-    let published = 0;
 
     for (const o of allOrders) {
-      if (o.is_published_to_gallery) {
-        published++;
-      }
       if (["PLACED", "CONFIRMED", "CANCELLED"].includes(o.status)) {
         customer++;
       } else if (["ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED"].includes(o.status)) {
@@ -372,7 +361,6 @@ export default function AdminPage() {
       CUSTOMER: customer,
       ARTIST: artist,
       DELIVERY_AGENT: delivery,
-      PUBLISHED: published,
     };
   }, [allOrders]);
 
@@ -381,7 +369,6 @@ export default function AdminPage() {
     { id: "CUSTOMER", label: "Customer Phase", icon: "👤", count: roleCounts.CUSTOMER },
     { id: "ARTIST", label: "Artist Stage", icon: "🎨", count: roleCounts.ARTIST },
     { id: "DELIVERY_AGENT", label: "Delivery Partner", icon: "🚚", count: roleCounts.DELIVERY_AGENT },
-    { id: "PUBLISHED", label: "Gallery Showcase", icon: "🌟", count: roleCounts.PUBLISHED },
   ] as const;
 
   const STATUS_PILLS = [
@@ -396,7 +383,6 @@ export default function AdminPage() {
     { id: "OUT_FOR_DELIVERY", label: "OUT FOR DELIVERY", count: statusCounts["OUT_FOR_DELIVERY"] || 0 },
     { id: "DELIVERY_FAILED", label: "DELIVERY RETRY", count: statusCounts["DELIVERY_FAILED"] || 0 },
     { id: "DELIVERED", label: "DELIVERED", count: statusCounts["DELIVERED"] || 0 },
-    { id: "PUBLISHED", label: "PUBLISHED", count: inspectedCount },
     { id: "CANCELLED", label: "CANCELLED", count: statusCounts["CANCELLED"] || 0 },
   ] as const;
 
@@ -421,16 +407,10 @@ export default function AdminPage() {
         if (!["ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED"].includes(o.status)) return false;
       } else if (orderRoleFilter === "DELIVERY_AGENT") {
         if (!["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED"].includes(o.status)) return false;
-      } else if (orderRoleFilter === "PUBLISHED") {
-        if (!o.is_published_to_gallery) return false;
       }
 
       // 2. Status Filter
-      if (statusFilter === "PUBLISHED") {
-        if (!o.is_published_to_gallery) return false;
-      } else if (statusFilter === "COMPLETED") {
-        if (o.status !== "COMPLETED") return false;
-      } else if (statusFilter !== "ALL" && o.status !== statusFilter) {
+      if (statusFilter !== "ALL" && o.status !== statusFilter) {
         return false;
       }
 
@@ -1053,7 +1033,6 @@ export default function AdminPage() {
                   <option value="CUSTOMER">👤 Customer ({roleCounts.CUSTOMER})</option>
                   <option value="ARTIST">🎨 Artist ({roleCounts.ARTIST})</option>
                   <option value="DELIVERY_AGENT">🚚 Delivery Partner ({roleCounts.DELIVERY_AGENT})</option>
-                  <option value="PUBLISHED">🌟 Gallery Showcase ({roleCounts.PUBLISHED})</option>
                 </select>
               </div>
 
@@ -1087,9 +1066,6 @@ export default function AdminPage() {
                         <option value="DELIVERY_FAILED">DELIVERY RETRY ({statusCounts["DELIVERY_FAILED"] || 0})</option>
                         <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
                       </optgroup>
-                      <optgroup label="🌟 Gallery Showcase">
-                        <option value="PUBLISHED">PUBLISHED ({inspectedCount})</option>
-                      </optgroup>
                     </>
                   )}
 
@@ -1119,13 +1095,6 @@ export default function AdminPage() {
                       <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
                       <option value="DELIVERY_FAILED">DELIVERY RETRY ({statusCounts["DELIVERY_FAILED"] || 0})</option>
                       <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
-                    </>
-                  )}
-
-                  {orderRoleFilter === "PUBLISHED" && (
-                    <>
-                      <option value="ALL">All ({roleCounts.PUBLISHED})</option>
-                      <option value="PUBLISHED">PUBLISHED ({inspectedCount})</option>
                     </>
                   )}
                 </select>

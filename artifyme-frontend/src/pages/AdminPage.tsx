@@ -1340,18 +1340,7 @@ export default function AdminPage() {
                       {/* Content */}
                       <div className="space-y-1.5 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <div className="flex items-center gap-1 mr-1">
-                            <h3 className="text-base font-bold text-white">{u.full_name}</h3>
-                            {/* Facebook-style verified badge for verified artists */}
-                            {isArtist && u.is_verified_artist && (
-                              <span
-                                title="Verified Artist: Portfolio approved and verified by Admin"
-                                className="inline-flex items-center cursor-help transition-transform hover:scale-125 ml-0.5"
-                              >
-                                <FacebookVerifiedBadge size={19} className="w-5 h-5 ml-0.5" />
-                              </span>
-                            )}
-                          </div>
+                          <h3 className="text-base font-bold text-white mr-1">{u.full_name}</h3>
 
                           {/* Role Symbol Badge */}
                           <span
@@ -1392,6 +1381,16 @@ export default function AdminPage() {
                           >
                             {u.status === "ACTIVE" ? "🟢" : u.status === "PENDING" ? "🟡" : "🔴"}
                           </span>
+
+                          {/* Verified Artist Badge (Styled consistently with role and status symbols) */}
+                          {isArtist && u.is_verified_artist && (
+                            <span
+                              title="Verified Artist: Portfolio approved and verified by Admin"
+                              className="inline-flex items-center justify-center w-6 h-6 rounded-full border shadow-sm cursor-help transition-transform hover:scale-110 bg-blue-500/20 text-blue-400 border-blue-500/40"
+                            >
+                              <FacebookVerifiedBadge size={14} className="w-3.5 h-3.5" />
+                            </span>
+                          )}
 
                           {/* Artist Pending Review Status Badge (if not verified yet) */}
                           {isArtist && !u.is_verified_artist && (

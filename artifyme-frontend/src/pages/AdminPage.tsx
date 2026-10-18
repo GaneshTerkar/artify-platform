@@ -1037,27 +1037,8 @@ export default function AdminPage() {
         <div className="space-y-6">
           {/* Filters Bar */}
           <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
+            {/* Row 1: Filter Dropdowns */}
             <div className="flex flex-wrap items-center gap-3 text-xs">
-              {/* Search Bar */}
-              <div className="flex items-center gap-2 flex-1 min-w-[240px]">
-                <span className="text-slate-400">🔍</span>
-                <input
-                  type="text"
-                  value={orderSearchQuery}
-                  onChange={(e) => setOrderSearchQuery(e.target.value)}
-                  placeholder="Search by ID, customer, artist, courier, address, notes..."
-                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
-                />
-                {orderSearchQuery && (
-                  <button
-                    onClick={() => setOrderSearchQuery("")}
-                    className="text-slate-400 hover:text-white text-xs underline"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-
               {/* User Dropdown */}
               <div className="flex items-center gap-1.5">
                 <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1">
@@ -1216,6 +1197,28 @@ export default function AdminPage() {
                 Showing <strong className="text-white">{sortedOrders.length}</strong> of{" "}
                 <strong className="text-white">{allOrders.length}</strong> orders
               </span>
+            </div>
+
+            {/* Row 2: Search Bar Below Dropdowns */}
+            <div className="relative pt-1 border-t border-slate-800/60">
+              <div className="flex items-center gap-2 w-full relative">
+                <span className="text-slate-400 absolute left-3 pointer-events-none text-xs">🔍</span>
+                <input
+                  type="text"
+                  value={orderSearchQuery}
+                  onChange={(e) => setOrderSearchQuery(e.target.value)}
+                  placeholder="Search by ID, customer, artist, courier, address, notes..."
+                  className="rounded-lg bg-slate-800/90 border border-slate-700 pl-8 pr-16 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
+                />
+                {orderSearchQuery && (
+                  <button
+                    onClick={() => setOrderSearchQuery("")}
+                    className="absolute right-3 text-slate-400 hover:text-white text-xs underline"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 

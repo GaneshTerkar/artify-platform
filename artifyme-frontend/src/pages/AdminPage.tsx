@@ -1362,26 +1362,6 @@ export default function AdminPage() {
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <h3 className="text-base font-bold text-white mr-1">{u.full_name}</h3>
 
-                          {/* Role Symbol Badge */}
-                          <span
-                            title={
-                              u.role === "ADMIN"
-                                ? "Role: Administrator"
-                                : isArtist
-                                ? "Role: Artist"
-                                : "Role: Customer"
-                            }
-                            className={`inline-flex items-center justify-center w-6 h-6 rounded-full border text-xs shadow-sm cursor-help transition-transform hover:scale-110 ${
-                              u.role === "ADMIN"
-                                ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
-                                : isArtist
-                                ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
-                                : "bg-blue-500/20 text-blue-300 border-blue-500/40"
-                            }`}
-                          >
-                            {u.role === "ADMIN" ? "👑" : isArtist ? "🎨" : "👤"}
-                          </span>
-
                           {/* Verified Artist Badge (Styled consistently with role and status symbols) */}
                           {isArtist && u.is_verified_artist && (
                             <span
@@ -1401,6 +1381,26 @@ export default function AdminPage() {
                               ⏳
                             </span>
                           )}
+
+                          {/* Role Symbol Badge */}
+                          <span
+                            title={
+                              u.role === "ADMIN"
+                                ? "Role: Administrator"
+                                : isArtist
+                                ? "Role: Artist"
+                                : "Role: Customer"
+                            }
+                            className={`inline-flex items-center justify-center w-6 h-6 rounded-full border text-xs shadow-sm cursor-help transition-transform hover:scale-110 ${
+                              u.role === "ADMIN"
+                                ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                                : isArtist
+                                ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
+                                : "bg-blue-500/20 text-blue-300 border-blue-500/40"
+                            }`}
+                          >
+                            {u.role === "ADMIN" ? "👑" : isArtist ? "🎨" : "👤"}
+                          </span>
 
                           {/* Risk Badges (Symbol-only with hover tooltip) */}
                           {metrics.isCustomerAtRisk && (

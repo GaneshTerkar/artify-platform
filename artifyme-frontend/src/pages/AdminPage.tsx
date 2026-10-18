@@ -1405,14 +1405,10 @@ export default function AdminPage() {
                 className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm cursor-pointer"
               >
                 <option value="ALL">All ({userCounts.ALL})</option>
-                <option value="CUSTOMER">👤 Customers ({userCounts.CUSTOMER})</option>
-                <option value="ARTIST">
-                  🎨 Artists ({userCounts.ARTIST}){userCounts.PENDING_REVIEW > 0 ? ` (${userCounts.PENDING_REVIEW} to review)` : ""}
-                </option>
-                <option value="DELIVERY_AGENT">
-                  🚚 Delivery Agents ({userCounts.DELIVERY_AGENT})
-                </option>
-                <option value="ADMIN">👑 Admins ({userCounts.ADMIN})</option>
+                <option value="CUSTOMER">👤 Customer ({userCounts.CUSTOMER})</option>
+                <option value="ARTIST">🎨 Artist ({userCounts.ARTIST})</option>
+                <option value="DELIVERY_AGENT">🚚 Delivery Agent ({userCounts.DELIVERY_AGENT})</option>
+                <option value="ADMIN">👑 Admin ({userCounts.ADMIN})</option>
               </select>
             </div>
 
@@ -1428,12 +1424,12 @@ export default function AdminPage() {
                   className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm cursor-pointer"
                 >
                   <option value="ALL">All ({userRoleFilter === "ALL" ? allUsers.length : userCounts[userRoleFilter] || 0})</option>
-                  <option value="AT_RISK">⚠️ Needs Attention ({userRiskCounts.atRisk})</option>
+                  <option value="AT_RISK">⚠️ Attention ({userRiskCounts.atRisk})</option>
                   {userRoleFilter !== "CUSTOMER" && userRoleFilter !== "DELIVERY_AGENT" && (
                     <option value="ADMIN_ELIGIBLE">⭐ Admin-Eligible ({userRiskCounts.adminEligible})</option>
                   )}
                   {(userRoleFilter === "ALL" || userRoleFilter === "ARTIST" || userRoleFilter === "DELIVERY_AGENT") && (
-                    <option value="PENDING_REVIEW">⏳ Pending Approval ({userCounts.PENDING_REVIEW})</option>
+                    <option value="PENDING_REVIEW">⏳ Pending ({userCounts.PENDING_REVIEW})</option>
                   )}
                   {(userRoleFilter === "ALL" || userRoleFilter === "ARTIST") && (
                     <option value="VERIFIED">🛡️ Verified ({userCounts.VERIFIED_ARTIST})</option>
@@ -1511,15 +1507,25 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Export Button */}
-            <button
-              type="button"
-              onClick={() => exportUsersToCSV(filteredUsers)}
-              className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition flex items-center gap-1 shadow-sm whitespace-nowrap flex-shrink-0 cursor-pointer"
-              title="Export current user list to CSV for Excel"
-            >
-              <span>📥</span> <span>Export</span>
-            </button>
+            {/* Export CSV Icon Button with Tooltip */}
+            <div className="relative group flex items-center flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => exportUsersToCSV(filteredUsers)}
+                className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 text-slate-300 hover:text-white transition flex items-center justify-center shadow-sm cursor-pointer"
+                title="Export current user list to CSV for Excel"
+                aria-label="Export CSV"
+              >
+                <span className="text-sm">📥</span>
+              </button>
+              {/* Tooltip on Hover */}
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center pointer-events-none z-30">
+                <span className="rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-200 shadow-xl whitespace-nowrap">
+                  Export CSV
+                </span>
+                <span className="w-1.5 h-1.5 bg-slate-950 border-r border-b border-slate-700 transform rotate-45 -mt-1"></span>
+              </div>
+            </div>
 
             {/* Showing Count */}
             <span className="text-slate-400 text-xs whitespace-nowrap flex-shrink-0">

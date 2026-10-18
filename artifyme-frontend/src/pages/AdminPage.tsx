@@ -300,6 +300,10 @@ export default function AdminPage() {
     return allOrders.filter((o) => o.is_published_to_gallery).length;
   }, [allOrders]);
 
+  const needsInspectionCount = useMemo(() => {
+    return allOrders.filter((o) => o.status === "COMPLETED" && !o.is_published_to_gallery).length;
+  }, [allOrders]);
+
   const filteredOrders = useMemo(() => {
     return allOrders.filter((o) => {
       // 1. Status Filter

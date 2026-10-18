@@ -84,29 +84,18 @@ func main() {
 	_, _ = pool.Exec(ctx, "DELETE FROM payments;")
 	_, _ = pool.Exec(ctx, "DELETE FROM orders;")
 
-	// Generate Collages for Order 1 & 2
+	// Seeds for Order 1 & 2
 	order1ID := uuid.New()
-	order1Ref := "/uploads/sample1_ref_girl_yellow.jpg"
-	order1Sketch := "/uploads/sample1_sketch_girl.jpg"
-	collage1URL, err := orders.GenerateCollage(ctx, order1ID, order1Sketch, order1Ref, filesService, baseURL)
-	if err != nil {
-		log.Printf("Warning: failed to generate collage 1: %v", err)
-		collage1URL = order1Sketch
-	}
-	fmt.Printf("Order 1 collage generated: %s\n", collage1URL)
+	order1Ref := ""
+	order1Sketch := ""
+	collage1URL := ""
 
 	order2ID := uuid.New()
-	order2Ref := "/uploads/sample2_ref_woman_sari.jpg"
-	order2Sketch := "/uploads/sample2_sketch_woman_sari.jpg"
-	collage2URL, err := orders.GenerateCollage(ctx, order2ID, order2Sketch, order2Ref, filesService, baseURL)
-	if err != nil {
-		log.Printf("Warning: failed to generate collage 2: %v", err)
-		collage2URL = order2Sketch
-	}
-	fmt.Printf("Order 2 collage generated: %s\n", collage2URL)
+	order2Ref := ""
+	order2Sketch := ""
+	collage2URL := ""
 
 	// ORDER 1: COMPLETED, Admin Confirmed & Published to Gallery (is_published_to_gallery = TRUE)
-	// final_image_url is the collaged image URL!
 	_, err = pool.Exec(ctx, `
 		INSERT INTO orders (
 			order_id, user_id, artist_id, painting_category, reference_image_url,
@@ -123,10 +112,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to insert order 1: %v", err)
 	}
-	fmt.Printf("✓ Order 1 inserted: COMPLETED & Published to Gallery (Collage: %s)\n", collage1URL)
+	fmt.Printf("✓ Order 1 inserted: COMPLETED & Published to Gallery\n")
 
 	// ORDER 2: COMPLETED, NOT yet confirmed by Admin (is_published_to_gallery = FALSE)
-	// final_image_url is still artist sketch; collage_image_url is ready for admin inspection
 	_, err = pool.Exec(ctx, `
 		INSERT INTO orders (
 			order_id, user_id, artist_id, painting_category, reference_image_url,
@@ -154,7 +142,7 @@ func main() {
 			size, persons_included, status, delivery_address, total_price, customer_notes,
 			created_at, updated_at, updated_by
 		) VALUES (
-			$1, $2, $3, 'OIL', '/uploads/sample3_ref_man_polo.jpg',
+			$1, $2, $3, 'OIL', '',
 			NULL, NULL, NULL, FALSE,
 			'A2', 'SINGLE', 'IN_PROGRESS', 'Villa 12, Green Glen, Hyderabad, Telangana', 3999.00,
 			'Oil painting on stretched canvas.', NOW() - INTERVAL '1 day', NOW(), $3
@@ -174,7 +162,7 @@ func main() {
 			size, persons_included, status, delivery_address, total_price, customer_notes,
 			created_at, updated_at, updated_by
 		) VALUES (
-			$1, $2, $3, 'WATERCOLOR', '/uploads/sample1_ref_girl_yellow.jpg',
+			$1, $2, $3, 'WATERCOLOR', '',
 			NULL, NULL, NULL, FALSE,
 			'A3', 'COUPLE', 'ASSIGNED_ARTIST', '104 Sea View, Bandra West, Mumbai', 2499.00,
 			'Vibrant watercolor palette please.', NOW() - INTERVAL '12 hours', NOW(), $4
@@ -194,7 +182,7 @@ func main() {
 			size, persons_included, status, delivery_address, total_price, customer_notes,
 			created_at, updated_at, updated_by
 		) VALUES (
-			$1, $2, NULL, 'ACRYLIC', '/uploads/sample2_ref_woman_sari.jpg',
+			$1, $2, NULL, 'ACRYLIC', '',
 			NULL, NULL, NULL, FALSE,
 			'A4', 'SINGLE', 'CONFIRMED', '7 Park Avenue, Kolkata, West Bengal', 1499.00,
 			'Warm lighting tone.', NOW() - INTERVAL '6 hours', NOW(), $2
@@ -214,7 +202,7 @@ func main() {
 			size, persons_included, status, delivery_address, total_price, customer_notes,
 			created_at, updated_at, updated_by
 		) VALUES (
-			$1, $2, NULL, 'PENCIL', '/uploads/sample3_ref_man_polo.jpg',
+			$1, $2, NULL, 'PENCIL', '',
 			NULL, NULL, NULL, FALSE,
 			'A4', 'SINGLE', 'PLACED', '88 Civil Lines, Jaipur, Rajasthan', 999.00,
 			'Draft order awaiting customer payment.', NOW() - INTERVAL '1 hour', NOW(), $2

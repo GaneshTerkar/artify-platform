@@ -1195,23 +1195,28 @@ export default function AdminPage() {
                             collageImageUrl={o.collage_image_url ? resolveImage(o.collage_image_url) : undefined}
                             onClick={() => setInspectingOrder(o)}
                           />
-                        ) : (
+                        ) : o.reference_image_url ? (
                           <div
-                            onClick={() => setSelectedPhoto(resolveImage(o.reference_image_url || "/uploads/customer_ref_photo.jpg"))}
+                            onClick={() => setSelectedPhoto(resolveImage(o.reference_image_url))}
                             className="relative w-20 aspect-[4/5] sm:w-24 sm:aspect-[4/5] rounded-xl overflow-hidden bg-slate-800 flex-shrink-0 cursor-pointer border border-slate-700 group shadow"
                             title="Click to view full reference photo"
                           >
                             <img
-                              src={resolveImage(o.reference_image_url || "/uploads/customer_ref_photo.jpg")}
+                              src={resolveImage(o.reference_image_url)}
                               alt="Customer Reference"
                               className="w-full h-full object-cover group-hover:scale-105 transition"
-                              onError={(e) => {
-                                (e.currentTarget as HTMLImageElement).src = `${API_URL}/uploads/customer_ref_photo.jpg`;
-                              }}
                             />
                             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs font-semibold text-white">
                               View Ref
                             </div>
+                          </div>
+                        ) : (
+                          <div
+                            className="relative w-20 aspect-[4/5] sm:w-24 sm:aspect-[4/5] rounded-xl overflow-hidden bg-slate-800/60 flex-shrink-0 border border-slate-700/60 flex flex-col items-center justify-center text-slate-500 text-[11px] select-none p-1 text-center"
+                            title="No reference photo attached"
+                          >
+                            <span className="text-xl mb-1">🖼️</span>
+                            <span>No Photo</span>
                           </div>
                         )}
 
@@ -2482,7 +2487,7 @@ export default function AdminPage() {
           isOpen={Boolean(inspectingOrder)}
           onClose={() => setInspectingOrder(null)}
           orderId={inspectingOrder.order_id}
-          finalImageUrl={resolveImage(inspectingOrder.original_final_image_url || inspectingOrder.final_image_url || "/uploads/final_art.jpg")}
+          finalImageUrl={resolveImage(inspectingOrder.original_final_image_url || inspectingOrder.final_image_url || "")}
           refImageUrl={inspectingOrder.reference_image_url ? resolveImage(inspectingOrder.reference_image_url) : undefined}
           collageImageUrl={inspectingOrder.collage_image_url ? resolveImage(inspectingOrder.collage_image_url) : undefined}
           category={inspectingOrder.painting_category}

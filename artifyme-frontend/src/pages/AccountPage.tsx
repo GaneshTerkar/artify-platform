@@ -285,19 +285,26 @@ export default function AccountPage() {
                         <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">
                           {isArtist ? "Client Photo" : "Reference Photo"}
                         </p>
-                        <div
-                          onClick={() => setSelectedPhoto(resolveImage(o.reference_image_url || "/uploads/customer_ref_photo.jpg"))}
-                          className="w-20 aspect-[4/5] rounded-xl overflow-hidden border border-slate-700 bg-slate-900 cursor-pointer hover:border-slate-500 transition"
-                        >
-                          <img
-                            src={resolveImage(o.reference_image_url || "/uploads/customer_ref_photo.jpg")}
-                            alt="Reference"
-                            className="h-full w-full object-cover"
-                            onError={(e) => {
-                              (e.currentTarget as HTMLImageElement).src = `${API_URL}/uploads/customer_ref_photo.jpg`;
-                            }}
-                          />
-                        </div>
+                        {o.reference_image_url ? (
+                          <div
+                            onClick={() => setSelectedPhoto(resolveImage(o.reference_image_url))}
+                            className="w-20 aspect-[4/5] rounded-xl overflow-hidden border border-slate-700 bg-slate-900 cursor-pointer hover:border-slate-500 transition"
+                          >
+                            <img
+                              src={resolveImage(o.reference_image_url)}
+                              alt="Reference"
+                              className="h-full w-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <div
+                            className="w-20 aspect-[4/5] rounded-xl border border-slate-800 bg-slate-900/60 flex flex-col items-center justify-center text-slate-500 text-[11px] select-none p-1 text-center"
+                            title="No photo attached"
+                          >
+                            <span className="text-xl mb-1">🖼️</span>
+                            <span>No Photo</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

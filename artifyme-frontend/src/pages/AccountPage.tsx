@@ -116,7 +116,7 @@ export default function AccountPage() {
             )}
             {isDelivery && (
               <span className="rounded-full bg-cyan-500/20 border border-cyan-500/40 px-2.5 py-0.5 text-xs font-semibold text-cyan-300">
-                🚚 Delivery Partner
+                🚚 Delivery Agent
               </span>
             )}
           </div>

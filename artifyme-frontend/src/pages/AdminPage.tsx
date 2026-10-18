@@ -357,7 +357,7 @@ export default function AdminPage() {
     { id: "ALL", label: "All Roles", icon: "🌐", count: roleCounts.ALL },
     { id: "CUSTOMER", label: "Customer Phase", icon: "👤", count: roleCounts.CUSTOMER },
     { id: "ARTIST", label: "Artist Stage", icon: "🎨", count: roleCounts.ARTIST },
-    { id: "DELIVERY_AGENT", label: "Delivery Partner", icon: "🚚", count: roleCounts.DELIVERY_AGENT },
+    { id: "DELIVERY_AGENT", label: "Delivery Agent", icon: "🚚", count: roleCounts.DELIVERY_AGENT },
   ] as const;
 
   const STATUS_PILLS = [
@@ -1020,7 +1020,7 @@ export default function AdminPage() {
                 <option value="ALL">All ({allOrders.length})</option>
                 <option value="CUSTOMER">👤 Customer ({roleCounts.CUSTOMER})</option>
                 <option value="ARTIST">🎨 Artist ({roleCounts.ARTIST})</option>
-                <option value="DELIVERY_AGENT">🚚 Delivery Partner ({roleCounts.DELIVERY_AGENT})</option>
+                <option value="DELIVERY_AGENT">🚚 Delivery Agent ({roleCounts.DELIVERY_AGENT})</option>
               </select>
             </div>
 
@@ -1255,7 +1255,7 @@ export default function AdminPage() {
                             )}
                           </p>
                           <p>
-                            <strong className="text-slate-300">Delivery Partner:</strong>{" "}
+                            <strong className="text-slate-300">Delivery Agent:</strong>{" "}
                             {(() => {
                               const agent = deliveryAgents.find((a) => a.user_id === o.delivery_agent_id);
                               if (agent) {
@@ -1280,7 +1280,7 @@ export default function AdminPage() {
                         {o.status === "ASSIGNED_DELIVERY_AGENT" && (
                           <div className="pt-1">
                             <span className="inline-flex items-center gap-1.5 rounded-md bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-1 text-xs text-cyan-300 font-medium">
-                              <span>⏳</span> Assigned to {assignedDeliveryAgent?.full_name || "Delivery Partner"} (Awaiting Courier Confirmation)
+                              <span>⏳</span> Assigned to {assignedDeliveryAgent?.full_name || "Delivery Agent"} (Awaiting Courier Confirmation)
                             </span>
                           </div>
                         )}
@@ -1410,7 +1410,7 @@ export default function AdminPage() {
                   🎨 Artists ({userCounts.ARTIST}){userCounts.PENDING_REVIEW > 0 ? ` (${userCounts.PENDING_REVIEW} to review)` : ""}
                 </option>
                 <option value="DELIVERY_AGENT">
-                  🚚 Delivery Partners ({userCounts.DELIVERY_AGENT})
+                  🚚 Delivery Agents ({userCounts.DELIVERY_AGENT})
                 </option>
                 <option value="ADMIN">👑 Admins ({userCounts.ADMIN})</option>
               </select>
@@ -2360,25 +2360,25 @@ export default function AdminPage() {
                   <strong>Destination:</strong> {assigningDeliveryOrder.delivery_address}
                 </p>
                 <p className="text-cyan-300">
-                  <strong>Partner Payout (10%):</strong> ₹{(Number(assigningDeliveryOrder.total_price) * DELIVERY_COMMISSION_PERCENTAGE).toFixed(2)}
+                  <strong>Agent Payout (10%):</strong> ₹{(Number(assigningDeliveryOrder.total_price) * DELIVERY_COMMISSION_PERCENTAGE).toFixed(2)}
                 </p>
               </div>
 
               {currentAgent && (
                 <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
-                  ⚠️ Earlier assigned partner: <strong>{currentAgent.full_name}</strong>
-                  {isFailed ? " (Delivery attempt failed). Please select a different delivery partner." : "."}
+                  ⚠️ Earlier assigned delivery agent: <strong>{currentAgent.full_name}</strong>
+                  {isFailed ? " (Delivery attempt failed). Please select a different delivery agent." : "."}
                 </div>
               )}
 
               <label className="block space-y-1.5 text-xs text-slate-300">
-                <span className="font-medium">Select Delivery Agent (Excluding earlier partner):</span>
+                <span className="font-medium">Select Delivery Agent (Excluding earlier agent):</span>
                 <select
                   value={selectedDeliveryAgentId}
                   onChange={(e) => setSelectedDeliveryAgentId(e.target.value)}
                   className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-white text-sm focus:border-cyan-500 focus:outline-none"
                 >
-                  <option value="">-- Choose Delivery Partner --</option>
+                  <option value="">-- Choose Delivery Agent --</option>
                   {availablePartners.map((agent) => (
                     <option key={agent.user_id} value={agent.user_id}>
                       {agent.full_name} ({agent.phone_number || agent.email})
@@ -2386,7 +2386,7 @@ export default function AdminPage() {
                   ))}
                   {availablePartners.length === 0 && (
                     <option disabled value="">
-                      No other delivery partners available
+                      No other delivery agents available
                     </option>
                   )}
                 </select>

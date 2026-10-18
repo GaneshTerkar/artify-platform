@@ -244,6 +244,47 @@ func (h *Handler) AdminListUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"users": users})
 }
 
+type updateUserStatusRequest struct {
+	Status string `json:"status" binding:"required"`
+}
+
+func (h *Handler) AdminUpdateUserStatus(c *gin.Context) {
+	targetID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+	role := c.MustGet("role").(string)
+
+	var req updateUserStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "status is required"})
+		return
+	}
+
+	if err := h.service.UpdateUserStatus(c.Request.Context(), role, targetID, req.Status); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "user status updated successfully"})
+}
+
+func (h *Handler) AdminElevateArtist(c *gin.Context) {
+	targetID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+	actorID := c.MustGet("user_id").(uuid.UUID)
+	role := c.MustGet("role").(string)
+
+	if err := h.service.ElevateArtistToAdmin(c.Request.Context(), role, actorID, targetID); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "artist promoted to Admin successfully"})
+}
+
 func (h *Handler) AdminUpdateStatus(c *gin.Context) {
 	orderID, err := uuid.Parse(c.Param("id"))
 	if err != nil {

@@ -94,6 +94,12 @@ function Shell({ children }: { children: React.ReactNode }) {
                   >
                     Users
                   </Link>
+                  <Link
+                    to="/admin?tab=payroll"
+                    className="text-slate-300 hover:text-white transition"
+                  >
+                    Payroll Due
+                  </Link>
                 </>
               )}
               {user.role !== "ADMIN" && (

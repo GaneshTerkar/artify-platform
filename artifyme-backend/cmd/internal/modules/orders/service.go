@@ -251,3 +251,43 @@ func (s *Service) ListAllUsers(ctx context.Context, role string) ([]UserItemDTO,
 	return s.repo.ListAllUsers(ctx)
 }
 
+func (s *Service) UpdateUserStatus(ctx context.Context, actorRole string, targetUserID uuid.UUID, status string) error {
+	if actorRole != "ADMIN" {
+		return ErrForbidden
+	}
+	if status != "ACTIVE" && status != "SUSPENDED" {
+		return fmt.Errorf("invalid status, must be ACTIVE or SUSPENDED")
+	}
+	return s.repo.UpdateUserStatus(ctx, targetUserID, status)
+}
+
+func (s *Service) ElevateArtistToAdmin(ctx context.Context, actorRole string, actorID, targetUserID uuid.UUID) error {
+	if actorRole != "ADMIN" {
+		return ErrForbidden
+	}
+	if actorID == targetUserID {
+		return fmt.Errorf("cannot modify your own role")
+	}
+	role, err := s.repo.GetUserRole(ctx, targetUserID)
+	if err != nil {
+		return err
+	}
+	if role != "ARTIST" {
+		return fmt.Errorf("only artists can be promoted to Admin")
+	}
+
+	completed, stalled, err := s.repo.GetArtistCompletedAndStalledCount(ctx, targetUserID)
+	if err != nil {
+		return err
+	}
+	if completed < 2 {
+		return fmt.Errorf("artist must have completed at least 2 portrait commissions to qualify for Admin (current: %d)", completed)
+	}
+	if stalled > 0 {
+		return fmt.Errorf("artist has %d unconfirmed/stalled assignment(s) and cannot be promoted", stalled)
+	}
+
+	return s.repo.UpdateUserRole(ctx, targetUserID, "ADMIN")
+}
+
+

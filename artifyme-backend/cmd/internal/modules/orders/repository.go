@@ -564,4 +564,29 @@ func (r *Repository) ListAllUsers(ctx context.Context) ([]UserItemDTO, error) {
 	return list, rows.Err()
 }
 
+func (r *Repository) UpdateUserStatus(ctx context.Context, userID uuid.UUID, status string) error {
+	_, err := r.pool.Exec(ctx, `UPDATE users SET status = $1, updated_at = NOW() WHERE user_id = $2`, status, userID)
+	return err
+}
 
+func (r *Repository) UpdateUserRole(ctx context.Context, userID uuid.UUID, newRole string) error {
+	_, err := r.pool.Exec(ctx, `UPDATE users SET role = $1, updated_at = NOW() WHERE user_id = $2`, newRole, userID)
+	return err
+}
+
+func (r *Repository) GetUserRole(ctx context.Context, userID uuid.UUID) (string, error) {
+	var role string
+	err := r.pool.QueryRow(ctx, `SELECT role::text FROM users WHERE user_id = $1`, userID).Scan(&role)
+	return role, err
+}
+
+func (r *Repository) GetArtistCompletedAndStalledCount(ctx context.Context, artistID uuid.UUID) (completed int, stalled int, err error) {
+	err = r.pool.QueryRow(ctx, `
+		SELECT 
+			COUNT(*) FILTER (WHERE status = 'COMPLETED') AS completed_count,
+			COUNT(*) FILTER (WHERE status = 'ASSIGNED_ARTIST') AS stalled_count
+		FROM orders 
+		WHERE artist_id = $1
+	`, artistID).Scan(&completed, &stalled)
+	return completed, stalled, err
+}

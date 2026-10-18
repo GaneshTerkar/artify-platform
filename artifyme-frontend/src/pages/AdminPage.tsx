@@ -1006,131 +1006,127 @@ export default function AdminPage() {
       {/* TAB 1: ORDERS MANAGEMENT */}
       {activeTab === "orders" && (
         <div className="space-y-6">
-          {/* Filters Bar */}
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
-            {/* Row 1: Filter Dropdowns (User and Status) */}
-            <div className="flex items-center gap-3 text-xs w-full">
-              {/* User Dropdown */}
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1.5 flex-shrink-0">
-                  <span>👥</span> User:
-                </label>
-                <select
-                  value={orderRoleFilter}
-                  onChange={(e) => handleRoleFilterChange(e.target.value as any)}
-                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm w-full min-w-0 truncate cursor-pointer"
-                >
-                  <option value="ALL">All ({allOrders.length})</option>
-                  <option value="CUSTOMER">👤 Customer ({roleCounts.CUSTOMER})</option>
-                  <option value="ARTIST">🎨 Artist ({roleCounts.ARTIST})</option>
-                  <option value="DELIVERY_AGENT">🚚 Delivery Partner ({roleCounts.DELIVERY_AGENT})</option>
-                </select>
-              </div>
-
-              {/* Status Dropdown */}
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1.5 flex-shrink-0">
-                  <span>📦</span> Status:
-                </label>
-                <select
-                  value={statusFilter}
-                  onChange={(e) => handleStatusFilterChange(e.target.value)}
-                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm w-full min-w-0 truncate cursor-pointer"
-                >
-                  {orderRoleFilter === "ALL" && (
-                    <>
-                      <option value="ALL">All ({allOrders.length})</option>
-                      <option value="PLACED">PLACED ({statusCounts["PLACED"] || 0})</option>
-                      <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
-                      <option value="ASSIGNED_ARTIST">ASSIGNED ARTIST ({statusCounts["ASSIGNED_ARTIST"] || 0})</option>
-                      <option value="IN_PROGRESS">IN PROGRESS ({statusCounts["IN_PROGRESS"] || 0})</option>
-                      <option value="COMPLETED">COMPLETED ({statusCounts["COMPLETED"] || 0})</option>
-                      <option value="ASSIGNED_DELIVERY_AGENT">ASSIGNED DELIVERY AGENT ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
-                      <option value="IN_TRANSIT">IN TRANSIT ({statusCounts["IN_TRANSIT"] || 0})</option>
-                      <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
-                      <option value="DELIVERY_FAILED">DELIVERY FAILED ({statusCounts["DELIVERY_FAILED"] || 0})</option>
-                      <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
-                      <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
-                      <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
-                    </>
-                  )}
-
-                  {orderRoleFilter === "CUSTOMER" && (
-                    <>
-                      <option value="ALL">All ({roleCounts.CUSTOMER})</option>
-                      <option value="PLACED">PLACED ({statusCounts["PLACED"] || 0})</option>
-                      <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
-                      <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
-                      <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
-                    </>
-                  )}
-
-                  {orderRoleFilter === "ARTIST" && (
-                    <>
-                      <option value="ALL">All ({roleCounts.ARTIST})</option>
-                      <option value="ASSIGNED_ARTIST">ASSIGNED ARTIST ({statusCounts["ASSIGNED_ARTIST"] || 0})</option>
-                      <option value="IN_PROGRESS">IN PROGRESS ({statusCounts["IN_PROGRESS"] || 0})</option>
-                      <option value="COMPLETED">COMPLETED ({statusCounts["COMPLETED"] || 0})</option>
-                    </>
-                  )}
-
-                  {orderRoleFilter === "DELIVERY_AGENT" && (
-                    <>
-                      <option value="ALL">All ({roleCounts.DELIVERY_AGENT})</option>
-                      <option value="ASSIGNED_DELIVERY_AGENT">ASSIGNED DELIVERY AGENT ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
-                      <option value="IN_TRANSIT">IN TRANSIT ({statusCounts["IN_TRANSIT"] || 0})</option>
-                      <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
-                      <option value="DELIVERY_FAILED">DELIVERY FAILED ({statusCounts["DELIVERY_FAILED"] || 0})</option>
-                      <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
-                      <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
-                    </>
-                  )}
-                </select>
-              </div>
+          {/* Filters Bar: Single Responsive Inline Toolbar */}
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-3 flex flex-wrap lg:flex-nowrap items-center gap-3 text-xs">
+            {/* User Dropdown */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1">
+                <span>👥</span> User:
+              </label>
+              <select
+                value={orderRoleFilter}
+                onChange={(e) => handleRoleFilterChange(e.target.value as any)}
+                className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm cursor-pointer"
+              >
+                <option value="ALL">All ({allOrders.length})</option>
+                <option value="CUSTOMER">👤 Customer ({roleCounts.CUSTOMER})</option>
+                <option value="ARTIST">🎨 Artist ({roleCounts.ARTIST})</option>
+                <option value="DELIVERY_AGENT">🚚 Delivery Partner ({roleCounts.DELIVERY_AGENT})</option>
+              </select>
             </div>
 
-            {/* Row 2: Search Bar, Clear filters, and Showing Count in Line */}
-            <div className="flex items-center gap-3 pt-2 border-t border-slate-800/60 text-xs">
-              <div className="flex items-center gap-2 flex-1 relative min-w-0">
-                <span className="text-slate-400 absolute left-3 pointer-events-none text-xs">🔍</span>
-                <input
-                  type="text"
-                  value={orderSearchQuery}
-                  onChange={(e) => setOrderSearchQuery(e.target.value)}
-                  placeholder="Search by ID, customer, artist, courier, address, notes..."
-                  className="rounded-lg bg-slate-800/90 border border-slate-700 pl-8 pr-16 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
-                />
-                {orderSearchQuery && (
-                  <button
-                    onClick={() => setOrderSearchQuery("")}
-                    className="absolute right-3 text-slate-400 hover:text-white text-xs underline"
-                  >
-                    Clear
-                  </button>
+            {/* Status Dropdown */}
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+              <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1">
+                <span>📦</span> Status:
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => handleStatusFilterChange(e.target.value)}
+                className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm cursor-pointer"
+              >
+                {orderRoleFilter === "ALL" && (
+                  <>
+                    <option value="ALL">All ({allOrders.length})</option>
+                    <option value="PLACED">PLACED ({statusCounts["PLACED"] || 0})</option>
+                    <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
+                    <option value="ASSIGNED_ARTIST">ASSIGNED ARTIST ({statusCounts["ASSIGNED_ARTIST"] || 0})</option>
+                    <option value="IN_PROGRESS">IN PROGRESS ({statusCounts["IN_PROGRESS"] || 0})</option>
+                    <option value="COMPLETED">COMPLETED ({statusCounts["COMPLETED"] || 0})</option>
+                    <option value="ASSIGNED_DELIVERY_AGENT">ASSIGNED DELIVERY AGENT ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
+                    <option value="IN_TRANSIT">IN TRANSIT ({statusCounts["IN_TRANSIT"] || 0})</option>
+                    <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
+                    <option value="DELIVERY_FAILED">DELIVERY FAILED ({statusCounts["DELIVERY_FAILED"] || 0})</option>
+                    <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
+                    <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
+                    <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
+                  </>
                 )}
-              </div>
 
-              {/* Reset shortcut */}
-              {(orderRoleFilter !== "ALL" || statusFilter !== "ALL" || orderSearchQuery.trim() !== "") && (
+                {orderRoleFilter === "CUSTOMER" && (
+                  <>
+                    <option value="ALL">All ({roleCounts.CUSTOMER})</option>
+                    <option value="PLACED">PLACED ({statusCounts["PLACED"] || 0})</option>
+                    <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
+                    <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
+                    <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
+                  </>
+                )}
+
+                {orderRoleFilter === "ARTIST" && (
+                  <>
+                    <option value="ALL">All ({roleCounts.ARTIST})</option>
+                    <option value="ASSIGNED_ARTIST">ASSIGNED ARTIST ({statusCounts["ASSIGNED_ARTIST"] || 0})</option>
+                    <option value="IN_PROGRESS">IN PROGRESS ({statusCounts["IN_PROGRESS"] || 0})</option>
+                    <option value="COMPLETED">COMPLETED ({statusCounts["COMPLETED"] || 0})</option>
+                  </>
+                )}
+
+                {orderRoleFilter === "DELIVERY_AGENT" && (
+                  <>
+                    <option value="ALL">All ({roleCounts.DELIVERY_AGENT})</option>
+                    <option value="ASSIGNED_DELIVERY_AGENT">ASSIGNED DELIVERY AGENT ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
+                    <option value="IN_TRANSIT">IN TRANSIT ({statusCounts["IN_TRANSIT"] || 0})</option>
+                    <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
+                    <option value="DELIVERY_FAILED">DELIVERY FAILED ({statusCounts["DELIVERY_FAILED"] || 0})</option>
+                    <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
+                    <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
+                  </>
+                )}
+              </select>
+            </div>
+
+            {/* Search Bar */}
+            <div className="flex items-center gap-2 flex-1 min-w-[200px] relative">
+              <span className="text-slate-400 absolute left-3 pointer-events-none text-xs">🔍</span>
+              <input
+                type="text"
+                value={orderSearchQuery}
+                onChange={(e) => setOrderSearchQuery(e.target.value)}
+                placeholder="Search by ID, customer, artist, courier, address..."
+                className="rounded-lg bg-slate-800/90 border border-slate-700 pl-8 pr-14 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
+              />
+              {orderSearchQuery && (
                 <button
-                  onClick={() => {
-                    setOrderRoleFilter("ALL");
-                    setStatusFilter("ALL");
-                    setArtistFilter("ALL");
-                    setDeliveryPartnerFilter("ALL");
-                    setOrderSearchQuery("");
-                  }}
-                  className="text-xs text-amber-400 hover:text-amber-300 underline font-medium whitespace-nowrap flex items-center gap-1 flex-shrink-0"
+                  onClick={() => setOrderSearchQuery("")}
+                  className="absolute right-2.5 text-slate-400 hover:text-white text-[11px] underline"
                 >
-                  <span>↺</span> Clear filters
+                  Clear
                 </button>
               )}
-
-              <span className="text-slate-400 text-xs whitespace-nowrap flex-shrink-0">
-                Showing <strong className="text-white">{sortedOrders.length}</strong> of{" "}
-                <strong className="text-white">{allOrders.length}</strong> orders
-              </span>
             </div>
+
+            {/* Reset Shortcut */}
+            {(orderRoleFilter !== "ALL" || statusFilter !== "ALL" || orderSearchQuery.trim() !== "") && (
+              <button
+                onClick={() => {
+                  setOrderRoleFilter("ALL");
+                  setStatusFilter("ALL");
+                  setArtistFilter("ALL");
+                  setDeliveryPartnerFilter("ALL");
+                  setOrderSearchQuery("");
+                }}
+                className="text-xs text-amber-400 hover:text-amber-300 underline font-medium whitespace-nowrap flex items-center gap-1 flex-shrink-0"
+              >
+                <span>↺</span> Clear filters
+              </button>
+            )}
+
+            {/* Showing Count */}
+            <span className="text-slate-400 text-xs whitespace-nowrap flex-shrink-0">
+              Showing <strong className="text-white">{sortedOrders.length}</strong> of{" "}
+              <strong className="text-white">{allOrders.length}</strong> orders
+            </span>
           </div>
 
           {ordersLoading ? (

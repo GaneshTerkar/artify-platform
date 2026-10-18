@@ -19,7 +19,7 @@ type AuthContextValue = {
   user: User | null;
   token: string | null;
   login: (email: string, password: string) => Promise<User>;
-  register: (payload: RegisterPayload) => Promise<void>;
+  register: (payload: RegisterPayload) => Promise<User>;
   logout: () => void;
 };
 
@@ -29,6 +29,7 @@ type RegisterPayload = {
   password: string;
   address: string;
   phone_number: string;
+  role?: string;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -66,9 +67,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (payload: RegisterPayload) => {
       await api("/auth/register", {
         method: "POST",
-        body: JSON.stringify({ ...payload, role: "CUSTOMER" }),
+        body: JSON.stringify({ role: "CUSTOMER", ...payload }),
       });
-      await login(payload.email, payload.password);
+      return await login(payload.email, payload.password);
     },
     [login],
   );

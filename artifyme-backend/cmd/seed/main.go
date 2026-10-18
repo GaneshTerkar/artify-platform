@@ -6,9 +6,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/ganeshterkar/artifyme-backend/cmd/internal/config"
-	"github.com/ganeshterkar/artifyme-backend/cmd/internal/modules/files"
-	"github.com/ganeshterkar/artifyme-backend/cmd/internal/modules/orders"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -23,15 +20,7 @@ func main() {
 	}
 	defer pool.Close()
 
-	cfg := &config.Config{
-		App: config.AppConfig{
-			Port: "8080",
-		},
-	}
 	_ = os.MkdirAll("./uploads", 0755)
-
-	filesService := files.NewService(cfg)
-	baseURL := "http://localhost:8080"
 
 	// Existing admin: ganesh@example.com
 	var adminID uuid.UUID

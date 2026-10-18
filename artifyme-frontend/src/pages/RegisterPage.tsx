@@ -9,6 +9,7 @@ export default function RegisterPage() {
   const category = searchParams.get("category");
   const redirectTarget = category ? `/order?category=${encodeURIComponent(category)}` : "/order";
 
+  const [selectedRole, setSelectedRole] = useState<"CUSTOMER" | "ARTIST" | "DELIVERY_AGENT">("CUSTOMER");
   const [form, setForm] = useState({
     full_name: "",
     email: "",
@@ -22,8 +23,12 @@ export default function RegisterPage() {
     e.preventDefault();
     setError("");
     try {
-      await register(form);
-      navigate(redirectTarget);
+      const user = await register({ ...form, role: selectedRole });
+      if (user.role === "ARTIST" || user.role === "DELIVERY_AGENT") {
+        navigate("/account");
+      } else {
+        navigate(redirectTarget);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
     }
@@ -51,12 +56,53 @@ export default function RegisterPage() {
         </div>
       )}
       <form onSubmit={onSubmit} className="space-y-4">
-        <h1 className="text-2xl font-semibold">Create account</h1>
+        <div>
+          <h1 className="text-2xl font-semibold text-white">Create account</h1>
+          <p className="text-xs text-slate-400 mt-0.5">Select your role to get started on ArtifyMe</p>
+        </div>
+
+        {/* Role Selector Tabs */}
+        <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-900 border border-slate-800 rounded-xl">
+          <button
+            type="button"
+            onClick={() => setSelectedRole("CUSTOMER")}
+            className={`py-2 px-1 text-xs font-semibold rounded-lg transition text-center ${
+              selectedRole === "CUSTOMER"
+                ? "bg-brand text-white shadow-sm"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            👤 Customer
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedRole("ARTIST")}
+            className={`py-2 px-1 text-xs font-semibold rounded-lg transition text-center ${
+              selectedRole === "ARTIST"
+                ? "bg-purple-600 text-white shadow-sm"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            🎨 Artist
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedRole("DELIVERY_AGENT")}
+            className={`py-2 px-1 text-xs font-semibold rounded-lg transition text-center ${
+              selectedRole === "DELIVERY_AGENT"
+                ? "bg-cyan-600 text-white shadow-sm"
+                : "text-slate-400 hover:text-slate-200"
+            }`}
+          >
+            🚚 Courier
+          </button>
+        </div>
+
         {error && <p className="text-sm text-red-400">{error}</p>}
         {field("full_name", "Full name")}
         {field("email", "Email", "email")}
         {field("password", "Password (min 8)", "password")}
-        {field("address", "Delivery address")}
+        {field("address", selectedRole === "DELIVERY_AGENT" ? "Logistics hub / Operating address" : "Delivery address")}
         {field("phone_number", "Phone")}
         <button type="submit" className="w-full rounded-xl bg-brand py-3 font-medium text-white hover:opacity-90">
           Register & continue

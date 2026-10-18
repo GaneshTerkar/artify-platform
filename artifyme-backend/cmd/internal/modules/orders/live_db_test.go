@@ -441,7 +441,7 @@ func TestLiveOrderFullLifecycleAndGalleryConfirmation(t *testing.T) {
 	}
 
 	// STEP 2: Payment confirmation -> CONFIRMED
-	ord, err = service.TransitionStatus(ctx, orderID, adminID, "ADMIN", orders.StatusConfirmed, nil, nil)
+	ord, err = service.TransitionStatus(ctx, orderID, adminID, "ADMIN", orders.StatusConfirmed, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Step 2 failed: TransitionStatus to CONFIRMED: %v", err)
 	}
@@ -462,7 +462,7 @@ func TestLiveOrderFullLifecycleAndGalleryConfirmation(t *testing.T) {
 	}
 
 	// STEP 4: Artist starts order -> IN_PROGRESS
-	ord, err = service.TransitionStatus(ctx, orderID, artistID, "ARTIST", orders.StatusInProgress, nil, nil)
+	ord, err = service.TransitionStatus(ctx, orderID, artistID, "ARTIST", orders.StatusInProgress, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Step 4 failed: TransitionStatus to IN_PROGRESS: %v", err)
 	}
@@ -472,7 +472,7 @@ func TestLiveOrderFullLifecycleAndGalleryConfirmation(t *testing.T) {
 
 	// STEP 5: Artist completes drawing with final artwork -> COMPLETED
 	// Automatically generates collage from reference photo and finished artwork
-	ord, err = service.TransitionStatus(ctx, orderID, artistID, "ARTIST", orders.StatusCompleted, nil, &artworkPath)
+	ord, err = service.TransitionStatus(ctx, orderID, artistID, "ARTIST", orders.StatusCompleted, nil, &artworkPath, nil)
 	if err != nil {
 		t.Fatalf("Step 5 failed: TransitionStatus to COMPLETED: %v", err)
 	}
@@ -584,13 +584,13 @@ func TestLiveRoleAuthorizationEnforcement(t *testing.T) {
 	})
 
 	// Customer cannot jump transition to completed
-	_, err = service.TransitionStatus(ctx, testOrd.OrderID, customerID, "CUSTOMER", orders.StatusCompleted, nil, nil)
+	_, err = service.TransitionStatus(ctx, testOrd.OrderID, customerID, "CUSTOMER", orders.StatusCompleted, nil, nil, nil)
 	if err != orders.ErrInvalidTransition {
 		t.Fatalf("Expected ErrInvalidTransition when CUSTOMER tries to jump to COMPLETED, got %v", err)
 	}
 
 	// Unassigned artist cannot update an order
-	_, err = service.TransitionStatus(ctx, testOrd.OrderID, artistID, "ARTIST", orders.StatusInProgress, nil, nil)
+	_, err = service.TransitionStatus(ctx, testOrd.OrderID, artistID, "ARTIST", orders.StatusInProgress, nil, nil, nil)
 	if err == nil {
 		t.Fatalf("Expected error when unassigned artist tries to update order, got nil")
 	}

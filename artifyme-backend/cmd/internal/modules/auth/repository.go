@@ -106,6 +106,15 @@ func (r *AuthRepository) RegisterUser(ctx context.Context, req *RegisterRequest)
 			return nil, fmt.Errorf("error updating user account status: %w", err)
 		}
 		user.Status = newUser.Status
+	} else if user.Role == UserRole(Artist) {
+		_, err = tx.Exec(ctx, `
+			INSERT INTO artist_profiles (artist_id, bio, experience_years, verified, created_at, updated_at)
+			VALUES ($1, '', 0, FALSE, NOW(), NOW())
+			ON CONFLICT (artist_id) DO NOTHING
+		`, user.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("error creating initial artist profile: %w", err)
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {

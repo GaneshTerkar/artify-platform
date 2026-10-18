@@ -19,7 +19,7 @@ type AddPaintingRequest struct {
 	Title       string 					`json:"title" binding:"required"`
 	Description string 					`json:"description"`
 	Category    auth.PaintingCategory 	`json:"category" binding:"required"`
-	ImageURL    string 					`json:"image_url" binding:"required,url"`
+	ImageURL    string 					`json:"image_url" binding:"required"`
 }
 
 type ArtistProfileRequest struct {

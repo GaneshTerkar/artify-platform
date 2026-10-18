@@ -160,7 +160,7 @@ func (h *ArtistHandler) VerifyArtist(c *gin.Context) {
 		case dberrors.ErrArtistAlreadyVerified:
 			c.JSON(http.StatusConflict, ErrorResponse{
 				Error: err.Error()})
-		case dberrors.ErrArtistProfileNotFound:
+		case dberrors.ErrArtistProfileNotFound, dberrors.ErrArtistNotFound:
 			c.JSON(http.StatusNotFound, ErrorResponse{
 				Error: err.Error()})
 		case dberrors.ErrNoPaintings:
@@ -169,11 +169,12 @@ func (h *ArtistHandler) VerifyArtist(c *gin.Context) {
 		default:
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
 				Error: "failed to verify artist",
-		})
+			})
+		}
 		return
 	}
+
 	c.JSON(http.StatusOK, MessageResponse{Message: "artist verified and account activated"})
-	}
 }
 
 func (h *ArtistHandler) GetPublicArtistProfile(c *gin.Context) {

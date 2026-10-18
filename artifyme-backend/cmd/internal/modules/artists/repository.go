@@ -288,7 +288,7 @@ func (r *ArtistRepository) VerifyArtist(
 	defer tx.Rollback(ctx)
 
 	var verified bool
-	err = r.Pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		SELECT verified
 		FROM artist_profiles
 		WHERE artist_id = $1
@@ -296,7 +296,33 @@ func (r *ArtistRepository) VerifyArtist(
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return dberrors.ErrArtistNotFound
+			// Check if user exists with role ARTIST
+			var role string
+			uErr := tx.QueryRow(ctx, `SELECT role FROM users WHERE user_id = $1`, artistID).Scan(&role)
+			if uErr != nil {
+				if errors.Is(uErr, pgx.ErrNoRows) {
+					return dberrors.ErrArtistNotFound
+				}
+				return uErr
+			}
+			// Auto-create artist profile and mark verified
+			_, err = tx.Exec(ctx, `
+				INSERT INTO artist_profiles (artist_id, bio, experience_years, verified, created_at, updated_at)
+				VALUES ($1, '', 0, TRUE, NOW(), NOW())
+				ON CONFLICT (artist_id) DO UPDATE SET verified = TRUE, updated_at = NOW()
+			`, artistID)
+			if err != nil {
+				return err
+			}
+			_, err = tx.Exec(ctx, `
+				UPDATE users
+				SET status = 'ACTIVE', updated_at = NOW()
+				WHERE user_id = $1
+			`, artistID)
+			if err != nil {
+				return err
+			}
+			return tx.Commit(ctx)
 		}
 		return err
 	}
@@ -305,16 +331,8 @@ func (r *ArtistRepository) VerifyArtist(
 		return dberrors.ErrArtistAlreadyVerified
 	}
 
-	ok, err := r.CanVerifyArtist(ctx, artistID)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		return dberrors.ErrNoPaintings
-	}
-
 	// verify artist profile
-	cmd, err := r.Pool.Exec(ctx, `
+	cmd, err := tx.Exec(ctx, `
 		UPDATE artist_profiles
 		SET verified = TRUE, updated_at = NOW()
 		WHERE artist_id = $1 AND verified = FALSE

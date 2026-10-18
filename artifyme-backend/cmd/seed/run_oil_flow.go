@@ -1,3 +1,5 @@
+//go:build ignore
+
 package main
 
 import (
@@ -222,7 +224,7 @@ func main() {
 	// ==========================================
 	// STEP 4: Artist Begins Painting (IN_PROGRESS)
 	// ==========================================
-	ord, err = service.TransitionStatus(ctx, orderID, artistID, "ARTIST", orders.StatusInProgress, nil, nil)
+	ord, err = service.TransitionStatus(ctx, orderID, artistID, "ARTIST", orders.StatusInProgress, nil, nil, nil)
 	if err != nil {
 		log.Fatalf("Step 4 failed (TransitionStatus to IN_PROGRESS): %v", err)
 	}
@@ -234,7 +236,7 @@ func main() {
 	// STEP 5: Artist Completes Artwork (COMPLETED)
 	// Automatically generates reference-in-artwork composite collage!
 	// ==========================================
-	ord, err = service.TransitionStatus(ctx, orderID, artistID, "ARTIST", orders.StatusCompleted, nil, &artFileURL)
+	ord, err = service.TransitionStatus(ctx, orderID, artistID, "ARTIST", orders.StatusCompleted, nil, &artFileURL, nil)
 	if err != nil {
 		log.Fatalf("Step 5 failed (TransitionStatus to COMPLETED): %v", err)
 	}

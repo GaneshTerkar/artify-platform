@@ -1058,17 +1058,17 @@ export default function AdminPage() {
                 )}
               </div>
 
-              {/* Users Dropdown */}
+              {/* User Dropdown */}
               <div className="flex items-center gap-1.5">
                 <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1">
-                  <span>👥</span> Users:
+                  <span>👥</span> User:
                 </label>
                 <select
                   value={orderRoleFilter}
                   onChange={(e) => handleRoleFilterChange(e.target.value as any)}
                   className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm"
                 >
-                  <option value="ALL">All Users ({allOrders.length})</option>
+                  <option value="ALL">All ({allOrders.length})</option>
                   <option value="CUSTOMER">👤 Customer ({roleCounts.CUSTOMER})</option>
                   <option value="ARTIST">🎨 Artist ({roleCounts.ARTIST})</option>
                   <option value="DELIVERY_AGENT">🚚 Delivery Partner ({roleCounts.DELIVERY_AGENT})</option>
@@ -1088,7 +1088,7 @@ export default function AdminPage() {
                 >
                   {orderRoleFilter === "ALL" && (
                     <>
-                      <option value="ALL">All Order Statuses ({allOrders.length})</option>
+                      <option value="ALL">All ({allOrders.length})</option>
                       <optgroup label="👤 Customer">
                         <option value="PLACED">PLACED ({statusCounts["PLACED"] || 0})</option>
                         <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
@@ -1114,7 +1114,7 @@ export default function AdminPage() {
 
                   {orderRoleFilter === "CUSTOMER" && (
                     <>
-                      <option value="ALL">All Customer Statuses ({roleCounts.CUSTOMER})</option>
+                      <option value="ALL">All ({roleCounts.CUSTOMER})</option>
                       <option value="PLACED">PLACED ({statusCounts["PLACED"] || 0})</option>
                       <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
                       <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
@@ -1123,7 +1123,7 @@ export default function AdminPage() {
 
                   {orderRoleFilter === "ARTIST" && (
                     <>
-                      <option value="ALL">All Artist Statuses ({roleCounts.ARTIST})</option>
+                      <option value="ALL">All ({roleCounts.ARTIST})</option>
                       <option value="ASSIGNED_ARTIST">ASSIGNED ARTIST ({statusCounts["ASSIGNED_ARTIST"] || 0})</option>
                       <option value="IN_PROGRESS">IN PROGRESS ({statusCounts["IN_PROGRESS"] || 0})</option>
                       <option value="COMPLETED">STUDIO READY ({statusCounts["COMPLETED"] || 0})</option>
@@ -1132,7 +1132,7 @@ export default function AdminPage() {
 
                   {orderRoleFilter === "DELIVERY_AGENT" && (
                     <>
-                      <option value="ALL">All Delivery Statuses ({roleCounts.DELIVERY_AGENT})</option>
+                      <option value="ALL">All ({roleCounts.DELIVERY_AGENT})</option>
                       <option value="ASSIGNED_DELIVERY_AGENT">COURIER ASSIGNED ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
                       <option value="IN_TRANSIT">IN TRANSIT ({statusCounts["IN_TRANSIT"] || 0})</option>
                       <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
@@ -1143,7 +1143,7 @@ export default function AdminPage() {
 
                   {orderRoleFilter === "PUBLISHED" && (
                     <>
-                      <option value="ALL">All Gallery Published ({roleCounts.PUBLISHED})</option>
+                      <option value="ALL">All ({roleCounts.PUBLISHED})</option>
                       <option value="PUBLISHED">PUBLISHED ({inspectedCount})</option>
                     </>
                   )}
@@ -1161,7 +1161,7 @@ export default function AdminPage() {
                     onChange={(e) => setArtistFilter(e.target.value)}
                     className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-white focus:outline-none focus:border-brand shadow-sm"
                   >
-                    <option value="ALL">All Artists</option>
+                    <option value="ALL">All</option>
                     <option value="ASSIGNED">Any Assigned</option>
                     <option value="UNASSIGNED">Unassigned Only</option>
                     {verifiedArtists.map((a) => (
@@ -1184,7 +1184,7 @@ export default function AdminPage() {
                     onChange={(e) => setDeliveryPartnerFilter(e.target.value)}
                     className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-white focus:outline-none focus:border-brand shadow-sm"
                   >
-                    <option value="ALL">All Couriers</option>
+                    <option value="ALL">All</option>
                     <option value="ASSIGNED">Any Assigned</option>
                     <option value="UNASSIGNED">Unassigned Only</option>
                     {activeDeliveryPartners.map((c) => (

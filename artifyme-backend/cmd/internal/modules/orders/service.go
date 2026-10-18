@@ -265,6 +265,8 @@ func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actor
 
 	var eventType string
 	switch newStatus {
+	case StatusConfirmed:
+		eventType = events.EventOrderConfirmed
 	case StatusInProgress:
 		eventType = events.EventOrderInProgress
 	case StatusCompleted:
@@ -443,7 +445,7 @@ func (s *Service) ConfirmPaid(ctx context.Context, sessionID string, systemUserI
 	if err != nil {
 		return nil, err
 	}
-	s.emitEvent(ctx, updated.OrderID.String(), "order.paid", map[string]interface{}{
+	s.emitEvent(ctx, updated.OrderID.String(), events.EventOrderConfirmed, map[string]interface{}{
 		"order_id":   updated.OrderID.String(),
 		"session_id": sessionID,
 		"status":     string(updated.Status),

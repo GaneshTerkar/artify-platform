@@ -13,6 +13,7 @@ const (
 
 	// Event Type Constants
 	EventOrderPlaced          = "order.placed"
+	EventOrderConfirmed       = "order.confirmed"
 	EventOrderAssignedArtist  = "order.assigned_artist"
 	EventOrderInProgress      = "order.in_progress"
 	EventOrderCompleted       = "order.completed"

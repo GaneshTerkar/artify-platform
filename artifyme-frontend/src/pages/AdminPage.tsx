@@ -1124,9 +1124,9 @@ export default function AdminPage() {
                 })}
               </div>
 
-              {/* Right Side: Quick Search & Export CSV */}
+              {/* Right Side: Quick Search, Policy Thresholds & Export CSV */}
               <div className="flex items-center gap-2 flex-1 sm:flex-initial justify-end">
-                <div className="relative min-w-[200px] max-w-xs flex-1">
+                <div className="relative min-w-[180px] max-w-xs flex-1">
                   <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
                   <input
                     type="text"
@@ -1144,6 +1144,20 @@ export default function AdminPage() {
                     </button>
                   )}
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTempPolicy(policyThresholds);
+                    setIsPolicyModalOpen(true);
+                  }}
+                  className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white transition flex items-center gap-1.5 shadow-sm whitespace-nowrap"
+                  title="Adjust policy thresholds for account risk and admin elevation"
+                >
+                  <span>⚙️</span>
+                  <span>Policy Thresholds</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => exportUsersToCSV(filteredUsers)}
@@ -1152,146 +1166,118 @@ export default function AdminPage() {
                 >
                   <span>📥</span> <span className="hidden sm:inline">Export</span> CSV
                 </button>
+
                 <span className="text-slate-400 text-xs whitespace-nowrap hidden lg:inline">
                   <strong className="text-white">{filteredUsers.length}</strong>/{allUsers.length}
                 </span>
               </div>
             </div>
 
-            {/* ROW 2: Contextual Sub-filters & Policy Button (Hidden for ADMINS) */}
+            {/* ROW 2: Contextual Sub-filters (Hidden for ADMINS) */}
             {userRoleFilter !== "ADMIN" && (
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-slate-800/60 text-xs">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <span className="text-slate-500 font-medium text-[11px] uppercase tracking-wider mr-1">
+              <div className="flex flex-wrap items-center gap-1.5 pt-2.5 border-t border-slate-800/60 text-xs">
+                <div className="flex items-center gap-1.5 mr-1">
+                  <span className="text-slate-500 font-medium text-[11px] uppercase tracking-wider">
                     Filter:
                   </span>
-
-                  {/* 1. All */}
-                  <button
-                    type="button"
-                    onClick={() => setUserSubFilter("ALL")}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                      userSubFilter === "ALL"
-                        ? "bg-slate-700 text-white border border-slate-500 font-semibold shadow-sm"
-                        : "bg-slate-800/90 text-slate-400 hover:text-white border border-transparent"
-                    }`}
-                  >
-                    <span>
-                      {userRoleFilter === "CUSTOMER"
-                        ? "All Customers"
-                        : userRoleFilter === "ARTIST"
-                        ? "All Artists"
-                        : "All Accounts"}
-                    </span>
-                    <span className="rounded-full bg-slate-900/80 px-1.5 py-0.2 text-[10px] font-bold text-slate-300">
-                      {userRoleFilter === "CUSTOMER"
-                        ? userCounts.CUSTOMER
-                        : userRoleFilter === "ARTIST"
-                        ? userCounts.ARTIST
-                        : userCounts.ALL}
-                    </span>
-                  </button>
-
-                  {/* 2. Verified (Artists only) */}
-                  {userRoleFilter === "ARTIST" && (
+                  {userSubFilter !== "ALL" && (
                     <button
                       type="button"
-                      onClick={() => setUserSubFilter("VERIFIED")}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                        userSubFilter === "VERIFIED"
-                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold"
-                          : "bg-slate-800/90 text-slate-400 hover:text-emerald-300 border border-transparent"
-                      }`}
+                      onClick={() => setUserSubFilter("ALL")}
+                      className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700 hover:border-slate-600 transition flex items-center gap-1 shadow-sm"
+                      title="Clear active filter"
                     >
-                      <span>✓ Verified</span>
-                      <span className="rounded-full bg-emerald-500/30 text-emerald-200 px-1.5 py-0.2 text-[10px] font-bold">
-                        {userCounts.VERIFIED_ARTIST}
-                      </span>
-                    </button>
-                  )}
-
-                  {/* 3. Pending Review (Artists only) */}
-                  {userRoleFilter === "ARTIST" && (
-                    <button
-                      type="button"
-                      onClick={() => setUserSubFilter("PENDING_REVIEW")}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                        userSubFilter === "PENDING_REVIEW"
-                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold"
-                          : "bg-slate-800/90 text-slate-400 hover:text-amber-300 border border-transparent"
-                      }`}
-                    >
-                      <span>⏳ Pending Review</span>
-                      <span className="rounded-full bg-amber-500/30 text-amber-200 px-1.5 py-0.2 text-[10px] font-bold">
-                        {userCounts.PENDING_REVIEW}
-                      </span>
-                    </button>
-                  )}
-
-                  {/* 4. At-Risk / Needs Attention */}
-                  <button
-                    type="button"
-                    onClick={() => setUserSubFilter("AT_RISK")}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                      userSubFilter === "AT_RISK"
-                        ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 font-semibold shadow-sm"
-                        : "bg-slate-800/90 text-slate-400 hover:text-rose-300 border border-transparent"
-                    }`}
-                    title={
-                      userRoleFilter === "CUSTOMER"
-                        ? "Show customers with excessive cancellations or unconfirmed placed orders"
-                        : userRoleFilter === "ARTIST"
-                        ? "Show artists with stalled assignments or cancellations"
-                        : "Show accounts flagged as at-risk"
-                    }
-                  >
-                    <span>⚠️</span>
-                    <span>
-                      {userRoleFilter === "CUSTOMER"
-                        ? "At-Risk Customers"
-                        : userRoleFilter === "ARTIST"
-                        ? "Needs Attention"
-                        : "Needs Attention"}
-                    </span>
-                    <span className="rounded-full bg-rose-500/30 text-rose-200 px-1.5 py-0.2 text-[10px] font-bold">
-                      {userRiskCounts.atRisk}
-                    </span>
-                  </button>
-
-                  {/* 5. Admin-Eligible (Artists or All only - Hidden for Customers) */}
-                  {userRoleFilter !== "CUSTOMER" && (
-                    <button
-                      type="button"
-                      onClick={() => setUserSubFilter("ADMIN_ELIGIBLE")}
-                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                        userSubFilter === "ADMIN_ELIGIBLE"
-                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold shadow-sm"
-                          : "bg-slate-800/90 text-slate-400 hover:text-amber-300 border border-transparent"
-                      }`}
-                      title={`Show verified artists with at least ${policyThresholds.minArtistCompletedOrders} completed commissions and 0 stalled assignments`}
-                    >
-                      <span>⭐</span>
-                      <span>Admin-Eligible ({policyThresholds.minArtistCompletedOrders}+ Completed)</span>
-                      <span className="rounded-full bg-amber-500/30 text-amber-200 px-1.5 py-0.2 text-[10px] font-bold">
-                        {userRiskCounts.adminEligible}
-                      </span>
+                      <span>✕</span>
+                      <span>Clear</span>
                     </button>
                   )}
                 </div>
 
-                {/* Policy Thresholds Settings Button */}
+                {/* 1. Verified (Artists only) */}
+                {userRoleFilter === "ARTIST" && (
+                  <button
+                    type="button"
+                    onClick={() => setUserSubFilter(userSubFilter === "VERIFIED" ? "ALL" : "VERIFIED")}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
+                      userSubFilter === "VERIFIED"
+                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold shadow-sm"
+                        : "bg-slate-800/90 text-slate-400 hover:text-emerald-300 border border-transparent"
+                    }`}
+                  >
+                    <span>✓ Verified</span>
+                    <span className="rounded-full bg-emerald-500/30 text-emerald-200 px-1.5 py-0.2 text-[10px] font-bold">
+                      {userCounts.VERIFIED_ARTIST}
+                    </span>
+                  </button>
+                )}
+
+                {/* 2. Pending Review (Artists only) */}
+                {userRoleFilter === "ARTIST" && (
+                  <button
+                    type="button"
+                    onClick={() => setUserSubFilter(userSubFilter === "PENDING_REVIEW" ? "ALL" : "PENDING_REVIEW")}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
+                      userSubFilter === "PENDING_REVIEW"
+                        ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold shadow-sm"
+                        : "bg-slate-800/90 text-slate-400 hover:text-amber-300 border border-transparent"
+                    }`}
+                  >
+                    <span>⏳ Pending Review</span>
+                    <span className="rounded-full bg-amber-500/30 text-amber-200 px-1.5 py-0.2 text-[10px] font-bold">
+                      {userCounts.PENDING_REVIEW}
+                    </span>
+                  </button>
+                )}
+
+                {/* 3. At-Risk / Needs Attention */}
                 <button
                   type="button"
-                  onClick={() => {
-                    setTempPolicy(policyThresholds);
-                    setIsPolicyModalOpen(true);
-                  }}
-                  className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 px-2.5 py-1 text-xs font-medium text-slate-300 hover:text-white transition flex items-center gap-1.5 shadow-sm ml-auto"
-                  title="Adjust policy thresholds for account risk and admin elevation"
+                  onClick={() => setUserSubFilter(userSubFilter === "AT_RISK" ? "ALL" : "AT_RISK")}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
+                    userSubFilter === "AT_RISK"
+                      ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 font-semibold shadow-sm"
+                      : "bg-slate-800/90 text-slate-400 hover:text-rose-300 border border-transparent"
+                  }`}
+                  title={
+                    userRoleFilter === "CUSTOMER"
+                      ? "Show customers with excessive cancellations or unconfirmed placed orders"
+                      : userRoleFilter === "ARTIST"
+                      ? "Show artists with stalled assignments or cancellations"
+                      : "Show accounts flagged as at-risk"
+                  }
                 >
-                  <span>⚙️</span>
-                  <span>Policy Thresholds</span>
+                  <span>⚠️</span>
+                  <span>
+                    {userRoleFilter === "CUSTOMER"
+                      ? "At-Risk Customers"
+                      : userRoleFilter === "ARTIST"
+                      ? "Needs Attention"
+                      : "Needs Attention"}
+                  </span>
+                  <span className="rounded-full bg-rose-500/30 text-rose-200 px-1.5 py-0.2 text-[10px] font-bold">
+                    {userRiskCounts.atRisk}
+                  </span>
                 </button>
+
+                {/* 4. Admin-Eligible (Artists or All only - Hidden for Customers) */}
+                {userRoleFilter !== "CUSTOMER" && (
+                  <button
+                    type="button"
+                    onClick={() => setUserSubFilter(userSubFilter === "ADMIN_ELIGIBLE" ? "ALL" : "ADMIN_ELIGIBLE")}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
+                      userSubFilter === "ADMIN_ELIGIBLE"
+                        ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold shadow-sm"
+                        : "bg-slate-800/90 text-slate-400 hover:text-amber-300 border border-transparent"
+                    }`}
+                    title={`Show verified artists with at least ${policyThresholds.minArtistCompletedOrders} completed commissions and 0 stalled assignments`}
+                  >
+                    <span>⭐</span>
+                    <span>Admin-Eligible</span>
+                    <span className="rounded-full bg-amber-500/30 text-amber-200 px-1.5 py-0.2 text-[10px] font-bold">
+                      {userRiskCounts.adminEligible}
+                    </span>
+                  </button>
+                )}
               </div>
             )}
           </div>

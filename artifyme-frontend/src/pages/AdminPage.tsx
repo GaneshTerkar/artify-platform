@@ -118,7 +118,8 @@ export function getUserOrderMetrics(
 export default function AdminPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const ARTIST_COMMISSION_PERCENTAGE = 0.40;
+  const ARTIST_COMMISSION_PERCENTAGE = 0.30;
+  const DELIVERY_COMMISSION_PERCENTAGE = 0.10;
   const PLATFORM_MARGIN_PERCENTAGE = 0.60;
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -146,11 +147,19 @@ export default function AdminPage() {
 
   // Payroll states
   const [payrollMonth, setPayrollMonth] = useState<string>("ALL");
+  const [payrollRosterTab, setPayrollRosterTab] = useState<"ARTISTS" | "DELIVERY_AGENTS">("ARTISTS");
   const [selectedArtistBreakdown, setSelectedArtistBreakdown] = useState<{
     artist_id: string;
     full_name: string;
     email?: string;
     bio?: string;
+  } | null>(null);
+  const [selectedDeliveryBreakdown, setSelectedDeliveryBreakdown] = useState<{
+    agent_id: string;
+    full_name: string;
+    email?: string;
+    phone?: string;
+    address?: string;
   } | null>(null);
 
   // Progressive warning system (3 notices required before suspension)
@@ -199,7 +208,7 @@ export default function AdminPage() {
       setArtistFilter("ALL");
     }
   };
-  const [userRoleFilter, setUserRoleFilter] = useState<"ALL" | "CUSTOMER" | "ARTIST" | "ADMIN">("ALL");
+  const [userRoleFilter, setUserRoleFilter] = useState<"ALL" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT" | "ADMIN">("ALL");
   const [userSearchQuery, setUserSearchQuery] = useState<string>("");
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
   const [inspectingOrder, setInspectingOrder] = useState<Order | null>(null);
@@ -381,6 +390,7 @@ export default function AdminPage() {
       ALL: allUsers.length,
       CUSTOMER: 0,
       ARTIST: 0,
+      DELIVERY_AGENT: 0,
       ADMIN: 0,
       VERIFIED_ARTIST: 0,
       PENDING_REVIEW: 0,
@@ -394,6 +404,11 @@ export default function AdminPage() {
         } else {
           counts.PENDING_REVIEW++;
         }
+      } else if (u.role === "DELIVERY_AGENT") {
+        counts.DELIVERY_AGENT++;
+        if (u.status === "PENDING") {
+          counts.PENDING_REVIEW++;
+        }
       } else if (u.role === "ADMIN") counts.ADMIN++;
     }
     return counts;
@@ -405,6 +420,7 @@ export default function AdminPage() {
     for (const u of allUsers) {
       if (userRoleFilter === "CUSTOMER" && u.role !== "CUSTOMER") continue;
       if (userRoleFilter === "ARTIST" && u.role !== "ARTIST") continue;
+      if (userRoleFilter === "DELIVERY_AGENT" && u.role !== "DELIVERY_AGENT") continue;
       if (userRoleFilter === "ADMIN" && u.role !== "ADMIN") continue;
 
       const m = getUserOrderMetrics(u, allOrders, policyThresholds);
@@ -419,10 +435,15 @@ export default function AdminPage() {
       if (userRoleFilter === "CUSTOMER" && u.role !== "CUSTOMER") return false;
       if (userRoleFilter === "ADMIN" && u.role !== "ADMIN") return false;
       if (userRoleFilter === "ARTIST" && u.role !== "ARTIST") return false;
+      if (userRoleFilter === "DELIVERY_AGENT" && u.role !== "DELIVERY_AGENT") return false;
 
       const metrics = getUserOrderMetrics(u, allOrders, policyThresholds);
       if (userSubFilter === "VERIFIED" && !u.is_verified_artist) return false;
-      if (userSubFilter === "PENDING_REVIEW" && u.is_verified_artist) return false;
+      if (userSubFilter === "PENDING_REVIEW") {
+        if (u.role === "ARTIST" && u.is_verified_artist) return false;
+        if (u.role === "DELIVERY_AGENT" && u.status !== "PENDING") return false;
+        if (u.role === "CUSTOMER" || u.role === "ADMIN") return false;
+      }
       if (userSubFilter === "AT_RISK" && !metrics.isAtRisk) return false;
       if (userSubFilter === "ADMIN_ELIGIBLE" && !metrics.isAdminEligible) return false;
 
@@ -438,7 +459,7 @@ export default function AdminPage() {
     });
   }, [allUsers, allOrders, userRoleFilter, userSubFilter, userSearchQuery, policyThresholds]);
 
-  // Payroll calculations (40% Artist / 60% Studio)
+  // Payroll calculations (30% Artist / 10% Delivery / 60% Platform Margin)
   const availableMonths = useMemo(() => {
     const months = new Set<string>();
     for (const o of allOrders) {
@@ -468,6 +489,7 @@ export default function AdminPage() {
     return payrollCompletedOrders.reduce((sum, o) => sum + (Number(o.total_price) || 0), 0);
   }, [payrollCompletedOrders]);
   const totalArtistCommissions = Math.round(totalGrossRevenue * ARTIST_COMMISSION_PERCENTAGE);
+  const totalDeliveryCommissions = Math.round(totalGrossRevenue * DELIVERY_COMMISSION_PERCENTAGE);
   const totalPlatformMargin = Math.round(totalGrossRevenue * PLATFORM_MARGIN_PERCENTAGE);
 
   const artistPayrollList = useMemo(() => {
@@ -488,6 +510,32 @@ export default function AdminPage() {
       };
     });
   }, [verifiedArtists, payrollCompletedOrders, ARTIST_COMMISSION_PERCENTAGE, PLATFORM_MARGIN_PERCENTAGE]);
+
+  const deliveryAgents = useMemo(() => {
+    return allUsers.filter((u) => u.role === "DELIVERY_AGENT");
+  }, [allUsers]);
+
+  const deliveryPayrollList = useMemo(() => {
+    return deliveryAgents.map((agent) => {
+      // Orders assigned to this agent, or if only 1 active agent, all delivered orders
+      const orders = payrollCompletedOrders.filter(
+        (o) => o.delivery_agent_id === agent.user_id || (!o.delivery_agent_id && deliveryAgents.length === 1)
+      );
+      const completedCount = orders.length;
+      const totalRevenue = orders.reduce((sum, o) => sum + (Number(o.total_price) || 0), 0);
+      const deliveryCommission = Math.round(totalRevenue * DELIVERY_COMMISSION_PERCENTAGE);
+      const platformMargin = Math.round(totalRevenue * PLATFORM_MARGIN_PERCENTAGE);
+
+      return {
+        agent,
+        completedCount,
+        totalRevenue,
+        deliveryCommission,
+        platformMargin,
+        orders,
+      };
+    });
+  }, [deliveryAgents, payrollCompletedOrders, DELIVERY_COMMISSION_PERCENTAGE, PLATFORM_MARGIN_PERCENTAGE]);
 
   function exportUsersToCSV(users: PlatformUser[]) {
     const headers = [
@@ -1090,6 +1138,7 @@ export default function AdminPage() {
                     { id: "ALL", label: "ALL", symbol: "👥", count: userCounts.ALL },
                     { id: "CUSTOMER", label: "CUSTOMERS", symbol: "👤", count: userCounts.CUSTOMER },
                     { id: "ARTIST", label: "ARTISTS", symbol: "🎨", count: userCounts.ARTIST },
+                    { id: "DELIVERY_AGENT", label: "DELIVERY AGENTS", symbol: "🚚", count: userCounts.DELIVERY_AGENT },
                     { id: "ADMIN", label: "ADMINS", symbol: "👑", count: userCounts.ADMIN },
                   ] as const
                 ).map((pill) => {
@@ -1119,6 +1168,11 @@ export default function AdminPage() {
                       {pill.id === "ARTIST" && userCounts.PENDING_REVIEW > 0 && (
                         <span className="rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.2 text-[10px] font-semibold">
                           {userCounts.PENDING_REVIEW} to review
+                        </span>
+                      )}
+                      {pill.id === "DELIVERY_AGENT" && pill.count > 0 && (
+                        <span className="rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/40 px-1.5 py-0.2 text-[10px] font-semibold">
+                          Logistics
                         </span>
                       )}
                     </button>
@@ -1217,8 +1271,8 @@ export default function AdminPage() {
                     </button>
                   )}
 
-                  {/* 2. Pending Review (Artists only) */}
-                  {userRoleFilter === "ARTIST" && (
+                  {/* 2. Pending Review (Artists or Delivery Agents) */}
+                  {(userRoleFilter === "ARTIST" || userRoleFilter === "DELIVERY_AGENT") && (
                     <button
                       type="button"
                       onClick={() => setUserSubFilter(userSubFilter === "PENDING_REVIEW" ? "ALL" : "PENDING_REVIEW")}
@@ -1229,7 +1283,7 @@ export default function AdminPage() {
                       }`}
                     >
                       <span>⏳</span>
-                      <span>Pending Review</span>
+                      <span>Pending Approval</span>
                       <span className="rounded-full bg-amber-500/30 text-amber-200 px-1.5 py-0.2 text-[10px] font-bold">
                         {userCounts.PENDING_REVIEW}
                       </span>
@@ -1250,6 +1304,8 @@ export default function AdminPage() {
                         ? "Show customers with excessive cancellations or unconfirmed placed orders"
                         : userRoleFilter === "ARTIST"
                         ? "Show artists with stalled assignments or cancellations"
+                        : userRoleFilter === "DELIVERY_AGENT"
+                        ? "Show delivery partners flagged for delivery issues"
                         : "Show accounts flagged as needing attention"
                     }
                   >
@@ -1260,8 +1316,8 @@ export default function AdminPage() {
                     </span>
                   </button>
 
-                  {/* 4. Admin-Eligible (Artists or All only - Hidden for Customers) */}
-                  {userRoleFilter !== "CUSTOMER" && (
+                  {/* 4. Admin-Eligible (Artists or All only - Hidden for Customers & Delivery Agents) */}
+                  {userRoleFilter !== "CUSTOMER" && userRoleFilter !== "DELIVERY_AGENT" && (
                     <button
                       type="button"
                       onClick={() => setUserSubFilter(userSubFilter === "ADMIN_ELIGIBLE" ? "ALL" : "ADMIN_ELIGIBLE")}
@@ -1305,7 +1361,10 @@ export default function AdminPage() {
             <div className="grid gap-4">
               {filteredUsers.map((u) => {
                 const isArtist = u.role === "ARTIST";
+                const isDeliveryAgent = u.role === "DELIVERY_AGENT";
+                const isAdmin = u.role === "ADMIN";
                 const isPendingArtist = isArtist && !u.is_verified_artist;
+                const isPendingDelivery = isDeliveryAgent && u.status === "PENDING";
                 const metrics = getUserOrderMetrics(u, allOrders, policyThresholds);
                 const initials = u.full_name
                   ? u.full_name
@@ -1327,14 +1386,16 @@ export default function AdminPage() {
                       <div className="relative flex-shrink-0">
                         <div
                           className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm shadow border ${
-                            u.role === "ADMIN"
+                            isAdmin
                               ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
                               : isArtist
                               ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
+                              : isDeliveryAgent
+                              ? "bg-sky-500/20 text-sky-300 border-sky-500/40"
                               : "bg-blue-500/20 text-blue-300 border-blue-500/40"
                           }`}
                         >
-                          {initials}
+                          {isDeliveryAgent ? "🚚" : initials}
                         </div>
                         {/* Status Symbol Badge */}
                         <span
@@ -1382,24 +1443,38 @@ export default function AdminPage() {
                             </span>
                           )}
 
+                          {/* Delivery Agent Pending Approval Badge */}
+                          {isPendingDelivery && (
+                            <span
+                              title="Pending Review: Delivery Agent account awaiting verification"
+                              className="inline-flex items-center justify-center w-6 h-6 rounded-full border text-xs shadow-sm cursor-help transition-transform hover:scale-110 bg-amber-500/20 text-amber-300 border-amber-500/40"
+                            >
+                              ⏳
+                            </span>
+                          )}
+
                           {/* Role Symbol Badge */}
                           <span
                             title={
-                              u.role === "ADMIN"
+                              isAdmin
                                 ? "Role: Administrator"
                                 : isArtist
                                 ? "Role: Artist"
+                                : isDeliveryAgent
+                                ? "Role: Delivery Agent"
                                 : "Role: Customer"
                             }
                             className={`inline-flex items-center justify-center w-6 h-6 rounded-full border text-xs shadow-sm cursor-help transition-transform hover:scale-110 ${
-                              u.role === "ADMIN"
+                              isAdmin
                                 ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
                                 : isArtist
                                 ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
+                                : isDeliveryAgent
+                                ? "bg-sky-500/20 text-sky-300 border-sky-500/40"
                                 : "bg-blue-500/20 text-blue-300 border-blue-500/40"
                             }`}
                           >
-                            {u.role === "ADMIN" ? "👑" : isArtist ? "🎨" : "👤"}
+                            {isAdmin ? "👑" : isArtist ? "🎨" : isDeliveryAgent ? "🚚" : "👤"}
                           </span>
 
                           {/* Risk Badges (Symbol-only with hover tooltip) */}
@@ -1498,6 +1573,23 @@ export default function AdminPage() {
                             <span>✕</span> Reject
                           </button>
                         </>
+                      ) : isPendingDelivery ? (
+                        <>
+                          <button
+                            onClick={() => updateUserStatusMutation.mutate({ userId: u.user_id, status: "ACTIVE" })}
+                            disabled={updateUserStatusMutation.isPending}
+                            className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
+                          >
+                            <span>✓</span> {updateUserStatusMutation.isPending ? "Activating..." : "Approve & Activate"}
+                          </button>
+                          <button
+                            onClick={() => updateUserStatusMutation.mutate({ userId: u.user_id, status: "SUSPENDED" })}
+                            disabled={updateUserStatusMutation.isPending}
+                            className="rounded-lg bg-rose-950/60 hover:bg-rose-900 border border-rose-800/60 px-3.5 py-1.5 text-xs font-semibold text-rose-300 transition flex items-center justify-center gap-1 whitespace-nowrap flex-shrink-0"
+                          >
+                            <span>✕</span> Reject
+                          </button>
+                        </>
                       ) : (
                         <>
                           {/* 1. View Payroll for Verified Artists (Symbol-only with hover tooltip) */}
@@ -1513,7 +1605,27 @@ export default function AdminPage() {
                                 })
                               }
                               className="w-8 h-8 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 transition flex items-center justify-center text-sm shadow-sm hover:scale-110"
-                              title="View Payroll: Monthly earnings, commission breakdown & performance graph"
+                              title="View Payroll: Monthly earnings, 30% commission breakdown & performance graph"
+                            >
+                              💰
+                            </button>
+                          )}
+
+                          {/* 1b. View Delivery Payroll for Delivery Agents */}
+                          {isDeliveryAgent && (u.status === "ACTIVE" || u.status === "SUSPENDED") && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelectedDeliveryBreakdown({
+                                  agent_id: u.user_id,
+                                  full_name: u.full_name,
+                                  email: u.email,
+                                  phone: u.phone_number,
+                                  address: u.address,
+                                })
+                              }
+                              className="w-8 h-8 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-300 transition flex items-center justify-center text-sm shadow-sm hover:scale-110"
+                              title="View Delivery Payroll: Delivered parcels, 10% commission breakdown & earnings"
                             >
                               💰
                             </button>
@@ -1677,22 +1789,25 @@ export default function AdminPage() {
               <div className="flex items-center gap-2 text-slate-300">
                 <span className="text-amber-400 text-sm">💡</span>
                 <span>
-                  <strong>Commission Rule:</strong> Verified Artists earn <strong>40%</strong> of the order price as monthly salary; ArtifyMe retains <strong>60%</strong> platform margin.
+                  <strong>Commission Split Rule:</strong> Verified Artists earn <strong>30%</strong>, Delivery Agents earn <strong>10%</strong>, and ArtifyMe retains <strong>60%</strong> platform margin.
                 </span>
               </div>
-              <div className="flex items-center gap-3 text-xs font-semibold">
+              <div className="flex items-center gap-2 text-xs font-semibold flex-wrap">
                 <span className="text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-1">
-                  Artist Share: 40%
+                  🎨 Artist Share: 30%
+                </span>
+                <span className="text-sky-400 bg-sky-500/10 border border-sky-500/30 rounded-lg px-2.5 py-1">
+                  🚚 Delivery Agent: 10%
                 </span>
                 <span className="text-cyan-400 bg-cyan-500/10 border border-cyan-500/30 rounded-lg px-2.5 py-1">
-                  Platform Margin: 60%
+                  👑 Platform Margin: 60%
                 </span>
               </div>
             </div>
           </div>
 
-          {/* 4 Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* 5 Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 space-y-1 shadow">
               <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Completed Portraits</p>
               <p className="text-2xl font-bold text-white">{payrollCompletedOrders.length}</p>
@@ -1702,13 +1817,19 @@ export default function AdminPage() {
             <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4 space-y-1 shadow">
               <p className="text-xs text-slate-400 font-medium uppercase tracking-wider">Gross Portrait Sales</p>
               <p className="text-2xl font-bold text-white">₹{totalGrossRevenue.toLocaleString("en-IN")}</p>
-              <p className="text-[11px] text-slate-500">Total customer revenue</p>
+              <p className="text-[11px] text-slate-500">Total customer revenue (100%)</p>
             </div>
 
             <div className="rounded-2xl border border-emerald-500/30 bg-emerald-950/20 p-4 space-y-1 shadow">
-              <p className="text-xs text-emerald-400 font-medium uppercase tracking-wider">Artist Salary Due (40%)</p>
+              <p className="text-xs text-emerald-400 font-medium uppercase tracking-wider">Artist Salary Due (30%)</p>
               <p className="text-2xl font-bold text-emerald-300">₹{totalArtistCommissions.toLocaleString("en-IN")}</p>
               <p className="text-[11px] text-emerald-500/80">Total payout to artists</p>
+            </div>
+
+            <div className="rounded-2xl border border-sky-500/30 bg-sky-950/20 p-4 space-y-1 shadow">
+              <p className="text-xs text-sky-400 font-medium uppercase tracking-wider">Delivery Payout Due (10%)</p>
+              <p className="text-2xl font-bold text-sky-300">₹{totalDeliveryCommissions.toLocaleString("en-IN")}</p>
+              <p className="text-[11px] text-sky-500/80">Total delivery payouts</p>
             </div>
 
             <div className="rounded-2xl border border-cyan-500/30 bg-cyan-950/20 p-4 space-y-1 shadow">
@@ -1718,92 +1839,210 @@ export default function AdminPage() {
             </div>
           </div>
 
-          {/* Per-Artist Breakdown Table */}
+          {/* Roster Table (Toggleable between Artists and Delivery Agents) */}
           <div className="rounded-2xl border border-slate-800 bg-slate-900/70 overflow-hidden shadow-xl">
-            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <span>🎨</span> Payroll Roster ({artistPayrollList.length})
-              </h3>
+            <div className="p-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPayrollRosterTab("ARTISTS")}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    payrollRosterTab === "ARTISTS"
+                      ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-sm"
+                      : "bg-slate-800 text-slate-400 hover:text-white border border-transparent"
+                  }`}
+                >
+                  <span>🎨</span>
+                  <span>Artists Roster</span>
+                  <span className="rounded-full bg-slate-900 px-1.5 py-0.2 text-[10px] font-bold">
+                    {artistPayrollList.length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setPayrollRosterTab("DELIVERY_AGENTS")}
+                  className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                    payrollRosterTab === "DELIVERY_AGENTS"
+                      ? "bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm"
+                      : "bg-slate-800 text-slate-400 hover:text-white border border-transparent"
+                  }`}
+                >
+                  <span>🚚</span>
+                  <span>Delivery Agents Roster</span>
+                  <span className="rounded-full bg-slate-900 px-1.5 py-0.2 text-[10px] font-bold">
+                    {deliveryPayrollList.length}
+                  </span>
+                </button>
+              </div>
+
               <span className="text-xs text-slate-400">
                 Period: <strong className="text-white">{payrollMonth === "ALL" ? "All Time" : payrollMonth}</strong>
               </span>
             </div>
 
-            {artistPayrollList.length === 0 ? (
-              <p className="text-center py-12 text-slate-400 text-xs">No verified artists found.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-800/70 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
-                    <tr>
-                      <th className="py-3 px-4">Artist</th>
-                      <th className="py-3 px-4 text-center">Completed Work</th>
-                      <th className="py-3 px-4 text-right">Order Sales (100%)</th>
-                      <th className="py-3 px-4 text-right text-emerald-300 font-bold">Artist Salary (40%)</th>
-                      <th className="py-3 px-4 text-right text-cyan-300">Studio Share (60%)</th>
-                      <th className="py-3 px-4 text-center">Breakdown</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {artistPayrollList.map(({ artist, completedCount, totalRevenue, artistCommission, platformMargin }) => (
-                      <tr key={artist.artist_id} className="hover:bg-slate-800/40 transition">
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-500/40 text-purple-300 font-bold flex items-center justify-center text-xs">
-                              {artist.full_name ? artist.full_name[0].toUpperCase() : "A"}
-                            </div>
-                            <div>
-                              <p className="font-semibold text-white">{artist.full_name}</p>
-                              <p className="text-[11px] text-slate-400">{artist.email}</p>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="py-3.5 px-4 text-center">
-                          <span
-                            className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                              completedCount > 0
-                                ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
-                                : "bg-slate-800 text-slate-500"
-                            }`}
-                          >
-                            {completedCount} portrait{completedCount === 1 ? "" : "s"}
-                          </span>
-                        </td>
-
-                        <td className="py-3.5 px-4 text-right font-medium text-slate-300">
-                          ₹{totalRevenue.toLocaleString("en-IN")}
-                        </td>
-
-                        <td className="py-3.5 px-4 text-right">
-                          <span className="font-bold text-sm text-emerald-300">
-                            ₹{artistCommission.toLocaleString("en-IN")}
-                          </span>
-                        </td>
-
-                        <td className="py-3.5 px-4 text-right font-medium text-cyan-300/80">
-                          ₹{platformMargin.toLocaleString("en-IN")}
-                        </td>
-
-                        <td className="py-3.5 px-4 text-center">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedArtistBreakdown(artist)}
-                            disabled={completedCount === 0}
-                            className={`rounded-lg px-3 py-1 text-xs font-medium transition ${
-                              completedCount > 0
-                                ? "bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 cursor-pointer"
-                                : "bg-slate-800/40 text-slate-600 border border-transparent cursor-not-allowed"
-                            }`}
-                          >
-                            💰 View Payroll ({completedCount})
-                          </button>
-                        </td>
+            {payrollRosterTab === "ARTISTS" ? (
+              artistPayrollList.length === 0 ? (
+                <p className="text-center py-12 text-slate-400 text-xs">No verified artists found.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-800/70 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+                      <tr>
+                        <th className="py-3 px-4">Artist</th>
+                        <th className="py-3 px-4 text-center">Completed Work</th>
+                        <th className="py-3 px-4 text-right">Order Sales (100%)</th>
+                        <th className="py-3 px-4 text-right text-emerald-300 font-bold">Artist Salary (30%)</th>
+                        <th className="py-3 px-4 text-right text-cyan-300">Studio Share (60%)</th>
+                        <th className="py-3 px-4 text-center">Breakdown</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {artistPayrollList.map(({ artist, completedCount, totalRevenue, artistCommission, platformMargin }) => (
+                        <tr key={artist.artist_id} className="hover:bg-slate-800/40 transition">
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-purple-500/20 border border-purple-500/40 text-purple-300 font-bold flex items-center justify-center text-xs">
+                                {artist.full_name ? artist.full_name[0].toUpperCase() : "A"}
+                              </div>
+                              <div>
+                                <p className="font-semibold text-white">{artist.full_name}</p>
+                                <p className="text-[11px] text-slate-400">{artist.email}</p>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4 text-center">
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                completedCount > 0
+                                  ? "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                                  : "bg-slate-800 text-slate-500"
+                              }`}
+                            >
+                              {completedCount} portrait{completedCount === 1 ? "" : "s"}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-4 text-right font-medium text-slate-300">
+                            ₹{totalRevenue.toLocaleString("en-IN")}
+                          </td>
+
+                          <td className="py-3.5 px-4 text-right">
+                            <span className="font-bold text-sm text-emerald-300">
+                              ₹{artistCommission.toLocaleString("en-IN")}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-4 text-right font-medium text-cyan-300/80">
+                            ₹{platformMargin.toLocaleString("en-IN")}
+                          </td>
+
+                          <td className="py-3.5 px-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedArtistBreakdown(artist)}
+                              disabled={completedCount === 0}
+                              className={`rounded-lg px-3 py-1 text-xs font-medium transition ${
+                                completedCount > 0
+                                  ? "bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 cursor-pointer"
+                                  : "bg-slate-800/40 text-slate-600 border border-transparent cursor-not-allowed"
+                              }`}
+                            >
+                              💰 View Payroll ({completedCount})
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
+            ) : (
+              deliveryPayrollList.length === 0 ? (
+                <p className="text-center py-12 text-slate-400 text-xs">No delivery agents found.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-800/70 text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800">
+                      <tr>
+                        <th className="py-3 px-4">Delivery Agent</th>
+                        <th className="py-3 px-4 text-center">Delivered Orders</th>
+                        <th className="py-3 px-4 text-right">Order Sales (100%)</th>
+                        <th className="py-3 px-4 text-right text-sky-300 font-bold">Delivery Fee (10%)</th>
+                        <th className="py-3 px-4 text-right text-cyan-300">Studio Share (60%)</th>
+                        <th className="py-3 px-4 text-center">Breakdown</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800">
+                      {deliveryPayrollList.map(({ agent, completedCount, totalRevenue, deliveryCommission, platformMargin }) => (
+                        <tr key={agent.user_id} className="hover:bg-slate-800/40 transition">
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-500/40 text-sky-300 font-bold flex items-center justify-center text-xs">
+                                🚚
+                              </div>
+                              <div>
+                                <p className="font-semibold text-white">{agent.full_name}</p>
+                                <p className="text-[11px] text-slate-400">{agent.email}</p>
+                              </div>
+                            </div>
+                          </td>
+
+                          <td className="py-3.5 px-4 text-center">
+                            <span
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                completedCount > 0
+                                  ? "bg-sky-500/20 text-sky-300 border border-sky-500/30"
+                                  : "bg-slate-800 text-slate-500"
+                              }`}
+                            >
+                              {completedCount} parcel{completedCount === 1 ? "" : "s"}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-4 text-right font-medium text-slate-300">
+                            ₹{totalRevenue.toLocaleString("en-IN")}
+                          </td>
+
+                          <td className="py-3.5 px-4 text-right">
+                            <span className="font-bold text-sm text-sky-300">
+                              ₹{deliveryCommission.toLocaleString("en-IN")}
+                            </span>
+                          </td>
+
+                          <td className="py-3.5 px-4 text-right font-medium text-cyan-300/80">
+                            ₹{platformMargin.toLocaleString("en-IN")}
+                          </td>
+
+                          <td className="py-3.5 px-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setSelectedDeliveryBreakdown({
+                                  agent_id: agent.user_id,
+                                  full_name: agent.full_name,
+                                  email: agent.email,
+                                  phone: agent.phone_number,
+                                  address: agent.address,
+                                })
+                              }
+                              disabled={completedCount === 0}
+                              className={`rounded-lg px-3 py-1 text-xs font-medium transition ${
+                                completedCount > 0
+                                  ? "bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 cursor-pointer"
+                                  : "bg-slate-800/40 text-slate-600 border border-transparent cursor-not-allowed"
+                              }`}
+                            >
+                              💰 View Payroll ({completedCount})
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )
             )}
           </div>
         </div>
@@ -2069,7 +2308,7 @@ export default function AdminPage() {
                       <span>💰</span> Artist Payroll Dashboard: {selectedArtistBreakdown.full_name}
                     </h3>
                     <p className="text-xs text-slate-400">
-                      {selectedArtistBreakdown.email || "Verified Studio Artist"} • 40% Commission Tier • 60% Platform Margin
+                      {selectedArtistBreakdown.email || "Verified Studio Artist"} • 30% Commission Tier • 60% Platform Margin
                     </p>
                   </div>
                 </div>
@@ -2089,7 +2328,7 @@ export default function AdminPage() {
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                   <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-3.5 space-y-1 shadow-sm">
                     <p className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <span>💰</span> Payroll Due (40%)
+                      <span>💰</span> Payroll Due (30%)
                     </p>
                     <p className="text-xl font-extrabold text-emerald-300">
                       ₹{lifetimeCommission.toLocaleString("en-IN")}
@@ -2395,6 +2634,153 @@ export default function AdminPage() {
                 <button
                   type="button"
                   onClick={() => setSelectedArtistBreakdown(null)}
+                  className="rounded-lg bg-slate-800 hover:bg-slate-700 px-4 py-2 text-xs font-semibold text-white transition"
+                >
+                  Close Dashboard
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL: DELIVERY AGENT PAYROLL BREAKDOWN */}
+      {selectedDeliveryBreakdown && (() => {
+        const deliveredOrders = allOrders.filter(
+          (o) => o.delivery_agent_id === selectedDeliveryBreakdown.agent_id
+        );
+        const activeOrdersList = deliveredOrders.length > 0
+          ? deliveredOrders
+          : allOrders.filter((o) => o.status === "COMPLETED" || o.status === "PUBLISHED" || o.status === "DELIVERED");
+        const lifetimeRevenue = activeOrdersList.reduce((sum, o) => sum + (Number(o.total_price) || 0), 0);
+        const lifetimeCommission = Math.round(lifetimeRevenue * DELIVERY_COMMISSION_PERCENTAGE);
+        const lifetimeStudioShare = Math.round(lifetimeRevenue * PLATFORM_MARGIN_PERCENTAGE);
+        const lifetimeCount = activeOrdersList.length;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 overflow-y-auto">
+            <div className="w-full max-w-4xl rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl overflow-hidden my-8">
+              {/* Header */}
+              <div className="p-5 border-b border-slate-800 bg-slate-900/90 flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-sky-500/20 border border-sky-500/40 text-sky-300 font-bold flex items-center justify-center text-xl shadow">
+                    🚚
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <span>🚚</span> Delivery Partner Payroll: {selectedDeliveryBreakdown.full_name}
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      {selectedDeliveryBreakdown.email || "Platform Delivery Partner"} • 10% Delivery Commission • 60% Platform Margin
+                    </p>
+                    {selectedDeliveryBreakdown.phone && (
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Phone: {selectedDeliveryBreakdown.phone} {selectedDeliveryBreakdown.address && `• Address: ${selectedDeliveryBreakdown.address}`}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDeliveryBreakdown(null)}
+                  className="rounded-lg p-2 text-slate-400 hover:bg-slate-800 hover:text-white transition"
+                  title="Close Payroll Dashboard"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+                {/* 3 Lifetime KPI Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="rounded-xl border border-slate-800 bg-slate-800/40 p-4 space-y-1">
+                    <p className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
+                      Parcels Handled / Delivered
+                    </p>
+                    <p className="text-2xl font-bold text-white">{lifetimeCount}</p>
+                    <p className="text-[11px] text-slate-500">Delivered portrait orders</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-800 bg-slate-800/40 p-4 space-y-1">
+                    <p className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
+                      Gross Order Sales Dispatched
+                    </p>
+                    <p className="text-2xl font-bold text-white">₹{lifetimeRevenue.toLocaleString("en-IN")}</p>
+                    <p className="text-[11px] text-slate-500">100% customer paid value</p>
+                  </div>
+                  <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-4 space-y-1 shadow">
+                    <p className="text-[11px] text-sky-400 uppercase tracking-wider font-semibold">
+                      Delivery Payout (10%)
+                    </p>
+                    <p className="text-2xl font-bold text-sky-300">₹{lifetimeCommission.toLocaleString("en-IN")}</p>
+                    <p className="text-[11px] text-sky-500/80">Logistics commission due</p>
+                  </div>
+                </div>
+
+                {/* Table of Orders */}
+                <div className="rounded-xl border border-slate-800 overflow-hidden bg-slate-900/60 shadow">
+                  <div className="p-3 bg-slate-800/60 border-b border-slate-800 flex items-center justify-between">
+                    <p className="text-xs font-bold text-white">Dispatched Portrait Parcels ({lifetimeCount})</p>
+                    <span className="text-[11px] text-slate-400">Fixed 10% delivery fee per order</span>
+                  </div>
+                  {activeOrdersList.length === 0 ? (
+                    <p className="text-center py-8 text-xs text-slate-500">No delivered orders assigned to this agent yet.</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-800/40 text-slate-400 uppercase tracking-wider border-b border-slate-800 text-[10px]">
+                          <tr>
+                            <th className="py-2.5 px-3">Order ID</th>
+                            <th className="py-2.5 px-3">Date</th>
+                            <th className="py-2.5 px-3">Delivery Address</th>
+                            <th className="py-2.5 px-3 text-right">Order Price (100%)</th>
+                            <th className="py-2.5 px-3 text-right text-sky-300 font-bold">Delivery Fee (10%)</th>
+                            <th className="py-2.5 px-3 text-right text-slate-400">Studio Share (60%)</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800">
+                          {activeOrdersList.map((o) => {
+                            const price = Number(o.total_price) || 0;
+                            const fee = Math.round(price * DELIVERY_COMMISSION_PERCENTAGE);
+                            const studio = Math.round(price * PLATFORM_MARGIN_PERCENTAGE);
+                            return (
+                              <tr key={o.order_id} className="hover:bg-slate-800/30 transition">
+                                <td className="py-2.5 px-3 font-mono text-slate-300">
+                                  #{o.order_id.slice(0, 8)}
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-400">
+                                  {o.created_at ? new Date(o.created_at).toLocaleDateString() : "—"}
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-300 max-w-xs truncate">
+                                  {o.delivery_address || "—"}
+                                </td>
+                                <td className="py-2.5 px-3 text-right text-slate-200">
+                                  ₹{price.toLocaleString("en-IN")}
+                                </td>
+                                <td className="py-2.5 px-3 text-right text-sky-300 font-bold">
+                                  ₹{fee.toLocaleString("en-IN")}
+                                </td>
+                                <td className="py-2.5 px-3 text-right text-slate-400">
+                                  ₹{studio.toLocaleString("en-IN")}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="p-4 border-t border-slate-800 bg-slate-900/90 flex items-center justify-between">
+                <span className="text-xs text-slate-400">
+                  Total Delivery Payout: <strong className="text-sky-300">₹{lifetimeCommission.toLocaleString("en-IN")}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedDeliveryBreakdown(null)}
                   className="rounded-lg bg-slate-800 hover:bg-slate-700 px-4 py-2 text-xs font-semibold text-white transition"
                 >
                   Close Dashboard

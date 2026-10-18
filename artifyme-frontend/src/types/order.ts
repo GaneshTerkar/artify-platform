@@ -13,6 +13,7 @@ export type Order = {
   order_id: string;
   user_id?: string;
   artist_id?: string;
+  delivery_agent_id?: string;
   status: string;
   lifecycle_label: string;
   painting_category: string;

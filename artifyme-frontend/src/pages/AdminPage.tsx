@@ -196,16 +196,60 @@ export default function AdminPage() {
   const [suspendingUser, setSuspendingUser] = useState<{ user: PlatformUser; targetStatus: "ACTIVE" | "SUSPENDED" } | null>(null);
   const [suspensionReason, setSuspensionReason] = useState<string>("Frequent unconfirmed or cancelled orders");
   const [userSubFilter, setUserSubFilter] = useState<"ALL" | "VERIFIED" | "PENDING_REVIEW" | "AT_RISK" | "ADMIN_ELIGIBLE">("ALL");
+  const [orderRoleFilter, setOrderRoleFilter] = useState<"ALL" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT" | "PUBLISHED">("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [artistFilter, setArtistFilter] = useState<string>("ALL");
+  const [deliveryPartnerFilter, setDeliveryPartnerFilter] = useState<string>("ALL");
   const [orderSearchQuery, setOrderSearchQuery] = useState<string>("");
 
-  const showArtistFilter = statusFilter !== "PLACED" && statusFilter !== "CANCELLED";
+  const ROLE_STATUS_MAP: Record<string, string[]> = {
+    CUSTOMER: ["PLACED", "CONFIRMED", "CANCELLED"],
+    ARTIST: ["ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED"],
+    DELIVERY_AGENT: ["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED"],
+    PUBLISHED: ["PUBLISHED"],
+  };
+
+  const showArtistFilter =
+    (orderRoleFilter === "ALL" || orderRoleFilter === "ARTIST") &&
+    statusFilter !== "PLACED" &&
+    statusFilter !== "CANCELLED";
+
+  const showDeliveryFilter =
+    (orderRoleFilter === "ALL" || orderRoleFilter === "DELIVERY_AGENT") &&
+    (statusFilter === "ALL" ||
+      [
+        "ASSIGNED_DELIVERY_AGENT",
+        "IN_TRANSIT",
+        "OUT_FOR_DELIVERY",
+        "DELIVERY_FAILED",
+        "DELIVERED",
+      ].includes(statusFilter));
+
+  const handleRoleFilterChange = (role: "ALL" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT" | "PUBLISHED") => {
+    setOrderRoleFilter(role);
+    if (role !== "ALL") {
+      const allowed = ROLE_STATUS_MAP[role] || [];
+      if (statusFilter !== "ALL" && !allowed.includes(statusFilter)) {
+        setStatusFilter("ALL");
+      }
+    }
+  };
 
   const handleStatusFilterChange = (status: string) => {
     setStatusFilter(status);
     if (status === "PLACED" || status === "CANCELLED") {
       setArtistFilter("ALL");
+    }
+    if (status !== "ALL") {
+      if (status === "PUBLISHED") {
+        setOrderRoleFilter("PUBLISHED");
+      } else if (ROLE_STATUS_MAP.CUSTOMER.includes(status)) {
+        setOrderRoleFilter("CUSTOMER");
+      } else if (ROLE_STATUS_MAP.ARTIST.includes(status)) {
+        setOrderRoleFilter("ARTIST");
+      } else if (ROLE_STATUS_MAP.DELIVERY_AGENT.includes(status)) {
+        setOrderRoleFilter("DELIVERY_AGENT");
+      }
     }
   };
   const [userRoleFilter, setUserRoleFilter] = useState<"ALL" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT" | "ADMIN">("ALL");
@@ -304,9 +348,84 @@ export default function AdminPage() {
     return allOrders.filter((o) => o.status === "COMPLETED" && !o.is_published_to_gallery).length;
   }, [allOrders]);
 
+  const roleCounts = useMemo(() => {
+    let customer = 0;
+    let artist = 0;
+    let delivery = 0;
+    let published = 0;
+
+    for (const o of allOrders) {
+      if (o.is_published_to_gallery) {
+        published++;
+      }
+      if (["PLACED", "CONFIRMED", "CANCELLED"].includes(o.status)) {
+        customer++;
+      } else if (["ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED"].includes(o.status)) {
+        artist++;
+      } else if (["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED"].includes(o.status)) {
+        delivery++;
+      }
+    }
+
+    return {
+      ALL: allOrders.length,
+      CUSTOMER: customer,
+      ARTIST: artist,
+      DELIVERY_AGENT: delivery,
+      PUBLISHED: published,
+    };
+  }, [allOrders]);
+
+  const ROLE_TABS = [
+    { id: "ALL", label: "All Roles", icon: "🌐", count: roleCounts.ALL },
+    { id: "CUSTOMER", label: "Customer Phase", icon: "👤", count: roleCounts.CUSTOMER },
+    { id: "ARTIST", label: "Artist Stage", icon: "🎨", count: roleCounts.ARTIST },
+    { id: "DELIVERY_AGENT", label: "Delivery Partner", icon: "🚚", count: roleCounts.DELIVERY_AGENT },
+    { id: "PUBLISHED", label: "Gallery Showcase", icon: "🌟", count: roleCounts.PUBLISHED },
+  ] as const;
+
+  const STATUS_PILLS = [
+    { id: "ALL", label: "ALL", count: allOrders.length },
+    { id: "PLACED", label: "PLACED", count: statusCounts["PLACED"] || 0 },
+    { id: "CONFIRMED", label: "CONFIRMED", count: statusCounts["CONFIRMED"] || 0 },
+    { id: "ASSIGNED_ARTIST", label: "ASSIGNED ARTIST", count: statusCounts["ASSIGNED_ARTIST"] || 0 },
+    { id: "IN_PROGRESS", label: "IN PROGRESS", count: statusCounts["IN_PROGRESS"] || 0 },
+    { id: "COMPLETED", label: "STUDIO READY", count: statusCounts["COMPLETED"] || 0 },
+    { id: "ASSIGNED_DELIVERY_AGENT", label: "COURIER ASSIGNED", count: statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0 },
+    { id: "IN_TRANSIT", label: "IN TRANSIT", count: statusCounts["IN_TRANSIT"] || 0 },
+    { id: "OUT_FOR_DELIVERY", label: "OUT FOR DELIVERY", count: statusCounts["OUT_FOR_DELIVERY"] || 0 },
+    { id: "DELIVERY_FAILED", label: "DELIVERY RETRY", count: statusCounts["DELIVERY_FAILED"] || 0 },
+    { id: "DELIVERED", label: "DELIVERED", count: statusCounts["DELIVERED"] || 0 },
+    { id: "PUBLISHED", label: "PUBLISHED", count: inspectedCount },
+    { id: "CANCELLED", label: "CANCELLED", count: statusCounts["CANCELLED"] || 0 },
+  ] as const;
+
+  const activeStatusPills = useMemo(() => {
+    if (orderRoleFilter === "ALL") {
+      return STATUS_PILLS;
+    }
+    const allowed = ROLE_STATUS_MAP[orderRoleFilter] || [];
+    const roleTotal = roleCounts[orderRoleFilter] || 0;
+    return [
+      { id: "ALL", label: "ALL", count: roleTotal },
+      ...STATUS_PILLS.filter((p) => p.id !== "ALL" && allowed.includes(p.id)),
+    ];
+  }, [orderRoleFilter, STATUS_PILLS, roleCounts]);
+
   const filteredOrders = useMemo(() => {
     return allOrders.filter((o) => {
-      // 1. Status Filter
+      // 1. Role Filter
+      if (orderRoleFilter === "CUSTOMER") {
+        if (!["PLACED", "CONFIRMED", "CANCELLED"].includes(o.status)) return false;
+      } else if (orderRoleFilter === "ARTIST") {
+        if (!["ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED"].includes(o.status)) return false;
+      } else if (orderRoleFilter === "DELIVERY_AGENT") {
+        if (!["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED"].includes(o.status)) return false;
+      } else if (orderRoleFilter === "PUBLISHED") {
+        if (!o.is_published_to_gallery) return false;
+      }
+
+      // 2. Status Filter
       if (statusFilter === "PUBLISHED") {
         if (!o.is_published_to_gallery) return false;
       } else if (statusFilter === "COMPLETED") {
@@ -314,7 +433,8 @@ export default function AdminPage() {
       } else if (statusFilter !== "ALL" && o.status !== statusFilter) {
         return false;
       }
-      // 2. Artist Filter (only applies when status is not PLACED or CANCELLED)
+
+      // 3. Artist Filter (only applies when status is not PLACED or CANCELLED)
       if (showArtistFilter) {
         if (artistFilter === "ASSIGNED" && !o.artist_id) return false;
         if (artistFilter === "UNASSIGNED" && Boolean(o.artist_id)) return false;
@@ -327,13 +447,29 @@ export default function AdminPage() {
           return false;
         }
       }
-      // 3. Search Query
+
+      // 4. Delivery Partner Filter
+      if (deliveryPartnerFilter !== "ALL") {
+        if (deliveryPartnerFilter === "ASSIGNED" && !o.delivery_agent_id) return false;
+        if (deliveryPartnerFilter === "UNASSIGNED" && Boolean(o.delivery_agent_id)) return false;
+        if (
+          deliveryPartnerFilter !== "ASSIGNED" &&
+          deliveryPartnerFilter !== "UNASSIGNED" &&
+          o.delivery_agent_id !== deliveryPartnerFilter
+        ) {
+          return false;
+        }
+      }
+
+      // 5. Search Query
       if (orderSearchQuery.trim()) {
         const rawQ = orderSearchQuery.trim().toLowerCase();
         const cleanQ = rawQ.replace(/^#/, "");
         const customer = allUsers.find((u) => u.user_id === o.user_id);
         const artist = verifiedArtists.find((a) => a.artist_id === o.artist_id);
         const artistName = artist?.full_name?.toLowerCase();
+        const courier = activeDeliveryPartners.find((c) => c.user_id === o.delivery_agent_id);
+        const courierName = courier?.full_name?.toLowerCase();
         const displayStatus = getOrderLifecycleStatus(o).toLowerCase();
 
         const matchId = Boolean(o.order_id?.toLowerCase()?.includes(cleanQ));
@@ -341,6 +477,7 @@ export default function AdminPage() {
         const matchAddress = Boolean(o.delivery_address?.toLowerCase()?.includes(rawQ));
         const matchNotes = Boolean(o.customer_notes?.toLowerCase()?.includes(rawQ));
         const matchArtist = Boolean(artistName?.includes(rawQ));
+        const matchCourier = Boolean(courierName?.includes(rawQ));
         const matchCustomer = Boolean(
           customer?.full_name?.toLowerCase()?.includes(rawQ) ||
           customer?.email?.toLowerCase()?.includes(rawQ) ||
@@ -359,6 +496,7 @@ export default function AdminPage() {
           !matchAddress &&
           !matchNotes &&
           !matchArtist &&
+          !matchCourier &&
           !matchCustomer &&
           !matchStatus &&
           !matchSize &&
@@ -369,7 +507,18 @@ export default function AdminPage() {
       }
       return true;
     });
-  }, [allOrders, statusFilter, artistFilter, orderSearchQuery, verifiedArtists, allUsers, showArtistFilter]);
+  }, [
+    allOrders,
+    orderRoleFilter,
+    statusFilter,
+    artistFilter,
+    deliveryPartnerFilter,
+    orderSearchQuery,
+    verifiedArtists,
+    activeDeliveryPartners,
+    allUsers,
+    showArtistFilter,
+  ]);
 
   const sortedOrders = useMemo(() => {
     return [...filteredOrders].sort((a, b) => {
@@ -387,22 +536,6 @@ export default function AdminPage() {
       return timeB - timeA;
     });
   }, [filteredOrders]);
-
-  const STATUS_PILLS = [
-    { id: "ALL", label: "ALL", count: allOrders.length },
-    { id: "PLACED", label: "PLACED", count: statusCounts["PLACED"] || 0 },
-    { id: "CONFIRMED", label: "CONFIRMED", count: statusCounts["CONFIRMED"] || 0 },
-    { id: "ASSIGNED_ARTIST", label: "ASSIGNED ARTIST", count: statusCounts["ASSIGNED_ARTIST"] || 0 },
-    { id: "IN_PROGRESS", label: "IN PROGRESS", count: statusCounts["IN_PROGRESS"] || 0 },
-    { id: "COMPLETED", label: "STUDIO READY", count: statusCounts["COMPLETED"] || 0 },
-    { id: "ASSIGNED_DELIVERY_AGENT", label: "COURIER ASSIGNED", count: statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0 },
-    { id: "IN_TRANSIT", label: "IN TRANSIT", count: statusCounts["IN_TRANSIT"] || 0 },
-    { id: "OUT_FOR_DELIVERY", label: "OUT FOR DELIVERY", count: statusCounts["OUT_FOR_DELIVERY"] || 0 },
-    { id: "DELIVERY_FAILED", label: "DELIVERY RETRY", count: statusCounts["DELIVERY_FAILED"] || 0 },
-    { id: "DELIVERED", label: "DELIVERED", count: statusCounts["DELIVERED"] || 0 },
-    { id: "PUBLISHED", label: "PUBLISHED", count: inspectedCount },
-    { id: "CANCELLED", label: "CANCELLED", count: statusCounts["CANCELLED"] || 0 },
-  ] as const;
 
   const userCounts = useMemo(() => {
     const counts = {
@@ -903,19 +1036,71 @@ export default function AdminPage() {
       {activeTab === "orders" && (
         <div className="space-y-6">
           {/* Filters Bar */}
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
-            {/* Status Filter Pills (Aligned on single line in lifecycle sequence) */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-              {STATUS_PILLS.map((pill) => {
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3.5">
+            {/* 1. Primary Role Stage Selector Tabs (Never overflows or scrolls) */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-1 border-b border-slate-800/60">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-semibold text-slate-400 mr-1 flex items-center gap-1">
+                  <span>🎭</span> Role Stage:
+                </span>
+                {ROLE_TABS.map((tab) => {
+                  const isActive = orderRoleFilter === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => handleRoleFilterChange(tab.id as any)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold transition ${
+                        isActive
+                          ? "bg-brand text-white shadow-sm ring-1 ring-white/20"
+                          : "bg-slate-800/70 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/50"
+                      }`}
+                    >
+                      <span>{tab.icon}</span>
+                      <span>{tab.label}</span>
+                      <span
+                        className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                          isActive
+                            ? "bg-black/30 text-white"
+                            : "bg-slate-900 text-slate-400"
+                        }`}
+                      >
+                        {tab.count}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Reset shortcut */}
+              {(orderRoleFilter !== "ALL" || statusFilter !== "ALL" || artistFilter !== "ALL" || deliveryPartnerFilter !== "ALL" || orderSearchQuery.trim() !== "") && (
+                <button
+                  onClick={() => {
+                    setOrderRoleFilter("ALL");
+                    setStatusFilter("ALL");
+                    setArtistFilter("ALL");
+                    setDeliveryPartnerFilter("ALL");
+                    setOrderSearchQuery("");
+                  }}
+                  className="text-xs text-amber-400 hover:text-amber-300 underline font-medium flex items-center gap-1"
+                >
+                  <span>↺</span> Reset all filters
+                </button>
+              )}
+            </div>
+
+            {/* 2. Aligned Status Quick-Pills for the Active Role (Wraps cleanly, NO horizontal scrollbar!) */}
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-medium text-slate-400 mr-1">Status:</span>
+              {activeStatusPills.map((pill) => {
                 const isActive = statusFilter === pill.id;
                 return (
                   <button
                     key={pill.id}
                     onClick={() => handleStatusFilterChange(pill.id)}
-                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition ${
+                    className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
                       isActive
                         ? "bg-slate-700 text-white font-semibold border border-slate-500 shadow-sm"
-                        : "bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white"
+                        : "bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-700/30"
                     }`}
                   >
                     <span>{pill.label}</span>
@@ -935,16 +1120,16 @@ export default function AdminPage() {
               })}
             </div>
 
-            {/* Search and Secondary Filter */}
-            <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-800/60 text-xs">
+            {/* 3. Search and Dropdown Controls Row */}
+            <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-slate-800/60 text-xs">
               {/* Search Bar */}
-              <div className="flex items-center gap-2 flex-1 min-w-[260px]">
+              <div className="flex items-center gap-2 flex-1 min-w-[240px]">
                 <span className="text-slate-400">🔍</span>
                 <input
                   type="text"
                   value={orderSearchQuery}
                   onChange={(e) => setOrderSearchQuery(e.target.value)}
-                  placeholder="Search orders by ID, category, address, notes, artist..."
+                  placeholder="Search by ID, customer, artist, courier, address, notes..."
                   className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
                 />
                 {orderSearchQuery && (
@@ -957,17 +1142,105 @@ export default function AdminPage() {
                 )}
               </div>
 
-              {/* Artist Filter (Visible for active production lifecycle statuses) */}
+              {/* Role Dropdown */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 font-medium whitespace-nowrap">Role:</span>
+                <select
+                  value={orderRoleFilter}
+                  onChange={(e) => handleRoleFilterChange(e.target.value as any)}
+                  className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
+                >
+                  <option value="ALL">🌐 All Roles ({allOrders.length})</option>
+                  <option value="CUSTOMER">👤 Customer Phase ({roleCounts.CUSTOMER})</option>
+                  <option value="ARTIST">🎨 Artist Stage ({roleCounts.ARTIST})</option>
+                  <option value="DELIVERY_AGENT">🚚 Delivery Partner ({roleCounts.DELIVERY_AGENT})</option>
+                  <option value="PUBLISHED">🌟 Gallery Showcase ({roleCounts.PUBLISHED})</option>
+                </select>
+              </div>
+
+              {/* Aligned Status Dropdown */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-slate-400 font-medium whitespace-nowrap">Status:</span>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => handleStatusFilterChange(e.target.value)}
+                  className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
+                >
+                  {orderRoleFilter === "ALL" && (
+                    <>
+                      <option value="ALL">All Statuses ({allOrders.length})</option>
+                      <optgroup label="👤 Customer Phase">
+                        <option value="PLACED">PLACED ({statusCounts["PLACED"] || 0})</option>
+                        <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
+                        <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
+                      </optgroup>
+                      <optgroup label="🎨 Artist Stage">
+                        <option value="ASSIGNED_ARTIST">ASSIGNED ARTIST ({statusCounts["ASSIGNED_ARTIST"] || 0})</option>
+                        <option value="IN_PROGRESS">IN PROGRESS ({statusCounts["IN_PROGRESS"] || 0})</option>
+                        <option value="COMPLETED">STUDIO READY ({statusCounts["COMPLETED"] || 0})</option>
+                      </optgroup>
+                      <optgroup label="🚚 Delivery Partner">
+                        <option value="ASSIGNED_DELIVERY_AGENT">COURIER ASSIGNED ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
+                        <option value="IN_TRANSIT">IN TRANSIT ({statusCounts["IN_TRANSIT"] || 0})</option>
+                        <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
+                        <option value="DELIVERY_FAILED">DELIVERY RETRY ({statusCounts["DELIVERY_FAILED"] || 0})</option>
+                        <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
+                      </optgroup>
+                      <optgroup label="🌟 Gallery Showcase">
+                        <option value="PUBLISHED">PUBLISHED ({inspectedCount})</option>
+                      </optgroup>
+                    </>
+                  )}
+
+                  {orderRoleFilter === "CUSTOMER" && (
+                    <>
+                      <option value="ALL">All Customer Statuses ({roleCounts.CUSTOMER})</option>
+                      <option value="PLACED">PLACED ({statusCounts["PLACED"] || 0})</option>
+                      <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
+                      <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
+                    </>
+                  )}
+
+                  {orderRoleFilter === "ARTIST" && (
+                    <>
+                      <option value="ALL">All Artist Statuses ({roleCounts.ARTIST})</option>
+                      <option value="ASSIGNED_ARTIST">ASSIGNED ARTIST ({statusCounts["ASSIGNED_ARTIST"] || 0})</option>
+                      <option value="IN_PROGRESS">IN PROGRESS ({statusCounts["IN_PROGRESS"] || 0})</option>
+                      <option value="COMPLETED">STUDIO READY ({statusCounts["COMPLETED"] || 0})</option>
+                    </>
+                  )}
+
+                  {orderRoleFilter === "DELIVERY_AGENT" && (
+                    <>
+                      <option value="ALL">All Delivery Statuses ({roleCounts.DELIVERY_AGENT})</option>
+                      <option value="ASSIGNED_DELIVERY_AGENT">COURIER ASSIGNED ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
+                      <option value="IN_TRANSIT">IN TRANSIT ({statusCounts["IN_TRANSIT"] || 0})</option>
+                      <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
+                      <option value="DELIVERY_FAILED">DELIVERY RETRY ({statusCounts["DELIVERY_FAILED"] || 0})</option>
+                      <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
+                    </>
+                  )}
+
+                  {orderRoleFilter === "PUBLISHED" && (
+                    <>
+                      <option value="ALL">All Gallery Published ({roleCounts.PUBLISHED})</option>
+                      <option value="PUBLISHED">PUBLISHED ({inspectedCount})</option>
+                    </>
+                  )}
+                </select>
+              </div>
+
+              {/* Artist Filter Dropdown (Visible for Artist stage or All) */}
               {showArtistFilter && (
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-400 font-medium">Artist:</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 font-medium whitespace-nowrap">Artist:</span>
                   <select
                     value={artistFilter}
                     onChange={(e) => setArtistFilter(e.target.value)}
-                    className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
+                    className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
                   >
                     <option value="ALL">All Artists</option>
-                    <option value="ASSIGNED">Any Assigned Artist</option>
+                    <option value="ASSIGNED">Any Assigned</option>
                     <option value="UNASSIGNED">Unassigned Only</option>
                     {verifiedArtists.map((a) => (
                       <option key={a.artist_id} value={a.artist_id}>
@@ -978,21 +1251,28 @@ export default function AdminPage() {
                 </div>
               )}
 
-              {/* Reset filters shortcut */}
-              {(statusFilter !== "ALL" || (showArtistFilter && artistFilter !== "ALL") || orderSearchQuery.trim() !== "") && (
-                <button
-                  onClick={() => {
-                    setStatusFilter("ALL");
-                    setArtistFilter("ALL");
-                    setOrderSearchQuery("");
-                  }}
-                  className="text-amber-400 hover:text-amber-300 underline font-medium"
-                >
-                  Clear all filters
-                </button>
+              {/* Delivery Partner Filter Dropdown (Visible for Delivery stage or All) */}
+              {showDeliveryFilter && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-400 font-medium whitespace-nowrap">Courier:</span>
+                  <select
+                    value={deliveryPartnerFilter}
+                    onChange={(e) => setDeliveryPartnerFilter(e.target.value)}
+                    className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-brand"
+                  >
+                    <option value="ALL">All Couriers</option>
+                    <option value="ASSIGNED">Any Assigned</option>
+                    <option value="UNASSIGNED">Unassigned Only</option>
+                    {activeDeliveryPartners.map((c) => (
+                      <option key={c.user_id} value={c.user_id}>
+                        {c.full_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               )}
 
-              <span className="text-slate-400 text-xs ml-auto">
+              <span className="text-slate-400 text-xs ml-auto whitespace-nowrap">
                 Showing <strong className="text-white">{sortedOrders.length}</strong> of{" "}
                 <strong className="text-white">{allOrders.length}</strong> orders
               </span>

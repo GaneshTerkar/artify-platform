@@ -1086,10 +1086,10 @@ export default function AdminPage() {
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
                 {(
                   [
-                    { id: "ALL", label: "ALL", count: userCounts.ALL },
-                    { id: "CUSTOMER", label: "CUSTOMERS", count: userCounts.CUSTOMER },
-                    { id: "ARTIST", label: "ARTISTS", count: userCounts.ARTIST },
-                    { id: "ADMIN", label: "ADMINS", count: userCounts.ADMIN },
+                    { id: "ALL", label: "ALL", symbol: "👥", count: userCounts.ALL },
+                    { id: "CUSTOMER", label: "CUSTOMERS", symbol: "👤", count: userCounts.CUSTOMER },
+                    { id: "ARTIST", label: "ARTISTS", symbol: "🎨", count: userCounts.ARTIST },
+                    { id: "ADMIN", label: "ADMINS", symbol: "👑", count: userCounts.ADMIN },
                   ] as const
                 ).map((pill) => {
                   const isActive = userRoleFilter === pill.id;
@@ -1106,6 +1106,7 @@ export default function AdminPage() {
                           : "bg-slate-800/80 text-slate-300 hover:bg-slate-700 hover:text-white border border-transparent"
                       }`}
                     >
+                      <span>{pill.symbol}</span>
                       <span>{pill.label}</span>
                       <span
                         className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
@@ -1204,7 +1205,8 @@ export default function AdminPage() {
                         : "bg-slate-800/90 text-slate-400 hover:text-emerald-300 border border-transparent"
                     }`}
                   >
-                    <span>✓ Verified</span>
+                    <FacebookVerifiedBadge className="w-3.5 h-3.5" />
+                    <span>Verified</span>
                     <span className="rounded-full bg-emerald-500/30 text-emerald-200 px-1.5 py-0.2 text-[10px] font-bold">
                       {userCounts.VERIFIED_ARTIST}
                     </span>
@@ -1243,17 +1245,11 @@ export default function AdminPage() {
                       ? "Show customers with excessive cancellations or unconfirmed placed orders"
                       : userRoleFilter === "ARTIST"
                       ? "Show artists with stalled assignments or cancellations"
-                      : "Show accounts flagged as at-risk"
+                      : "Show accounts flagged as needing attention"
                   }
                 >
                   <span>⚠️</span>
-                  <span>
-                    {userRoleFilter === "CUSTOMER"
-                      ? "At-Risk Customers"
-                      : userRoleFilter === "ARTIST"
-                      ? "Needs Attention"
-                      : "Needs Attention"}
-                  </span>
+                  <span>Needs Attention</span>
                   <span className="rounded-full bg-rose-500/30 text-rose-200 px-1.5 py-0.2 text-[10px] font-bold">
                     {userRiskCounts.atRisk}
                   </span>
@@ -1404,7 +1400,7 @@ export default function AdminPage() {
                           {/* Risk Badges (Symbol-only with hover tooltip) */}
                           {metrics.isCustomerAtRisk && (
                             <span
-                              title={`At-Risk Customer: ${metrics.cancelled} cancelled, ${metrics.unconfirmed} unconfirmed order(s)`}
+                              title={`Needs Attention (Customer): ${metrics.cancelled} cancelled, ${metrics.unconfirmed} unconfirmed order(s)`}
                               className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs shadow-sm cursor-help transition-transform hover:scale-110"
                             >
                               ⚠️
@@ -1413,7 +1409,7 @@ export default function AdminPage() {
 
                           {metrics.isArtistAtRisk && (
                             <span
-                              title={`Needs Attention: ${metrics.unconfirmed > 0 ? `${metrics.unconfirmed} stalled commission(s)` : `${metrics.cancelled} cancelled commission(s)`}`}
+                              title={`Needs Attention (Artist): ${metrics.unconfirmed > 0 ? `${metrics.unconfirmed} stalled commission(s)` : `${metrics.cancelled} cancelled commission(s)`}`}
                               className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs shadow-sm cursor-help transition-transform hover:scale-110"
                             >
                               ⚠️
@@ -1436,7 +1432,7 @@ export default function AdminPage() {
                               title="Good Standing: Completed commissions with zero cancellations and zero stalled assignments"
                               className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-bold cursor-help transition-transform hover:scale-110"
                             >
-                              ✓
+                              🛡️
                             </span>
                           )}
                         </div>
@@ -1651,7 +1647,7 @@ export default function AdminPage() {
                                     className="w-8 h-8 rounded-lg bg-emerald-950/40 hover:bg-emerald-900/60 border border-emerald-800/50 text-emerald-300 transition flex items-center justify-center text-sm shadow-sm hover:scale-110"
                                     title="Reactivate Account: Restore full login, orders, and assignment capabilities"
                                   >
-                                    ✓
+                                    🔄
                                   </button>
                                 )}
                               </>
@@ -2454,7 +2450,7 @@ export default function AdminPage() {
               {/* Qualification criteria review */}
               <div className="rounded-xl bg-slate-800/80 border border-slate-700 p-3 space-y-1.5 text-xs">
                 <p className="font-semibold text-emerald-400 flex items-center gap-1.5">
-                  <span>✓</span> Admin Qualification Verified:
+                  <FacebookVerifiedBadge className="w-4 h-4 inline" /> Admin Qualification Verified:
                 </p>
                 <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300">
                   <div>
@@ -2689,7 +2685,7 @@ export default function AdminPage() {
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
             <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4">
               <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                <span>{suspendingUser.targetStatus === "SUSPENDED" ? "⛔" : "✓"}</span>
+                <span>{suspendingUser.targetStatus === "SUSPENDED" ? "⛔" : "🔄"}</span>
                 {suspendingUser.targetStatus === "SUSPENDED" ? "Suspend Account" : "Reactivate Account"}
               </h3>
               <p className="text-xs text-slate-300">
@@ -2946,7 +2942,7 @@ export default function AdminPage() {
               {/* SECTION: ARTIST RISK POLICY */}
               <div className="rounded-xl bg-slate-800/80 border border-slate-700/80 p-3.5 space-y-3">
                 <div className="flex items-center gap-2 font-bold text-orange-300">
-                  <span>🎨</span>
+                  <span>⚠️</span>
                   <span>Artist Risk & Performance Criteria</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

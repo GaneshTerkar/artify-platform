@@ -1279,7 +1279,7 @@ export default function AdminPage() {
                     </div>
 
                     {/* Right: Actions Bar */}
-                    {["PLACED", "CONFIRMED", "COMPLETED", "ASSIGNED_DELIVERY_AGENT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED"].includes(o.status) && (
+                    {["PLACED", "CONFIRMED", "COMPLETED", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED"].includes(o.status) && (
                       <div className="flex flex-wrap md:flex-col items-stretch md:items-end gap-2 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-slate-800 flex-shrink-0">
                         {/* 1. If PLACED (Unconfirmed / Unpaid): Only allow Confirming Order */}
                         {o.status === "PLACED" && (
@@ -1318,42 +1318,7 @@ export default function AdminPage() {
                           </div>
                         )}
 
-                        {/* 4. If ASSIGNED_DELIVERY_AGENT: Courier assigned */}
-                        {o.status === "ASSIGNED_DELIVERY_AGENT" && (
-                          <div className="flex flex-col items-stretch md:items-end gap-1.5">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <button
-                                onClick={() => statusMutation.mutate({ orderId: o.order_id, status: "IN_TRANSIT" })}
-                                disabled={statusMutation.isPending}
-                                className="rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1 shadow-sm whitespace-nowrap"
-                                title="Confirm pickup and mark in-transit"
-                              >
-                                <span>✓</span> Confirm Pickup (In-Transit)
-                              </button>
-                              <button
-                                onClick={() => {
-                                  if (window.confirm("Delivery agent could not confirm. Revert status back to Assign Delivery Agent?")) {
-                                    statusMutation.mutate({ orderId: o.order_id, status: "COMPLETED" });
-                                  }
-                                }}
-                                disabled={statusMutation.isPending}
-                                className="rounded-lg bg-rose-950/80 hover:bg-rose-900 border border-rose-600/50 px-2.5 py-1.5 text-xs font-medium text-rose-300 transition flex items-center justify-center gap-1 shadow-sm whitespace-nowrap"
-                                title="Delivery agent not confirms - revert back to Assign Delivery Agent"
-                              >
-                                <span>✕</span> Not Confirmed
-                              </button>
-                            </div>
-                            <button
-                              onClick={() => {
-                                setAssigningDeliveryOrder(o);
-                                setSelectedDeliveryAgentId(o.delivery_agent_id || "");
-                              }}
-                              className="text-xs text-cyan-400 hover:text-cyan-300 underline font-medium self-end"
-                            >
-                              Change Partner
-                            </button>
-                          </div>
-                        )}
+                        {/* 4. If ASSIGNED_DELIVERY_AGENT: Waiting for courier confirmation (handled in delivery agent portal) */}
 
                         {/* 5. If OUT_FOR_DELIVERY: Out for delivery */}
                         {o.status === "OUT_FOR_DELIVERY" && (

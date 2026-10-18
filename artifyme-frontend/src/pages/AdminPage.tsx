@@ -403,12 +403,16 @@ export default function AdminPage() {
     let atRisk = 0;
     let adminEligible = 0;
     for (const u of allUsers) {
+      if (userRoleFilter === "CUSTOMER" && u.role !== "CUSTOMER") continue;
+      if (userRoleFilter === "ARTIST" && u.role !== "ARTIST") continue;
+      if (userRoleFilter === "ADMIN" && u.role !== "ADMIN") continue;
+
       const m = getUserOrderMetrics(u, allOrders, policyThresholds);
       if (m.isAtRisk) atRisk++;
       if (m.isAdminEligible) adminEligible++;
     }
     return { atRisk, adminEligible };
-  }, [allUsers, allOrders, policyThresholds]);
+  }, [allUsers, allOrders, policyThresholds, userRoleFilter]);
 
   const filteredUsers = useMemo(() => {
     return allUsers.filter((u) => {
@@ -1098,6 +1102,12 @@ export default function AdminPage() {
                       if (pill.id !== "ARTIST") {
                         setArtistStatusFilter("ALL");
                       }
+                      if (pill.id === "CUSTOMER" && userRiskFilter === "ADMIN_ELIGIBLE") {
+                        setUserRiskFilter("ALL");
+                      }
+                      if (pill.id === "ADMIN") {
+                        setUserRiskFilter("ALL");
+                      }
                     }}
                     className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap transition ${
                       isActive
@@ -1165,67 +1175,93 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Risk & Qualification Filter Pills */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60 text-xs">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider">
-                  Risk & Criteria:
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setUserRiskFilter("ALL")}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-                    userRiskFilter === "ALL"
-                      ? "bg-slate-700 text-white border border-slate-500 font-semibold shadow-sm"
-                      : "bg-slate-800 text-slate-400 hover:text-white border border-transparent"
-                  }`}
-                >
-                  All Accounts
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setUserRiskFilter("AT_RISK")}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                    userRiskFilter === "AT_RISK"
-                      ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 font-semibold shadow-sm"
-                      : "bg-slate-800 text-slate-400 hover:text-rose-300 border border-transparent"
-                  }`}
-                >
-                  <span>⚠️ At-Risk / Needs Attention</span>
-                  <span className="rounded-full bg-rose-500/30 text-rose-200 px-1.5 py-0.2 text-[10px] font-bold">
-                    {userRiskCounts.atRisk}
+            {/* Risk & Qualification Filter Pills (Role-Aware Visibility) */}
+            {userRoleFilter !== "ADMIN" && (
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-800/60 text-xs">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-slate-400 font-medium text-[11px] uppercase tracking-wider">
+                    Risk & Criteria:
                   </span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => setUserRiskFilter("ALL")}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                      userRiskFilter === "ALL"
+                        ? "bg-slate-700 text-white border border-slate-500 font-semibold shadow-sm"
+                        : "bg-slate-800 text-slate-400 hover:text-white border border-transparent"
+                    }`}
+                  >
+                    {userRoleFilter === "CUSTOMER"
+                      ? "All Customers"
+                      : userRoleFilter === "ARTIST"
+                      ? "All Artists"
+                      : "All Accounts"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUserRiskFilter("AT_RISK")}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
+                      userRiskFilter === "AT_RISK"
+                        ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 font-semibold shadow-sm"
+                        : "bg-slate-800 text-slate-400 hover:text-rose-300 border border-transparent"
+                    }`}
+                    title={
+                      userRoleFilter === "CUSTOMER"
+                        ? "Show customers with excessive cancellations or unconfirmed placed orders"
+                        : userRoleFilter === "ARTIST"
+                        ? "Show artists with stalled assignments or cancellations"
+                        : "Show accounts flagged as at-risk"
+                    }
+                  >
+                    <span>⚠️</span>
+                    <span>
+                      {userRoleFilter === "CUSTOMER"
+                        ? "At-Risk Customers"
+                        : userRoleFilter === "ARTIST"
+                        ? "Needs Attention"
+                        : "At-Risk / Needs Attention"}
+                    </span>
+                    <span className="rounded-full bg-rose-500/30 text-rose-200 px-1.5 py-0.2 text-[10px] font-bold">
+                      {userRiskCounts.atRisk}
+                    </span>
+                  </button>
+
+                  {/* Admin-Eligible pill: ONLY shown for Artists and All Accounts (Hidden for Customers) */}
+                  {userRoleFilter !== "CUSTOMER" && (
+                    <button
+                      type="button"
+                      onClick={() => setUserRiskFilter("ADMIN_ELIGIBLE")}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
+                        userRiskFilter === "ADMIN_ELIGIBLE"
+                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold shadow-sm"
+                          : "bg-slate-800 text-slate-400 hover:text-amber-300 border border-transparent"
+                      }`}
+                      title={`Show verified artists with at least ${policyThresholds.minArtistCompletedOrders} completed commissions and 0 stalled assignments`}
+                    >
+                      <span>⭐</span>
+                      <span>Admin-Eligible ({policyThresholds.minArtistCompletedOrders}+ Completed)</span>
+                      <span className="rounded-full bg-amber-500/30 text-amber-200 px-1.5 py-0.2 text-[10px] font-bold">
+                        {userRiskCounts.adminEligible}
+                      </span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Policy Thresholds Settings Button */}
                 <button
                   type="button"
-                  onClick={() => setUserRiskFilter("ADMIN_ELIGIBLE")}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                    userRiskFilter === "ADMIN_ELIGIBLE"
-                      ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold shadow-sm"
-                      : "bg-slate-800 text-slate-400 hover:text-amber-300 border border-transparent"
-                  }`}
+                  onClick={() => {
+                    setTempPolicy(policyThresholds);
+                    setIsPolicyModalOpen(true);
+                  }}
+                  className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white transition flex items-center gap-1.5 shadow-sm"
+                  title="Adjust policy thresholds for account risk and admin elevation"
                 >
-                  <span>⭐ Admin-Eligible ({policyThresholds.minArtistCompletedOrders}+ Completed)</span>
-                  <span className="rounded-full bg-amber-500/30 text-amber-200 px-1.5 py-0.2 text-[10px] font-bold">
-                    {userRiskCounts.adminEligible}
-                  </span>
+                  <span>⚙️</span>
+                  <span>Adjust Policy Thresholds</span>
                 </button>
               </div>
-
-              {/* Policy Thresholds Settings Button */}
-              <button
-                type="button"
-                onClick={() => {
-                  setTempPolicy(policyThresholds);
-                  setIsPolicyModalOpen(true);
-                }}
-                className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-500 px-2.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white transition flex items-center gap-1.5 shadow-sm"
-                title="Adjust policy thresholds for account risk and admin elevation"
-              >
-                <span>⚙️</span>
-                <span>Adjust Policy Thresholds</span>
-              </button>
-            </div>
+            )}
 
             {/* Search and Summary */}
             <div className="flex flex-wrap items-center gap-4 pt-2 border-t border-slate-800/60 text-xs">

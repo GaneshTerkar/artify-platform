@@ -9,6 +9,7 @@ import { CollageArtworkModal } from "../components/CollageArtworkModal";
 import { getCommissionSplit } from "../lib/commission";
 import type { Order, VerifiedArtist } from "../types/order";
 import { OrderCard } from "../components/OrderCard";
+import { EarningsDashboardModal } from "../components/EarningsDashboardModal";
 
 interface ArtistProfile {
   artist_prof_id?: string;
@@ -59,6 +60,7 @@ export default function AccountPage() {
   const [selectedFailurePreset, setSelectedFailurePreset] = useState<string>("Customer unavailable / phone unreachable");
   const [customFailureNotes, setCustomFailureNotes] = useState<string>("");
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const [showEarningsModal, setShowEarningsModal] = useState<boolean>(false);
 
   // Artist Profile form state
   const [profileBio, setProfileBio] = useState("");
@@ -388,16 +390,23 @@ export default function AccountPage() {
               <span className="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider block">Artworks Completed</span>
               <span className="text-2xl font-bold text-emerald-200 mt-1 block">{completedArtistOrders.length}</span>
             </div>
-            <div className="rounded-xl border border-brand/40 bg-brand/10 p-3.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-brand-light uppercase tracking-wider block">
-                  Studio Earnings ({commissionSplit.artistPercentage}%)
-                </span>
-                <span className="text-[10px] bg-brand/20 text-brand-light px-1.5 py-0.5 rounded font-mono">
-                  Split Policy
-                </span>
+            <div className="rounded-xl border border-brand/40 bg-brand/10 p-3.5 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-brand-light uppercase tracking-wider block">
+                    Studio Earnings ({commissionSplit.artistPercentage}%)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowEarningsModal(true)}
+                    className="text-[10px] bg-brand/30 hover:bg-brand/50 text-brand-light px-2 py-0.5 rounded font-medium border border-brand/40 transition flex items-center gap-1 shadow-sm"
+                    title="Open Detailed Earnings & Analytics Dashboard"
+                  >
+                    📊 Analytics
+                  </button>
+                </div>
+                <span className="text-2xl font-bold text-white mt-1 block">₹{totalArtistEarnings.toLocaleString()}</span>
               </div>
-              <span className="text-2xl font-bold text-white mt-1 block">₹{totalArtistEarnings.toLocaleString()}</span>
             </div>
           </div>
 
@@ -501,16 +510,23 @@ export default function AccountPage() {
               <span className="text-[11px] font-semibold text-emerald-300 uppercase tracking-wider block">Doorstep Handovers</span>
               <span className="text-2xl font-bold text-emerald-200 mt-1 block">{deliveredHandovers.length}</span>
             </div>
-            <div className="rounded-xl border border-brand/40 bg-brand/10 p-3.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-brand-light uppercase tracking-wider block">
-                  Delivery Fees ({commissionSplit.deliveryPercentage}%)
-                </span>
-                <span className="text-[10px] bg-brand/20 text-brand-light px-1.5 py-0.5 rounded font-mono">
-                  Split Policy
-                </span>
+            <div className="rounded-xl border border-brand/40 bg-brand/10 p-3.5 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-brand-light uppercase tracking-wider block">
+                    Delivery Fees ({commissionSplit.deliveryPercentage}%)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowEarningsModal(true)}
+                    className="text-[10px] bg-sky-500/30 hover:bg-sky-500/50 text-sky-200 px-2 py-0.5 rounded font-medium border border-sky-500/40 transition flex items-center gap-1 shadow-sm"
+                    title="Open Detailed Earnings & Logistics Analytics Dashboard"
+                  >
+                    📊 Analytics
+                  </button>
+                </div>
+                <span className="text-2xl font-bold text-white mt-1 block">₹{totalDeliveryEarnings.toLocaleString()}</span>
               </div>
-              <span className="text-2xl font-bold text-white mt-1 block">₹{totalDeliveryEarnings.toLocaleString()}</span>
             </div>
           </div>
 
@@ -1017,6 +1033,31 @@ export default function AccountPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* EARNINGS & PERFORMANCE ANALYTICS DASHBOARD MODAL */}
+      {showEarningsModal && user && (
+        <EarningsDashboardModal
+          isOpen={showEarningsModal}
+          onClose={() => setShowEarningsModal(false)}
+          role={isArtist ? "ARTIST" : "DELIVERY_AGENT"}
+          user={{
+            user_id: user.user_id,
+            full_name: user.full_name,
+            email: user.email,
+            phone_number: user.phone_number,
+            address: user.address,
+            bio: isArtist ? artistProfile?.bio : undefined,
+          }}
+          orders={orders}
+          commissionPercentage={
+            isArtist ? commissionSplit.artistPercentage : commissionSplit.deliveryPercentage
+          }
+          platformMarginPercentage={
+            100 - (isArtist ? commissionSplit.artistPercentage : commissionSplit.deliveryPercentage)
+          }
+          onViewPhoto={(url) => setSelectedPhoto(url)}
+        />
       )}
     </div>
   );

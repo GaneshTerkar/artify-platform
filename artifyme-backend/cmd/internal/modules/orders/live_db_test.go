@@ -225,6 +225,14 @@ func ensureTestUser(t *testing.T, pool *pgxpool.Pool, role, email, name string) 
 				ON CONFLICT (artist_id) DO UPDATE SET verified = TRUE
 			`, id)
 		}
+		if email != "ganesh@example.com" {
+			t.Cleanup(func() {
+				if role == "ARTIST" {
+					_, _ = pool.Exec(context.Background(), "DELETE FROM artist_profiles WHERE artist_id = $1", id)
+				}
+				_, _ = pool.Exec(context.Background(), "DELETE FROM users WHERE user_id = $1", id)
+			})
+		}
 		return id
 	}
 
@@ -245,6 +253,15 @@ func ensureTestUser(t *testing.T, pool *pgxpool.Pool, role, email, name string) 
 		`, id)
 	}
 
+	if email != "ganesh@example.com" {
+		t.Cleanup(func() {
+			if role == "ARTIST" {
+				_, _ = pool.Exec(context.Background(), "DELETE FROM artist_profiles WHERE artist_id = $1", id)
+			}
+			_, _ = pool.Exec(context.Background(), "DELETE FROM users WHERE user_id = $1", id)
+		})
+	}
+
 	return id
 }
 
@@ -256,7 +273,7 @@ func ensureTestUser(t *testing.T, pool *pgxpool.Pool, role, email, name string) 
 func TestLiveCategoryWiseCollage(t *testing.T) {
 	// Connect to live DB to verify connectivity
 	pool := connectLiveDB(t)
-	defer pool.Close()
+	t.Cleanup(func() { pool.Close() })
 
 	paintingsDir := resolvePaintingsDir()
 
@@ -358,6 +375,9 @@ func TestLiveCategoryWiseCollage(t *testing.T) {
 	// Build the master category-grouped collage
 	uploadsDir := resolveUploadsDir()
 	outputPath := filepath.Join(uploadsDir, "test_category_grouped_collage.jpg")
+	t.Cleanup(func() {
+		_ = os.Remove(outputPath)
+	})
 
 	collageImg, err := orders.BuildCategoryGroupedCollage(groupedCollageInput, outputPath)
 	if err != nil {
@@ -390,7 +410,7 @@ func TestLiveCategoryWiseCollage(t *testing.T) {
 // -> Public gallery includes confirmed collaged artwork.
 func TestLiveOrderFullLifecycleAndGalleryConfirmation(t *testing.T) {
 	pool := connectLiveDB(t)
-	defer pool.Close()
+	t.Cleanup(func() { pool.Close() })
 
 	ctx := context.Background()
 	repo := orders.NewRepository(pool)
@@ -429,11 +449,14 @@ func TestLiveOrderFullLifecycleAndGalleryConfirmation(t *testing.T) {
 		t.Fatalf("Step 1 failed: service.CreateOrder: %v", err)
 	}
 	orderID := ord.OrderID
+	uploadsDir := resolveUploadsDir()
 	t.Cleanup(func() {
 		// Cleanup test order history and record
 		_, _ = pool.Exec(context.Background(), "DELETE FROM order_status_history WHERE order_id = $1", orderID)
 		_, _ = pool.Exec(context.Background(), "DELETE FROM payments WHERE order_id = $1", orderID)
 		_, _ = pool.Exec(context.Background(), "DELETE FROM orders WHERE order_id = $1", orderID)
+		// Cleanup generated collage file if created
+		_ = os.Remove(filepath.Join(uploadsDir, fmt.Sprintf("collage_%s.jpg", orderID.String())))
 	})
 
 	if ord.Status != orders.StatusPlaced {
@@ -549,7 +572,7 @@ func TestLiveOrderFullLifecycleAndGalleryConfirmation(t *testing.T) {
 // TestLiveRoleAuthorizationEnforcement verifies security boundaries on the live DB.
 func TestLiveRoleAuthorizationEnforcement(t *testing.T) {
 	pool := connectLiveDB(t)
-	defer pool.Close()
+	t.Cleanup(func() { pool.Close() })
 
 	ctx := context.Background()
 	repo := orders.NewRepository(pool)
@@ -580,6 +603,7 @@ func TestLiveRoleAuthorizationEnforcement(t *testing.T) {
 		t.Fatalf("Failed to create test order for auth testing: %v", err)
 	}
 	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), "DELETE FROM order_status_history WHERE order_id = $1", testOrd.OrderID)
 		_, _ = pool.Exec(context.Background(), "DELETE FROM orders WHERE order_id = $1", testOrd.OrderID)
 	})
 

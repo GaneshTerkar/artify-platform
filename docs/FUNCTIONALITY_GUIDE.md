@@ -77,13 +77,14 @@ flowchart TD
 
 ## 2. User Roles & Access Control (RBAC)
 
-The platform enforces three distinct user roles defined in PostgreSQL enum `user_role`:
+The platform enforces four distinct user roles defined in PostgreSQL enum `user_role`:
 
 | Role | Permissions & Scope |
 | :--- | :--- |
-| **`CUSTOMER`** | Browse public gallery, estimate pricing, upload reference photos, create custom portrait orders, manage personal account, view personal order history and download finished portraits. |
-| **`ARTIST`** | Complete profile details, submit artwork portfolio for review, track verification status (`PENDING`, `UNDER_REVIEW`, `ACTIVE`), view assigned commission orders. |
-| **`ADMIN`** | Access admin review queue, verify or reject artist profiles, view all platform customer orders, manually update order statuses (`CONFIRMED`, `IN_PROGRESS`, `COMPLETED`). |
+| **`CUSTOMER`** | Browse public gallery, estimate pricing, upload reference photos, create custom portrait orders, manage personal account, view personal order history, live delivery tracking, and download finished portraits. |
+| **`ARTIST`** | Complete profile details, submit artwork portfolio for review, track verification status (`PENDING`, `UNDER_REVIEW`, `ACTIVE`), view assigned commission orders, upload completed artwork scans to auto-generate collage. |
+| **`DELIVERY_AGENT`** | View assigned delivery parcels, update delivery transit states (`IN_TRANSIT`, `OUT_FOR_DELIVERY`, `DELIVERED`, `DELIVERY_FAILED` with retry logs), decline assignment back to studio if unavailable. |
+| **`ADMIN`** | Access admin review queue, verify or reject artist profiles, view all platform customer orders, inspect completed collages, assign artists, assign delivery agents, confirm public gallery publication. |
 
 ---
 
@@ -225,28 +226,87 @@ $$\text{Final Price} = \text{Base Price}(\text{Medium}) \times \text{Size Multip
 
 ## 8. Order Lifecycle & Tracking
 
-### 8.1 State Machine
+### 8.1 End-to-End Workflow Diagram
+
+```mermaid
+flowchart TD
+    subgraph S1["1. CUSTOMER: Order Commission & Payment"]
+        C_START["Customer uploads reference photo & configures portrait"] --> C_PLACE["PLACED<br/>(Order Created)"]
+        C_PLACE -->|"Payment verified (Razorpay / Stripe / Dev)"| A_CONF["CONFIRMED<br/>(Ready for Artist)"]
+        C_PLACE -->|"Customer cancels"| CANCEL["CANCELLED"]
+    end
+
+    subgraph S2["2. ADMIN: Studio Artist Assignment"]
+        A_CONF -->|"Admin assigns verified portrait artist"| ART_ASSIGN["ASSIGNED_ARTIST<br/>(Roster locked)"]
+    end
+
+    subgraph S3["3. ARTIST: Studio Drawing & Artwork Completion"]
+        ART_ASSIGN -->|"Artist accepts & starts canvas"| ART_PROG["IN_PROGRESS<br/>(Drawing portrait)"]
+        ART_PROG -->|"Artist uploads high-res finished sketch"| COMPL["COMPLETED<br/>(Studio Complete)"]
+        COMPL -.->|"Backend auto-synthesizes high-res comparison collage"| COLLAGE_GEN["Collage Generated<br/>(is_published_to_gallery = FALSE)"]
+    end
+
+    subgraph S4["4. ADMIN: Quality Inspection & Courier Assignment"]
+        COLLAGE_GEN -->|"Admin inspects reference, sketch & collage"| ADM_INSPECT{"Studio Inspection"}
+        ADM_INSPECT -->|"Admin selects verified courier partner"| DEL_ASSIGN["ASSIGNED_DELIVERY_AGENT<br/>(Package handed to courier)"]
+    end
+
+    subgraph S5["5. DELIVERY AGENT: Doorstep Handover & Transit"]
+        DEL_ASSIGN -->|"Courier accepts package"| IN_TRANS["IN_TRANSIT<br/>(Dispatched)"]
+        IN_TRANS -->|"Courier arrives in destination area"| OUT_DEL["OUT_FOR_DELIVERY<br/>(Courier on route)"]
+        OUT_DEL -->|"Customer unreachable / address error"| DEL_FAIL["DELIVERY_FAILED<br/>(Logs failure reason & attempt 1-3)"]
+        DEL_FAIL -->|"Courier re-attempts delivery"| OUT_DEL
+        OUT_DEL -->|"Physical handover to customer confirmed"| DELIVERED["DELIVERED<br/>(Customer receives portrait)"]
+    end
+
+    subgraph S6["6. ADMIN: Gallery Confirmation & Global Publishing"]
+        DELIVERED -->|"Admin confirms high-res collage publication"| PUB["PUBLISHED<br/>(is_published_to_gallery = TRUE)"]
+        PUB -.->|"Instantly visible to global visitors"| GALLERY_LIVE["Public Art Gallery (/gallery)"]
+    end
+```
+
+### 8.2 State Machine (All Roles)
 
 ```mermaid
 stateDiagram-v2
     [*] --> PLACED : Customer submits order
-    PLACED --> CONFIRMED : Payment verified or dev confirmed
-    CONFIRMED --> IN_PROGRESS : Artist begins drawing
-    IN_PROGRESS --> COMPLETED : Final artwork uploaded & delivered
-    COMPLETED --> [*] : Artwork appears in dynamic gallery
-    PLACED --> CANCELLED : Customer / Admin cancellation
-    CONFIRMED --> CANCELLED : Refund issued
+    PLACED --> CONFIRMED : Payment verified
+    PLACED --> CANCELLED : Customer cancels
+    CONFIRMED --> ASSIGNED_ARTIST : Admin assigns verified artist
+    ASSIGNED_ARTIST --> IN_PROGRESS : Artist begins drawing
+    IN_PROGRESS --> COMPLETED : Artist uploads finished artwork (auto-collage generated)
+    COMPLETED --> ASSIGNED_DELIVERY_AGENT : Admin assigns delivery agent
+    ASSIGNED_DELIVERY_AGENT --> IN_TRANSIT : Delivery agent accepts & starts transit
+    ASSIGNED_DELIVERY_AGENT --> COMPLETED : Delivery agent declines assignment
+    IN_TRANSIT --> OUT_FOR_DELIVERY : Courier en route to doorstep
+    OUT_FOR_DELIVERY --> DELIVERED : Successful handover
+    OUT_FOR_DELIVERY --> DELIVERY_FAILED : Customer unavailable / bad address
+    DELIVERY_FAILED --> OUT_FOR_DELIVERY : Re-attempt delivery (up to 3x)
+    DELIVERY_FAILED --> IN_TRANSIT : Package return / transit hold
+    DELIVERED --> PUBLISHED : Admin confirms & publishes to gallery
+    COMPLETED --> PUBLISHED : Admin direct publish override
+    PUBLISHED --> [*] : Artwork permanently showcased
+    CONFIRMED --> CANCELLED : Admin refund / cancellation
 ```
 
-### 8.2 Order Status Definitions
-- `PLACED`: Order created with reference image and specifications; awaiting payment verification.
-- `CONFIRMED`: Payment approved; ready for artist assignment.
-- `ASSIGNED_ARTIST`: Order assigned to a verified artist for execution.
-- `IN_PROGRESS`: Artist has started creating the physical portrait.
-- `COMPLETED`: Artist has finished; final high-res scan uploaded (`final_image_url`). Automatically published to the public gallery.
-- `CANCELLED`: Order cancelled.
+### 8.3 Order Status Definitions & Role Permissions
 
-### 8.3 Verified Artist Order Assignment
+| Status | Definition & Role Responsibility |
+|---|---|
+| **`PLACED`** | Customer created the commission with reference photo, medium, size, and face count. Awaiting payment verification. |
+| **`CONFIRMED`** | Payment verified by Admin/gateway. Ready for studio artist assignment. |
+| **`ASSIGNED_ARTIST`** | Admin assigned a verified portrait artist (`artist_profiles.verified = TRUE`). |
+| **`IN_PROGRESS`** | Assigned artist started working on physical canvas/paper. |
+| **`COMPLETED`** | Artist uploaded the finished portrait scan (`final_image_url`). System automatically generates a side-by-side comparison collage (`collage_image_url`). Artwork remains private (`is_published_to_gallery = false`). |
+| **`ASSIGNED_DELIVERY_AGENT`** | Admin reviewed artwork and assigned an active delivery partner (`DELIVERY_AGENT`). |
+| **`IN_TRANSIT`** | Delivery agent accepted parcel and dispatched from studio. |
+| **`OUT_FOR_DELIVERY`** | Delivery agent is actively reaching the customer's doorstep. |
+| **`DELIVERY_FAILED`** | Delivery attempt failed (customer unavailable, incorrect phone/address). Logs attempt counter (1-3) and failure reason. Can be re-attempted. |
+| **`DELIVERED`** | Delivery agent confirmed physical handover at doorstep. |
+| **`PUBLISHED`** | Admin reviewed delivered artwork and approved public showcase. `is_published_to_gallery = true`, promoting the artwork collage to the Public Art Gallery (`/gallery`). |
+| **`CANCELLED`** | Order cancelled and archived. |
+
+### 8.4 Verified Artist Order Assignment
 > [!IMPORTANT]
 > **Strict Verification Enforcement**:
 > Customers' portrait sketch orders can **ONLY be assigned to verified artists** (`artist_profiles.verified = TRUE`).
@@ -255,7 +315,7 @@ stateDiagram-v2
 > - **Validation Rule**: If the target `artist_id` is unverified, missing, or belongs to an account with `verified = FALSE`, the system immediately rejects the assignment with `ErrArtistNotVerified` (`400 Bad Request`).
 > - **Roster Discovery**: Verified artists and admins can discover assignable talent via `GET /api/v1/artists/verified`.
 
-### 8.4 Customer Account Screen ([`AccountPage.tsx`](file:///d:/ArtifyMe/artify-platform/artifyme-frontend/src/pages/AccountPage.tsx))
+### 8.5 Customer Account Screen ([`AccountPage.tsx`](file:///d:/ArtifyMe/artify-platform/artifyme-frontend/src/pages/AccountPage.tsx))
 - Lists all active and past orders placed by the customer.
 - Displays thumbnail of the uploaded reference photo.
 - Color-coded status badge and creation timestamp.

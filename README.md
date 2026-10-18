@@ -133,9 +133,42 @@ Open your browser at **`http://localhost:5173`**.
    - Guests can browse artworks and categories freely.
    - When a guest chooses to place an order, they are seamlessly guided to Log In or Register, preserving their selected medium and order intent.
 
-5. **Customer Dashboard & Tracking**:
-   - Real-time order status tracking: `PLACED` &rarr; `CONFIRMED` &rarr; `IN_PROGRESS` &rarr; `COMPLETED`.
-   - Access high-resolution completed artwork downloads upon delivery.
+5. **Multi-Role End-to-End Order Workflow**:
+   - Full lifecycle governance across Customer, Admin, Artist, and Delivery Agent roles.
+
+```mermaid
+flowchart TD
+    subgraph S1["1. CUSTOMER: Order Commission & Payment"]
+        C_START["Customer configures portrait & uploads photo"] --> C_PLACE["PLACED<br/>(Order Created)"]
+        C_PLACE -->|"Payment verified (Razorpay / Stripe / Dev)"| A_CONF["CONFIRMED<br/>(Ready for Artist)"]
+    end
+
+    subgraph S2["2. ADMIN: Studio Artist Assignment"]
+        A_CONF -->|"Admin assigns verified portrait artist"| ART_ASSIGN["ASSIGNED_ARTIST<br/>(Roster locked)"]
+    end
+
+    subgraph S3["3. ARTIST: Drawing & Submission"]
+        ART_ASSIGN -->|"Artist accepts & starts canvas"| ART_PROG["IN_PROGRESS<br/>(Drawing portrait)"]
+        ART_PROG -->|"Artist uploads high-res finished sketch"| COMPL["COMPLETED<br/>(Studio Complete)"]
+        COMPL -.->|"Auto-synthesizes high-res comparison collage"| COLLAGE_GEN["Collage Generated<br/>(is_published_to_gallery = FALSE)"]
+    end
+
+    subgraph S4["4. ADMIN: Quality Inspection & Courier Assignment"]
+        COLLAGE_GEN -->|"Admin inspects reference, sketch & collage"| ADM_INSPECT{"Studio Inspection"}
+        ADM_INSPECT -->|"Admin selects verified courier partner"| DEL_ASSIGN["ASSIGNED_DELIVERY_AGENT<br/>(Package handed to courier)"]
+    end
+
+    subgraph S5["5. DELIVERY AGENT: Doorstep Handover & Transit"]
+        DEL_ASSIGN -->|"Courier accepts package"| IN_TRANS["IN_TRANSIT<br/>(Dispatched)"]
+        IN_TRANS -->|"Courier arrives in destination area"| OUT_DEL["OUT_FOR_DELIVERY<br/>(Courier on route)"]
+        OUT_DEL -->|"Physical handover confirmed"| DELIVERED["DELIVERED<br/>(Customer receives portrait)"]
+    end
+
+    subgraph S6["6. ADMIN: Gallery Confirmation & Global Publishing"]
+        DELIVERED -->|"Admin confirms high-res collage publication"| PUB["PUBLISHED<br/>(is_published_to_gallery = TRUE)"]
+        PUB -.->|"Instantly visible in live gallery"| GALLERY_LIVE["Public Art Gallery (/gallery)"]
+    end
+```
 
 ---
 

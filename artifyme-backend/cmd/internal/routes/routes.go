@@ -157,6 +157,8 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config) {
 		v1Admin.GET("/orders", orderHandler.AdminListOrders)
 		v1Admin.PATCH("/orders/:id/status", orderHandler.AdminUpdateStatus)
 		v1Admin.POST("/orders/:id/confirm-gallery", orderHandler.AdminConfirmGalleryPublish)
+		v1Admin.POST("/orders/:id/assign-delivery", orderHandler.AssignDeliveryAgent)
+		v1Admin.GET("/delivery-agents", orderHandler.ListActiveDeliveryAgents)
 		v1Admin.GET("/users", orderHandler.AdminListUsers)
 		v1Admin.PATCH("/users/:id/status", orderHandler.AdminUpdateUserStatus)
 		v1Admin.PATCH("/users/:id/role", orderHandler.AdminElevateArtist)

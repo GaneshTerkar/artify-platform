@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import type { Order, VerifiedArtist, ArtistReviewItem, PlatformUser } from "../types/order";
+import type { Order, VerifiedArtist, ArtistReviewItem, PlatformUser, ActiveDeliveryAgent } from "../types/order";
 import { CollageThumbnail } from "../components/CollageThumbnail";
 import { CollageArtworkModal } from "../components/CollageArtworkModal";
 
@@ -219,12 +219,17 @@ export default function AdminPage() {
     ASSIGNED_ARTIST: 3,
     IN_PROGRESS: 4,
     COMPLETED: 5,
-    PUBLISHED: 6,
-    CANCELLED: 7,
+    ASSIGNED_DELIVERY_AGENT: 6,
+    IN_TRANSIT: 7,
+    OUT_FOR_DELIVERY: 8,
+    DELIVERY_FAILED: 9,
+    DELIVERED: 10,
+    PUBLISHED: 11,
+    CANCELLED: 12,
   };
 
   function getOrderLifecycleStatus(order: Order): string {
-    if (order.status === "COMPLETED" && order.is_published_to_gallery) {
+    if ((order.status === "COMPLETED" || order.status === "DELIVERED") && order.is_published_to_gallery) {
       return "PUBLISHED";
     }
     return order.status;
@@ -233,6 +238,8 @@ export default function AdminPage() {
   // Modal states
   const [assigningOrder, setAssigningOrder] = useState<Order | null>(null);
   const [selectedArtistId, setSelectedArtistId] = useState<string>("");
+  const [assigningDeliveryOrder, setAssigningDeliveryOrder] = useState<Order | null>(null);
+  const [selectedDeliveryAgentId, setSelectedDeliveryAgentId] = useState<string>("");
 
   const [rejectingArtist, setRejectingArtist] = useState<ArtistReviewItem | null>(null);
   const [rejectReason, setRejectReason] = useState<string>("");
@@ -272,6 +279,13 @@ export default function AdminPage() {
   });
   const allUsers = usersData?.users ?? [];
 
+  // 5. Fetch Active Delivery Agents
+  const { data: deliveryAgentsData } = useQuery({
+    queryKey: ["admin_delivery_agents"],
+    queryFn: () => api<{ delivery_agents: ActiveDeliveryAgent[] }>("/api/v1/admin/delivery-agents"),
+  });
+  const activeDeliveryPartners = deliveryAgentsData?.delivery_agents ?? [];
+
   const statusCounts = useMemo(() => {
     const counts: Record<string, number> = { ALL: allOrders.length };
     for (const o of allOrders) {
@@ -282,21 +296,17 @@ export default function AdminPage() {
     return counts;
   }, [allOrders]);
 
-  const needsInspectionCount = useMemo(() => {
-    return allOrders.filter((o) => o.status === "COMPLETED" && !o.is_published_to_gallery).length;
-  }, [allOrders]);
-
   const inspectedCount = useMemo(() => {
-    return allOrders.filter((o) => o.status === "COMPLETED" && o.is_published_to_gallery).length;
+    return allOrders.filter((o) => o.is_published_to_gallery).length;
   }, [allOrders]);
 
   const filteredOrders = useMemo(() => {
     return allOrders.filter((o) => {
       // 1. Status Filter
       if (statusFilter === "PUBLISHED") {
-        if (o.status !== "COMPLETED" || !o.is_published_to_gallery) return false;
+        if (!o.is_published_to_gallery) return false;
       } else if (statusFilter === "COMPLETED") {
-        if (o.status !== "COMPLETED" || o.is_published_to_gallery) return false;
+        if (o.status !== "COMPLETED") return false;
       } else if (statusFilter !== "ALL" && o.status !== statusFilter) {
         return false;
       }
@@ -378,9 +388,14 @@ export default function AdminPage() {
     { id: "ALL", label: "ALL", count: allOrders.length },
     { id: "PLACED", label: "PLACED", count: statusCounts["PLACED"] || 0 },
     { id: "CONFIRMED", label: "CONFIRMED", count: statusCounts["CONFIRMED"] || 0 },
-    { id: "ASSIGNED_ARTIST", label: "ASSIGNED", count: statusCounts["ASSIGNED_ARTIST"] || 0 },
+    { id: "ASSIGNED_ARTIST", label: "ASSIGNED ARTIST", count: statusCounts["ASSIGNED_ARTIST"] || 0 },
     { id: "IN_PROGRESS", label: "IN PROGRESS", count: statusCounts["IN_PROGRESS"] || 0 },
-    { id: "COMPLETED", label: "AWAITING INSPECTION", count: needsInspectionCount },
+    { id: "COMPLETED", label: "STUDIO READY", count: statusCounts["COMPLETED"] || 0 },
+    { id: "ASSIGNED_DELIVERY_AGENT", label: "COURIER ASSIGNED", count: statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0 },
+    { id: "IN_TRANSIT", label: "IN TRANSIT", count: statusCounts["IN_TRANSIT"] || 0 },
+    { id: "OUT_FOR_DELIVERY", label: "OUT FOR DELIVERY", count: statusCounts["OUT_FOR_DELIVERY"] || 0 },
+    { id: "DELIVERY_FAILED", label: "DELIVERY RETRY", count: statusCounts["DELIVERY_FAILED"] || 0 },
+    { id: "DELIVERED", label: "DELIVERED", count: statusCounts["DELIVERED"] || 0 },
     { id: "PUBLISHED", label: "PUBLISHED", count: inspectedCount },
     { id: "CANCELLED", label: "CANCELLED", count: statusCounts["CANCELLED"] || 0 },
   ] as const;
@@ -596,6 +611,36 @@ export default function AdminPage() {
     onError: (err: Error) => showMessage(err.message, "error"),
   });
 
+  const assignDeliveryMutation = useMutation({
+    mutationFn: ({ orderId, agentId }: { orderId: string; agentId: string }) =>
+      api(`/api/v1/admin/orders/${orderId}/assign-delivery`, {
+        method: "POST",
+        body: JSON.stringify({ delivery_agent_id: agentId }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin_orders"] });
+      queryClient.invalidateQueries({ queryKey: ["my-orders"] });
+      setAssigningDeliveryOrder(null);
+      setSelectedDeliveryAgentId("");
+      showMessage("Delivery partner assigned successfully!");
+    },
+    onError: (err: Error) => showMessage(err.message, "error"),
+  });
+
+  const retryDeliveryMutation = useMutation({
+    mutationFn: ({ orderId }: { orderId: string }) =>
+      api(`/api/v1/admin/orders/${orderId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "OUT_FOR_DELIVERY" }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin_orders"] });
+      queryClient.invalidateQueries({ queryKey: ["my-orders"] });
+      showMessage("Delivery re-attempt scheduled (Out for Delivery)!");
+    },
+    onError: (err: Error) => showMessage(err.message, "error"),
+  });
+
   const statusMutation = useMutation({
     mutationFn: ({ orderId, status, finalUrl }: { orderId: string; status: string; finalUrl?: string }) =>
       api(`/api/v1/admin/orders/${orderId}/status`, {
@@ -699,8 +744,18 @@ export default function AdminPage() {
     switch (status) {
       case "PUBLISHED":
         return "bg-emerald-500/20 text-emerald-300 border-emerald-500/40";
-      case "COMPLETED":
+      case "DELIVERED":
+        return "bg-teal-500/20 text-teal-300 border-teal-500/40";
+      case "OUT_FOR_DELIVERY":
+        return "bg-sky-500/20 text-sky-300 border-sky-500/40";
+      case "IN_TRANSIT":
+        return "bg-indigo-500/20 text-indigo-300 border-indigo-500/40";
+      case "DELIVERY_FAILED":
+        return "bg-rose-500/20 text-rose-300 border-rose-500/40";
+      case "ASSIGNED_DELIVERY_AGENT":
         return "bg-cyan-500/20 text-cyan-300 border-cyan-500/40";
+      case "COMPLETED":
+        return "bg-amber-500/20 text-amber-300 border-amber-500/40";
       case "IN_PROGRESS":
         return "bg-blue-500/20 text-blue-400 border-blue-500/40";
       case "ASSIGNED_ARTIST":
@@ -1055,6 +1110,19 @@ export default function AdminPage() {
                               <span className="text-amber-400 font-medium">Unassigned</span>
                             )}
                           </p>
+                          <p>
+                            <strong className="text-slate-300">Delivery Partner:</strong>{" "}
+                            {(() => {
+                              const agent = deliveryAgents.find((a) => a.user_id === o.delivery_agent_id);
+                              if (agent) {
+                                return <span className="text-cyan-400 font-semibold">{agent.full_name}</span>;
+                              }
+                              if (o.delivery_agent_id) {
+                                return <span className="text-slate-300">ID: {o.delivery_agent_id.slice(0, 8)}</span>;
+                              }
+                              return <span className="text-slate-500 font-normal">Not assigned</span>;
+                            })()}
+                          </p>
                         </div>
 
                         {o.status === "ASSIGNED_ARTIST" && (
@@ -1069,7 +1137,7 @@ export default function AdminPage() {
 
                     {/* Right: Actions Bar */}
                     <div className="flex flex-wrap md:flex-col items-stretch md:items-end gap-2 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-slate-800 flex-shrink-0">
-                      {/* 1. If PLACED (Unconfirmed / Unpaid): Only allow Confirming Order (Cancel is customer-initiated only) */}
+                      {/* 1. If PLACED (Unconfirmed / Unpaid): Only allow Confirming Order */}
                       {o.status === "PLACED" && (
                         <button
                           onClick={() => statusMutation.mutate({ orderId: o.order_id, status: "CONFIRMED" })}
@@ -1080,7 +1148,7 @@ export default function AdminPage() {
                         </button>
                       )}
 
-                      {/* 2. If CONFIRMED: Payment is verified, admin assigns artist (cancel order is hidden) */}
+                      {/* 2. If CONFIRMED: Payment is verified, admin assigns artist */}
                       {o.status === "CONFIRMED" && (
                         <button
                           onClick={() => {
@@ -1097,18 +1165,114 @@ export default function AdminPage() {
 
                       {/* 4. If IN_PROGRESS: Artist is actively drawing */}
 
-                      {/* 5. If COMPLETED: Show ONLY Inspect & Publish button when awaiting inspection */}
-                      {o.status === "COMPLETED" && !o.is_published_to_gallery && o.final_image_url && (
-                        <button
-                          onClick={() => setInspectingOrder(o)}
-                          className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-amber-500/40 text-amber-300 px-3.5 py-1.5 text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
-                          title="Inspect finished artwork and publish to gallery"
-                        >
-                          <span>👁️</span> Inspect & Publish
-                        </button>
+                      {/* 5. If COMPLETED: Studio quality inspection & Assign Delivery Partner (No publish until doorstep delivery) */}
+                      {o.status === "COMPLETED" && (
+                        <div className="flex flex-col sm:flex-row md:flex-col items-stretch md:items-end gap-1.5">
+                          {o.final_image_url && (
+                            <button
+                              onClick={() => setInspectingOrder(o)}
+                              className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 px-3 py-1.5 text-xs font-medium transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
+                              title="Inspect finished artwork & collage"
+                            >
+                              <span>👁️</span> Inspect Artwork
+                            </button>
+                          )}
+                          <button
+                            onClick={() => {
+                              setAssigningDeliveryOrder(o);
+                              setSelectedDeliveryAgentId(o.delivery_agent_id || "");
+                            }}
+                            className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
+                            title="Dispatch packaged artwork to active delivery partner"
+                          >
+                            <span>🚚</span> {o.delivery_agent_id ? "Reassign Courier" : "Assign Delivery Partner"}
+                          </button>
+                        </div>
                       )}
 
-                      {/* 6. If CANCELLED: Archived */}
+                      {/* 6. If ASSIGNED_DELIVERY_AGENT: Courier assigned */}
+                      {o.status === "ASSIGNED_DELIVERY_AGENT" && (
+                        <div className="flex flex-col items-stretch md:items-end gap-1.5">
+                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-1 text-xs text-cyan-300 font-medium">
+                            <span>🚚</span> Courier Assigned (Awaiting Pickup)
+                          </span>
+                          <button
+                            onClick={() => {
+                              setAssigningDeliveryOrder(o);
+                              setSelectedDeliveryAgentId(o.delivery_agent_id || "");
+                            }}
+                            className="text-xs text-cyan-400 hover:text-cyan-300 underline font-medium self-end"
+                          >
+                            Change Partner
+                          </button>
+                        </div>
+                      )}
+
+                      {/* 7. If IN_TRANSIT: In Transit */}
+                      {o.status === "IN_TRANSIT" && (
+                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 px-2.5 py-1 text-xs text-indigo-300 font-medium">
+                          <span>🛫</span> In Transit to Hub
+                        </span>
+                      )}
+
+                      {/* 8. If OUT_FOR_DELIVERY: Out for delivery */}
+                      {o.status === "OUT_FOR_DELIVERY" && (
+                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 px-2.5 py-1 text-xs text-sky-300 font-medium animate-pulse">
+                          <span>🛵</span> Out for Doorstep Delivery
+                        </span>
+                      )}
+
+                      {/* 9. If DELIVERY_FAILED: Courier logged failed attempt */}
+                      {o.status === "DELIVERY_FAILED" && (
+                        <div className="flex flex-col items-stretch md:items-end gap-1.5">
+                          <div className="rounded-lg bg-rose-950/60 border border-rose-500/40 p-2 text-xs text-rose-200 text-left md:text-right max-w-xs">
+                            <p className="font-semibold text-rose-300">⚠️ Attempt {o.delivery_attempts || 1}/3 Failed</p>
+                            <p className="text-[11px] text-slate-300">{o.delivery_failure_reason || "Customer unavailable"}</p>
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => retryDeliveryMutation.mutate({ orderId: o.order_id })}
+                              disabled={retryDeliveryMutation.isPending}
+                              className="rounded-lg bg-sky-600 hover:bg-sky-500 px-3 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1 shadow-sm whitespace-nowrap"
+                            >
+                              <span>🔁</span> Re-attempt
+                            </button>
+                            <button
+                              onClick={() => {
+                                setAssigningDeliveryOrder(o);
+                                setSelectedDeliveryAgentId(o.delivery_agent_id || "");
+                              }}
+                              className="rounded-lg border border-slate-700 hover:bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 whitespace-nowrap"
+                            >
+                              Reassign
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 10. If DELIVERED: Unlocks Publish to Gallery! */}
+                      {o.status === "DELIVERED" && (
+                        <div className="flex flex-col items-stretch md:items-end gap-1.5">
+                          <span className="inline-flex items-center gap-1 text-xs text-teal-300 font-medium">
+                            <span>✅</span> Delivered to Customer
+                          </span>
+                          {!o.is_published_to_gallery ? (
+                            <button
+                              onClick={() => setInspectingOrder(o)}
+                              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
+                              title="Customer received physical portrait — safely publish to gallery without spoiling surprise!"
+                            >
+                              <span>🌟</span> Publish to Gallery
+                            </button>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
+                              <span>✓</span> Showcase Live
+                            </span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 11. If CANCELLED: Archived */}
                       {o.status === "CANCELLED" && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-slate-800/80 border border-slate-700 px-3 py-1 text-xs font-medium text-slate-400">
                           Archived (Cancelled)
@@ -2131,6 +2295,103 @@ export default function AdminPage() {
                     : isReassign
                     ? "Confirm Reassignment"
                     : "Confirm Assignment"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL: ASSIGN / REASSIGN DELIVERY PARTNER */}
+      {assigningDeliveryOrder && (() => {
+        const availablePartners = activeDeliveryPartners.length > 0 ? activeDeliveryPartners : deliveryAgents;
+        const isReassign = Boolean(assigningDeliveryOrder.delivery_agent_id);
+        const currentAgent = availablePartners.find((a) => a.user_id === assigningDeliveryOrder.delivery_agent_id);
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in">
+            <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <span>🚚</span> {isReassign ? "Reassign Delivery Partner" : "Assign Delivery Partner"}
+                </h3>
+                <button
+                  onClick={() => {
+                    setAssigningDeliveryOrder(null);
+                    setSelectedDeliveryAgentId("");
+                  }}
+                  className="text-slate-400 hover:text-white text-sm"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="text-xs text-slate-300 space-y-1 bg-slate-800/60 border border-slate-700/60 rounded-xl p-3">
+                <p>
+                  <strong>Parcel:</strong> #{assigningDeliveryOrder.order_id.slice(0, 8)} ({assigningDeliveryOrder.painting_category} Portrait)
+                </p>
+                <p>
+                  <strong>Destination:</strong> {assigningDeliveryOrder.delivery_address}
+                </p>
+                <p className="text-cyan-300">
+                  <strong>Partner Payout (10%):</strong> ₹{(Number(assigningDeliveryOrder.total_price) * DELIVERY_COMMISSION_PERCENTAGE).toFixed(2)}
+                </p>
+              </div>
+
+              {isReassign && currentAgent && (
+                <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
+                  ⚠️ Currently assigned to: <strong>{currentAgent.full_name}</strong> ({currentAgent.phone_number || "No phone"}).
+                </div>
+              )}
+
+              <label className="block space-y-1.5 text-xs text-slate-300">
+                <span className="font-medium">Select Active Delivery Partner:</span>
+                <select
+                  value={selectedDeliveryAgentId}
+                  onChange={(e) => setSelectedDeliveryAgentId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-white text-sm focus:border-cyan-500 focus:outline-none"
+                >
+                  <option value="">-- Choose Delivery Partner --</option>
+                  {availablePartners.map((agent) => (
+                    <option key={agent.user_id} value={agent.user_id}>
+                      {agent.full_name} ({agent.phone_number || agent.email})
+                    </option>
+                  ))}
+                  {availablePartners.length === 0 && (
+                    <option disabled value="">
+                      No active delivery partners registered
+                    </option>
+                  )}
+                </select>
+              </label>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssigningDeliveryOrder(null);
+                    setSelectedDeliveryAgentId("");
+                  }}
+                  className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!selectedDeliveryAgentId || assignDeliveryMutation.isPending}
+                  onClick={() =>
+                    assignDeliveryMutation.mutate({
+                      orderId: assigningDeliveryOrder.order_id,
+                      agentId: selectedDeliveryAgentId,
+                    })
+                  }
+                  className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-4 py-2 text-xs font-semibold text-white transition disabled:opacity-50 shadow-sm"
+                >
+                  {assignDeliveryMutation.isPending
+                    ? "Dispatching..."
+                    : isReassign
+                    ? "Confirm Reassignment"
+                    : "Confirm & Dispatch"}
                 </button>
               </div>
             </div>

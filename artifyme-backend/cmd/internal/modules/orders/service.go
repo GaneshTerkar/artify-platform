@@ -69,7 +69,7 @@ func (s *Service) UpdateDraft(ctx context.Context, orderID, userID uuid.UUID, fi
 	return s.repo.UpdateDraft(ctx, orderID, userID, fields)
 }
 
-func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actorID uuid.UUID, role string, newStatus OrderStatus, artistID *uuid.UUID, finalURL *string) (*Order, error) {
+func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actorID uuid.UUID, role string, newStatus OrderStatus, artistID *uuid.UUID, finalURL *string, failureReason *string) (*Order, error) {
 	o, err := s.repo.GetByID(ctx, orderID)
 	if err != nil {
 		return nil, err
@@ -83,6 +83,17 @@ func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actor
 		if o.ArtistID == nil || *o.ArtistID != actorID {
 			return nil, errors.New("you can only update status for orders assigned to you")
 		}
+	}
+
+	if role == "DELIVERY_AGENT" {
+		if o.DeliveryAgentID == nil || *o.DeliveryAgentID != actorID {
+			return nil, errors.New("you can only update status for delivery parcels assigned to you")
+		}
+		return s.repo.UpdateDeliveryStatus(ctx, orderID, newStatus, actorID, failureReason)
+	}
+
+	if newStatus == StatusDeliveryFailed || newStatus == StatusInTransit || newStatus == StatusOutForDelivery || newStatus == StatusDelivered {
+		return s.repo.UpdateDeliveryStatus(ctx, orderID, newStatus, actorID, failureReason)
 	}
 
 	var collageURL *string
@@ -159,6 +170,41 @@ func (s *Service) AssignOrder(ctx context.Context, orderID uuid.UUID, actorID uu
 	return s.repo.AssignArtist(ctx, orderID, targetArtistID, actorID, newStatus)
 }
 
+func (s *Service) AssignDeliveryAgent(ctx context.Context, orderID uuid.UUID, actorID uuid.UUID, role string, targetAgentID uuid.UUID) (*Order, error) {
+	if role != "ADMIN" {
+		return nil, ErrForbidden
+	}
+
+	o, err := s.repo.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if o.Status != StatusCompleted && o.Status != StatusAssignedDeliveryAgent && o.Status != StatusInTransit && o.Status != StatusDeliveryFailed {
+		return nil, errors.New("only completed or in-delivery orders can be assigned a delivery partner")
+	}
+
+	agents, err := s.repo.ListActiveDeliveryAgents(ctx)
+	if err != nil {
+		return nil, err
+	}
+	found := false
+	for _, a := range agents {
+		if a.UserID == targetAgentID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil, errors.New("selected delivery agent is not active or verified")
+	}
+
+	return s.repo.AssignDeliveryAgent(ctx, orderID, targetAgentID, actorID)
+}
+
+func (s *Service) ListActiveDeliveryAgents(ctx context.Context) ([]ActiveDeliveryAgent, error) {
+	return s.repo.ListActiveDeliveryAgents(ctx)
+}
+
 func (s *Service) ListVerifiedArtists(ctx context.Context) ([]VerifiedArtist, error) {
 	return s.repo.ListVerifiedArtists(ctx)
 }
@@ -189,7 +235,8 @@ func (s *Service) ConfirmPaid(ctx context.Context, sessionID string, systemUserI
 func canTransition(role string, from, to OrderStatus) bool {
 	if role == "ADMIN" {
 		switch to {
-		case StatusConfirmed, StatusAssignedArtist, StatusInProgress, StatusCompleted, StatusCancelled:
+		case StatusConfirmed, StatusAssignedArtist, StatusInProgress, StatusCompleted,
+			StatusAssignedDeliveryAgent, StatusInTransit, StatusOutForDelivery, StatusDeliveryFailed, StatusDelivered, StatusCancelled:
 			return true
 		}
 	}
@@ -201,6 +248,24 @@ func canTransition(role string, from, to OrderStatus) bool {
 			return true
 		}
 		if from == StatusInProgress && to == StatusCompleted {
+			return true
+		}
+	}
+	if role == "DELIVERY_AGENT" {
+		// Assigned -> In Transit
+		if from == StatusAssignedDeliveryAgent && (to == StatusInTransit || to == StatusOutForDelivery) {
+			return true
+		}
+		// In Transit -> Out for Delivery
+		if from == StatusInTransit && to == StatusOutForDelivery {
+			return true
+		}
+		// Out for Delivery -> Delivered or Delivery Failed
+		if from == StatusOutForDelivery && (to == StatusDelivered || to == StatusDeliveryFailed) {
+			return true
+		}
+		// Delivery Failed -> Re-attempt Out for Delivery
+		if from == StatusDeliveryFailed && (to == StatusOutForDelivery || to == StatusInTransit) {
 			return true
 		}
 	}
@@ -220,8 +285,8 @@ func (s *Service) ConfirmGalleryPublish(ctx context.Context, orderID, actorID uu
 	if err != nil {
 		return nil, err
 	}
-	if o.Status != StatusCompleted {
-		return nil, errors.New("only completed orders can be confirmed and published to gallery")
+	if o.Status != StatusDelivered && o.Status != StatusCompleted {
+		return nil, errors.New("artwork must be completed or doorstep delivered before publishing to gallery")
 	}
 
 	sketchURL := ""

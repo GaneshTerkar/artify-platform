@@ -39,6 +39,7 @@ type adminStatusRequest struct {
 	Status        string  `json:"status" binding:"required"`
 	ArtistID      *string `json:"artist_id"`
 	FinalImageURL *string `json:"final_image_url"`
+	FailureReason *string `json:"failure_reason"`
 }
 
 func (h *Handler) ListProducts(c *gin.Context) {
@@ -318,6 +319,7 @@ func (h *Handler) AdminUpdateStatus(c *gin.Context) {
 		OrderStatus(req.Status),
 		artistID,
 		req.FinalImageURL,
+		req.FailureReason,
 	)
 	if err != nil {
 		status := http.StatusBadRequest
@@ -411,5 +413,57 @@ func (h *Handler) AdminConfirmGalleryPublish(c *gin.Context) {
 		"message": "painting confirmed and published to gallery successfully",
 		"order":   toOrderDTO(o),
 	})
+}
+
+type assignDeliveryRequest struct {
+	DeliveryAgentID string `json:"delivery_agent_id" binding:"required"`
+}
+
+func (h *Handler) AssignDeliveryAgent(c *gin.Context) {
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		return
+	}
+	actorID := c.MustGet("user_id").(uuid.UUID)
+	role := c.MustGet("role").(string)
+
+	var req assignDeliveryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "delivery_agent_id is required"})
+		return
+	}
+
+	targetAgentID, err := uuid.Parse(req.DeliveryAgentID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid delivery_agent_id format"})
+		return
+	}
+
+	o, err := h.service.AssignDeliveryAgent(c.Request.Context(), orderID, actorID, role, targetAgentID)
+	if err != nil {
+		status := http.StatusBadRequest
+		if err == ErrNotFound {
+			status = http.StatusNotFound
+		} else if err == ErrForbidden {
+			status = http.StatusForbidden
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "delivery partner assigned successfully",
+		"order":   toOrderDTO(o),
+	})
+}
+
+func (h *Handler) ListActiveDeliveryAgents(c *gin.Context) {
+	list, err := h.service.ListActiveDeliveryAgents(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"delivery_agents": list})
 }
 

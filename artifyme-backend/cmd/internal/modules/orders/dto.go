@@ -3,24 +3,28 @@ package orders
 import "time"
 
 type orderDTO struct {
-	OrderID           string    `json:"order_id"`
-	UserID            string    `json:"user_id"`
-	ArtistID          *string   `json:"artist_id,omitempty"`
-	PaintingCategory  string    `json:"painting_category"`
-	ReferenceImageURL string    `json:"reference_image_url"`
-	FinalImageURL         *string   `json:"final_image_url,omitempty"`
-	CollageImageURL       *string   `json:"collage_image_url,omitempty"`
-	OriginalFinalImageURL *string   `json:"original_final_image_url,omitempty"`
-	IsPublishedToGallery  bool      `json:"is_published_to_gallery"`
-	Size                  string    `json:"size"`
-	PersonsIncluded   string    `json:"persons_included"`
-	Status            string    `json:"status"`
-	LifecycleLabel    string    `json:"lifecycle_label"`
-	DeliveryAddress   string    `json:"delivery_address"`
-	TotalPrice        float64   `json:"total_price"`
-	CustomerNotes     *string   `json:"customer_notes,omitempty"`
-	CreatedAt         time.Time `json:"created_at"`
-	UpdatedAt         time.Time `json:"updated_at"`
+	OrderID               string     `json:"order_id"`
+	UserID                string     `json:"user_id"`
+	ArtistID              *string    `json:"artist_id,omitempty"`
+	DeliveryAgentID       *string    `json:"delivery_agent_id,omitempty"`
+	PaintingCategory      string     `json:"painting_category"`
+	ReferenceImageURL     string     `json:"reference_image_url"`
+	FinalImageURL         *string    `json:"final_image_url,omitempty"`
+	CollageImageURL       *string    `json:"collage_image_url,omitempty"`
+	OriginalFinalImageURL *string    `json:"original_final_image_url,omitempty"`
+	IsPublishedToGallery  bool       `json:"is_published_to_gallery"`
+	Size                  string     `json:"size"`
+	PersonsIncluded       string     `json:"persons_included"`
+	Status                string     `json:"status"`
+	LifecycleLabel        string     `json:"lifecycle_label"`
+	DeliveryAddress       string     `json:"delivery_address"`
+	DeliveryAttempts      int        `json:"delivery_attempts"`
+	DeliveryFailureReason *string    `json:"delivery_failure_reason,omitempty"`
+	LastDeliveryAttemptAt *time.Time `json:"last_delivery_attempt_at,omitempty"`
+	TotalPrice            float64    `json:"total_price"`
+	CustomerNotes         *string    `json:"customer_notes,omitempty"`
+	CreatedAt             time.Time  `json:"created_at"`
+	UpdatedAt             time.Time  `json:"updated_at"`
 }
 
 func lifecycleLabel(status OrderStatus) string {
@@ -29,10 +33,22 @@ func lifecycleLabel(status OrderStatus) string {
 		return "pending_payment"
 	case StatusConfirmed:
 		return "paid"
+	case StatusAssignedArtist:
+		return "assigned_artist"
 	case StatusInProgress:
 		return "in_progress"
 	case StatusCompleted:
 		return "completed"
+	case StatusAssignedDeliveryAgent:
+		return "assigned_delivery"
+	case StatusInTransit:
+		return "in_transit"
+	case StatusOutForDelivery:
+		return "out_for_delivery"
+	case StatusDeliveryFailed:
+		return "delivery_failed"
+	case StatusDelivered:
+		return "delivered"
 	case StatusCancelled:
 		return "cancelled"
 	default:
@@ -42,27 +58,34 @@ func lifecycleLabel(status OrderStatus) string {
 
 func toOrderDTO(o *Order) orderDTO {
 	d := orderDTO{
-		OrderID:           o.OrderID.String(),
-		UserID:            o.UserID.String(),
-		PaintingCategory:  string(o.PaintingCategory),
-		ReferenceImageURL: o.ReferenceImageURL,
+		OrderID:               o.OrderID.String(),
+		UserID:                o.UserID.String(),
+		PaintingCategory:      string(o.PaintingCategory),
+		ReferenceImageURL:     o.ReferenceImageURL,
 		FinalImageURL:         o.FinalImageURL,
 		CollageImageURL:       o.CollageImageURL,
 		OriginalFinalImageURL: o.OriginalFinalImageURL,
 		IsPublishedToGallery:  o.IsPublishedToGallery,
 		Size:                  string(o.Size),
-		PersonsIncluded:   string(o.PersonsIncluded),
-		Status:            string(o.Status),
-		LifecycleLabel:    lifecycleLabel(o.Status),
-		DeliveryAddress:   o.DeliveryAddress,
-		TotalPrice:        o.TotalPrice,
-		CustomerNotes:     o.CustomerNotes,
-		CreatedAt:         o.CreatedAt,
-		UpdatedAt:         o.UpdatedAt,
+		PersonsIncluded:       string(o.PersonsIncluded),
+		Status:                string(o.Status),
+		LifecycleLabel:        lifecycleLabel(o.Status),
+		DeliveryAddress:       o.DeliveryAddress,
+		DeliveryAttempts:      o.DeliveryAttempts,
+		DeliveryFailureReason: o.DeliveryFailureReason,
+		LastDeliveryAttemptAt: o.LastDeliveryAttemptAt,
+		TotalPrice:            o.TotalPrice,
+		CustomerNotes:         o.CustomerNotes,
+		CreatedAt:             o.CreatedAt,
+		UpdatedAt:             o.UpdatedAt,
 	}
 	if o.ArtistID != nil {
 		s := o.ArtistID.String()
 		d.ArtistID = &s
+	}
+	if o.DeliveryAgentID != nil {
+		s := o.DeliveryAgentID.String()
+		d.DeliveryAgentID = &s
 	}
 	return d
 }

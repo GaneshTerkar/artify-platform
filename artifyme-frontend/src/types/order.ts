@@ -21,6 +21,9 @@ export type Order = {
   persons_included: string;
   reference_image_url: string;
   delivery_address: string;
+  delivery_attempts?: number;
+  delivery_failure_reason?: string;
+  last_delivery_attempt_at?: string;
   total_price: number;
   customer_notes?: string;
   final_image_url?: string;
@@ -29,6 +32,15 @@ export type Order = {
   is_published_to_gallery?: boolean;
   created_at: string;
   updated_at?: string;
+};
+
+export type ActiveDeliveryAgent = {
+  user_id: string;
+  full_name: string;
+  email: string;
+  phone_number: string;
+  address: string;
+  status: string;
 };
 
 export type VerifiedArtist = {

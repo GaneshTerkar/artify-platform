@@ -205,7 +205,7 @@ export default function AdminPage() {
   const ROLE_STATUS_MAP: Record<string, string[]> = {
     CUSTOMER: ["PLACED", "CONFIRMED", "CANCELLED"],
     ARTIST: ["ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED"],
-    DELIVERY_AGENT: ["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED"],
+    DELIVERY_AGENT: ["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED", "PUBLISHED"],
   };
 
   const showArtistFilter =
@@ -222,6 +222,7 @@ export default function AdminPage() {
         "OUT_FOR_DELIVERY",
         "DELIVERY_FAILED",
         "DELIVERED",
+        "PUBLISHED",
       ].includes(statusFilter));
 
   const handleRoleFilterChange = (role: "ALL" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT") => {
@@ -253,7 +254,8 @@ export default function AdminPage() {
     OUT_FOR_DELIVERY: 8,
     DELIVERY_FAILED: 9,
     DELIVERED: 10,
-    CANCELLED: 11,
+    PUBLISHED: 11,
+    CANCELLED: 12,
   };
 
   function getOrderLifecycleStatus(order: Order): string {
@@ -1155,6 +1157,7 @@ export default function AdminPage() {
                 const prevStatus = index > 0 ? getOrderLifecycleStatus(sortedOrders[index - 1]) : null;
                 const isFirstOfStatus = prevStatus !== displayStatus;
                 const assignedArtist = verifiedArtists.find((a) => a.artist_id === o.artist_id);
+                const assignedDeliveryAgent = deliveryAgents.find((a) => a.user_id === o.delivery_agent_id);
                 return (
                   <div key={o.order_id} className="space-y-3">
                     {statusFilter === "ALL" && isFirstOfStatus && (
@@ -1264,133 +1267,144 @@ export default function AdminPage() {
                             </span>
                           </div>
                         )}
+
+                        {o.status === "ASSIGNED_DELIVERY_AGENT" && (
+                          <div className="pt-1">
+                            <span className="inline-flex items-center gap-1.5 rounded-md bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-1 text-xs text-cyan-300 font-medium">
+                              <span>⏳</span> Assigned to {assignedDeliveryAgent?.full_name || "Delivery Partner"} (Awaiting Courier Confirmation)
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     {/* Right: Actions Bar */}
-                    <div className="flex flex-wrap md:flex-col items-stretch md:items-end gap-2 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-slate-800 flex-shrink-0">
-                      {/* 1. If PLACED (Unconfirmed / Unpaid): Only allow Confirming Order */}
-                      {o.status === "PLACED" && (
-                        <button
-                          onClick={() => statusMutation.mutate({ orderId: o.order_id, status: "CONFIRMED" })}
-                          disabled={statusMutation.isPending}
-                          className="rounded-lg bg-amber-500 hover:bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-black transition flex items-center justify-center gap-1 shadow-sm whitespace-nowrap flex-shrink-0"
-                        >
-                          <span>✓</span> Confirm Order
-                        </button>
-                      )}
-
-                      {/* 2. If CONFIRMED: Payment is verified, admin assigns artist */}
-                      {o.status === "CONFIRMED" && (
-                        <button
-                          onClick={() => {
-                            setAssigningOrder(o);
-                            setSelectedArtistId("");
-                          }}
-                          className="rounded-lg bg-brand hover:bg-brand/90 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
-                        >
-                          <span>👤</span> Assign Artist
-                        </button>
-                      )}
-
-                      {/* 3. If ASSIGNED_ARTIST: Waiting for artist confirmation */}
-
-                      {/* 4. If IN_PROGRESS: Artist is actively drawing */}
-
-                      {/* 5. If COMPLETED: Studio quality inspection (Assign Delivery Agent is handled inside the inspection modal) */}
-                      {o.status === "COMPLETED" && (
-                        <div className="flex flex-col sm:flex-row md:flex-col items-stretch md:items-end gap-1.5">
+                    {["PLACED", "CONFIRMED", "COMPLETED", "ASSIGNED_DELIVERY_AGENT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED"].includes(o.status) && (
+                      <div className="flex flex-wrap md:flex-col items-stretch md:items-end gap-2 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-slate-800 flex-shrink-0">
+                        {/* 1. If PLACED (Unconfirmed / Unpaid): Only allow Confirming Order */}
+                        {o.status === "PLACED" && (
                           <button
-                            onClick={() => setInspectingOrder(o)}
-                            className="rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white px-3.5 py-1.5 text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
-                            title="Inspect finished artwork & assign delivery agent"
+                            onClick={() => statusMutation.mutate({ orderId: o.order_id, status: "CONFIRMED" })}
+                            disabled={statusMutation.isPending}
+                            className="rounded-lg bg-amber-500 hover:bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-black transition flex items-center justify-center gap-1 shadow-sm whitespace-nowrap flex-shrink-0"
                           >
-                            <span>👁️</span> Inspect Artwork
+                            <span>✓</span> Confirm Order
                           </button>
-                        </div>
-                      )}
+                        )}
 
-                      {/* 6. If ASSIGNED_DELIVERY_AGENT: Courier assigned */}
-                      {o.status === "ASSIGNED_DELIVERY_AGENT" && (
-                        <div className="flex flex-col items-stretch md:items-end gap-1.5">
-                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-1 text-xs text-cyan-300 font-medium">
-                            <span>🚚</span> Courier Assigned (Awaiting Pickup)
-                          </span>
+                        {/* 2. If CONFIRMED: Payment is verified, admin assigns artist */}
+                        {o.status === "CONFIRMED" && (
                           <button
                             onClick={() => {
-                              setAssigningDeliveryOrder(o);
-                              setSelectedDeliveryAgentId(o.delivery_agent_id || "");
+                              setAssigningOrder(o);
+                              setSelectedArtistId("");
                             }}
-                            className="text-xs text-cyan-400 hover:text-cyan-300 underline font-medium self-end"
+                            className="rounded-lg bg-brand hover:bg-brand/90 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
                           >
-                            Change Partner
+                            <span>👤</span> Assign Artist
                           </button>
-                        </div>
-                      )}
+                        )}
 
-                      {/* 7. If IN_TRANSIT: In Transit */}
-                      {o.status === "IN_TRANSIT" && (
-                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 px-2.5 py-1 text-xs text-indigo-300 font-medium">
-                          <span>🛫</span> In Transit to Hub
-                        </span>
-                      )}
-
-                      {/* 8. If OUT_FOR_DELIVERY: Out for delivery */}
-                      {o.status === "OUT_FOR_DELIVERY" && (
-                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 px-2.5 py-1 text-xs text-sky-300 font-medium animate-pulse">
-                          <span>🛵</span> Out for Doorstep Delivery
-                        </span>
-                      )}
-
-                      {/* 9. If DELIVERY_FAILED: Courier logged failed attempt */}
-                      {o.status === "DELIVERY_FAILED" && (
-                        <div className="flex flex-col items-stretch md:items-end gap-1.5">
-                          <div className="rounded-lg bg-rose-950/60 border border-rose-500/40 p-2 text-xs text-rose-200 text-left md:text-right max-w-xs">
-                            <p className="font-semibold text-rose-300">⚠️ Attempt {o.delivery_attempts || 1}/3 Failed</p>
-                            <p className="text-[11px] text-slate-300">{o.delivery_failure_reason || "Customer unavailable"}</p>
-                          </div>
-                          <div className="flex gap-2">
+                        {/* 3. If COMPLETED: Studio quality inspection (Assign Delivery Agent is handled inside the inspection modal) */}
+                        {o.status === "COMPLETED" && (
+                          <div className="flex flex-col sm:flex-row md:flex-col items-stretch md:items-end gap-1.5">
                             <button
-                              onClick={() => retryDeliveryMutation.mutate({ orderId: o.order_id })}
-                              disabled={retryDeliveryMutation.isPending}
-                              className="rounded-lg bg-sky-600 hover:bg-sky-500 px-3 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1 shadow-sm whitespace-nowrap"
+                              onClick={() => setInspectingOrder(o)}
+                              className="rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white px-3.5 py-1.5 text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
+                              title="Inspect finished artwork & assign delivery agent"
                             >
-                              <span>🔁</span> Re-attempt
+                              <span>👁️</span> Inspect Artwork
                             </button>
+                          </div>
+                        )}
+
+                        {/* 4. If ASSIGNED_DELIVERY_AGENT: Courier assigned */}
+                        {o.status === "ASSIGNED_DELIVERY_AGENT" && (
+                          <div className="flex flex-col items-stretch md:items-end gap-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button
+                                onClick={() => statusMutation.mutate({ orderId: o.order_id, status: "IN_TRANSIT" })}
+                                disabled={statusMutation.isPending}
+                                className="rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1 shadow-sm whitespace-nowrap"
+                                title="Confirm pickup and mark in-transit"
+                              >
+                                <span>✓</span> Confirm Pickup (In-Transit)
+                              </button>
+                              <button
+                                onClick={() => {
+                                  if (window.confirm("Delivery agent could not confirm. Revert status back to Assign Delivery Agent?")) {
+                                    statusMutation.mutate({ orderId: o.order_id, status: "COMPLETED" });
+                                  }
+                                }}
+                                disabled={statusMutation.isPending}
+                                className="rounded-lg bg-rose-950/80 hover:bg-rose-900 border border-rose-600/50 px-2.5 py-1.5 text-xs font-medium text-rose-300 transition flex items-center justify-center gap-1 shadow-sm whitespace-nowrap"
+                                title="Delivery agent not confirms - revert back to Assign Delivery Agent"
+                              >
+                                <span>✕</span> Not Confirmed
+                              </button>
+                            </div>
                             <button
                               onClick={() => {
                                 setAssigningDeliveryOrder(o);
                                 setSelectedDeliveryAgentId(o.delivery_agent_id || "");
                               }}
-                              className="rounded-lg border border-slate-700 hover:bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 whitespace-nowrap"
+                              className="text-xs text-cyan-400 hover:text-cyan-300 underline font-medium self-end"
                             >
-                              Reassign
+                              Change Partner
                             </button>
                           </div>
-                        </div>
-                      )}
+                        )}
 
-                      {/* 10. If DELIVERED: Unlocks Publish to Gallery! */}
-                      {o.status === "DELIVERED" && (
-                        <div className="flex flex-col items-stretch md:items-end gap-1.5">
-                          <span className="inline-flex items-center gap-1 text-xs text-teal-300 font-medium">
-                            <span>✅</span> Delivered to Customer
+                        {/* 5. If OUT_FOR_DELIVERY: Out for delivery */}
+                        {o.status === "OUT_FOR_DELIVERY" && (
+                          <span className="inline-flex items-center gap-1.5 rounded-lg bg-sky-500/10 border border-sky-500/30 px-2.5 py-1 text-xs text-sky-300 font-medium animate-pulse">
+                            <span>🛵</span> Out for Doorstep Delivery
                           </span>
-                          {!o.is_published_to_gallery ? (
+                        )}
+
+                        {/* 6. If DELIVERY_FAILED: Courier logged failed attempt */}
+                        {o.status === "DELIVERY_FAILED" && (
+                          <div className="flex flex-col items-stretch md:items-end gap-1.5">
+                            <div className="rounded-lg bg-rose-950/60 border border-rose-500/40 p-2 text-xs text-rose-200 text-left md:text-right max-w-xs">
+                              <p className="font-semibold text-rose-300">⚠️ Attempt {o.delivery_attempts || 1}/3 Failed</p>
+                              <p className="text-[11px] text-slate-300">{o.delivery_failure_reason || "Customer unavailable"}</p>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => retryDeliveryMutation.mutate({ orderId: o.order_id })}
+                                disabled={retryDeliveryMutation.isPending}
+                                className="rounded-lg bg-sky-600 hover:bg-sky-500 px-3 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1 shadow-sm whitespace-nowrap"
+                              >
+                                <span>🔁</span> Re-attempt
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setAssigningDeliveryOrder(o);
+                                  setSelectedDeliveryAgentId(o.delivery_agent_id || "");
+                                }}
+                                className="rounded-lg border border-slate-700 hover:bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 whitespace-nowrap"
+                              >
+                                Reassign
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 7. If DELIVERED: Admin can Publish artwork */}
+                        {o.status === "DELIVERED" && (
+                          <div className="flex flex-col items-stretch md:items-end gap-1.5">
                             <button
-                              onClick={() => setInspectingOrder(o)}
+                              onClick={() => confirmGalleryMutation.mutate(o.order_id)}
+                              disabled={confirmGalleryMutation.isPending}
                               className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
-                              title="Customer received physical portrait — safely publish to gallery without spoiling surprise!"
+                              title="Publish artwork"
                             >
-                              <span>🌟</span> Publish to Gallery
+                              <span>🌟</span> {confirmGalleryMutation.isPending ? "Publishing..." : "Publish"}
                             </button>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 border border-emerald-500/40 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
-                              <span>✓</span> Showcase Live
-                            </span>
-                          )}
-                        </div>
-                      )}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                       {/* 11. If CANCELLED: Archived */}
                       {o.status === "CANCELLED" && (
@@ -1400,8 +1414,7 @@ export default function AdminPage() {
                       )}
                     </div>
                   </div>
-                </div>
-              );
+                );
               })}
             </div>
           )}

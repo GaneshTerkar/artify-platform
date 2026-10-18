@@ -180,9 +180,10 @@ func (r *Repository) ConfirmGalleryPublish(ctx context.Context, orderID, adminID
 			original_final_image_url = COALESCE(original_final_image_url, final_image_url),
 			final_image_url = COALESCE(collage_image_url, final_image_url),
 			is_published_to_gallery = TRUE,
+			status = 'PUBLISHED'::order_status,
 			updated_at = NOW(),
 			updated_by = $2
-		WHERE order_id = $1 AND (status = 'DELIVERED' OR status = 'COMPLETED')
+		WHERE order_id = $1 AND (status = 'DELIVERED' OR status = 'COMPLETED' OR status = 'PUBLISHED')
 		RETURNING `+orderColumns, orderID, adminID))
 }
 
@@ -371,7 +372,7 @@ func (r *Repository) ListGalleryPaintings(ctx context.Context, category string) 
 				FROM orders o
 				INNER JOIN artist_profiles ap ON o.artist_id = ap.artist_id
 				LEFT JOIN users u ON o.artist_id = u.user_id
-				WHERE o.status = 'COMPLETED' 
+				WHERE (o.status = 'COMPLETED' OR o.status = 'DELIVERED' OR o.status = 'PUBLISHED')
 				  AND o.is_published_to_gallery = TRUE
 				  AND o.final_image_url IS NOT NULL 
 				  AND TRIM(o.final_image_url) != ''
@@ -489,6 +490,17 @@ func (r *Repository) AssignDeliveryAgent(ctx context.Context, orderID uuid.UUID,
 			updated_by = $3
 		WHERE order_id = $1
 		RETURNING `+orderColumns, orderID, agentID, updatedBy))
+}
+
+func (r *Repository) UnassignDeliveryAgent(ctx context.Context, orderID uuid.UUID, updatedBy uuid.UUID) (*Order, error) {
+	return r.scanOrder(r.pool.QueryRow(ctx, `
+		UPDATE orders SET
+			delivery_agent_id = NULL,
+			status = 'COMPLETED'::order_status,
+			updated_at = NOW(),
+			updated_by = $2
+		WHERE order_id = $1
+		RETURNING `+orderColumns, orderID, updatedBy))
 }
 
 func (r *Repository) ListActiveDeliveryAgents(ctx context.Context) ([]ActiveDeliveryAgent, error) {
@@ -635,7 +647,7 @@ func (r *Repository) GetUserRole(ctx context.Context, userID uuid.UUID) (string,
 func (r *Repository) GetArtistCompletedAndStalledCount(ctx context.Context, artistID uuid.UUID) (completed int, stalled int, err error) {
 	err = r.pool.QueryRow(ctx, `
 		SELECT 
-			COUNT(*) FILTER (WHERE status = 'COMPLETED') AS completed_count,
+			COUNT(*) FILTER (WHERE status = 'COMPLETED' OR status = 'ASSIGNED_DELIVERY_AGENT' OR status = 'IN_TRANSIT' OR status = 'OUT_FOR_DELIVERY' OR status = 'DELIVERED' OR status = 'PUBLISHED') AS completed_count,
 			COUNT(*) FILTER (WHERE status = 'ASSIGNED_ARTIST') AS stalled_count
 		FROM orders 
 		WHERE artist_id = $1

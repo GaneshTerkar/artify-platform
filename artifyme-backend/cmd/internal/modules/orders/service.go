@@ -92,6 +92,14 @@ func (s *Service) TransitionStatus(ctx context.Context, orderID uuid.UUID, actor
 		return s.repo.UpdateDeliveryStatus(ctx, orderID, newStatus, actorID, failureReason)
 	}
 
+	if o.Status == StatusAssignedDeliveryAgent && newStatus == StatusCompleted {
+		return s.repo.UnassignDeliveryAgent(ctx, orderID, actorID)
+	}
+
+	if newStatus == StatusPublished {
+		return s.ConfirmGalleryPublish(ctx, orderID, actorID, role)
+	}
+
 	if newStatus == StatusDeliveryFailed || newStatus == StatusInTransit || newStatus == StatusOutForDelivery || newStatus == StatusDelivered {
 		return s.repo.UpdateDeliveryStatus(ctx, orderID, newStatus, actorID, failureReason)
 	}
@@ -236,7 +244,7 @@ func canTransition(role string, from, to OrderStatus) bool {
 	if role == "ADMIN" {
 		switch to {
 		case StatusConfirmed, StatusAssignedArtist, StatusInProgress, StatusCompleted,
-			StatusAssignedDeliveryAgent, StatusInTransit, StatusOutForDelivery, StatusDeliveryFailed, StatusDelivered, StatusCancelled:
+			StatusAssignedDeliveryAgent, StatusInTransit, StatusOutForDelivery, StatusDeliveryFailed, StatusDelivered, StatusPublished, StatusCancelled:
 			return true
 		}
 	}
@@ -252,8 +260,8 @@ func canTransition(role string, from, to OrderStatus) bool {
 		}
 	}
 	if role == "DELIVERY_AGENT" {
-		// Assigned -> In Transit
-		if from == StatusAssignedDeliveryAgent && (to == StatusInTransit || to == StatusOutForDelivery) {
+		// Assigned -> In Transit, Out for Delivery, or Decline back to Completed
+		if from == StatusAssignedDeliveryAgent && (to == StatusInTransit || to == StatusOutForDelivery || to == StatusCompleted) {
 			return true
 		}
 		// In Transit -> Out for Delivery
@@ -285,7 +293,7 @@ func (s *Service) ConfirmGalleryPublish(ctx context.Context, orderID, actorID uu
 	if err != nil {
 		return nil, err
 	}
-	if o.Status != StatusDelivered && o.Status != StatusCompleted {
+	if o.Status != StatusDelivered && o.Status != StatusCompleted && o.Status != StatusPublished {
 		return nil, errors.New("artwork must be completed or doorstep delivered before publishing to gallery")
 	}
 

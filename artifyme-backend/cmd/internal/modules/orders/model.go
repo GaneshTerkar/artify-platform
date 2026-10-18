@@ -19,6 +19,7 @@ const (
 	StatusOutForDelivery        OrderStatus = "OUT_FOR_DELIVERY"
 	StatusDeliveryFailed        OrderStatus = "DELIVERY_FAILED"
 	StatusDelivered             OrderStatus = "DELIVERED"
+	StatusPublished             OrderStatus = "PUBLISHED"
 	StatusCancelled             OrderStatus = "CANCELLED"
 )
 

@@ -249,6 +249,11 @@ export default function AccountPage() {
                         ✓ Delivered
                       </span>
                     )}
+                    {o.status === "PUBLISHED" && (
+                      <span className="rounded-full bg-emerald-950/70 border border-emerald-500/50 px-2.5 py-0.5 text-xs font-semibold text-emerald-300">
+                        ✓ Published
+                      </span>
+                    )}
                     {o.status === "CANCELLED" && (
                       <span className="rounded-full bg-rose-950/70 border border-rose-500/50 px-2.5 py-0.5 text-xs font-semibold text-rose-300">
                         Cancelled
@@ -422,6 +427,18 @@ export default function AccountPage() {
                             >
                               <span>🛵</span> Direct Out for Delivery
                             </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (window.confirm("Cannot deliver this order? It will revert back to assign a delivery agent.")) {
+                                  statusMutation.mutate({ orderId: o.order_id, status: "COMPLETED" });
+                                }
+                              }}
+                              disabled={statusMutation.isPending}
+                              className="rounded-lg bg-rose-950/80 hover:bg-rose-900 border border-rose-600/50 px-3 py-2 text-xs font-semibold text-rose-300 transition flex items-center justify-center gap-1.5 shadow-sm"
+                            >
+                              <span>✕</span> Decline
+                            </button>
                           </div>
                         )}
 
@@ -533,9 +550,9 @@ export default function AccountPage() {
                           </div>
                         )}
 
-                        {/* 2. Customer preview & download for completed/delivered artwork */}
-                        {(o.status === "COMPLETED" || o.status === "DELIVERED") && (
-                          o.is_published_to_gallery && (o.final_image_url || o.collage_image_url) ? (
+                        {/* 2. Customer preview & download for completed/delivered/published artwork */}
+                        {(o.status === "COMPLETED" || o.status === "DELIVERED" || o.status === "PUBLISHED") && (
+                          (o.status === "PUBLISHED" || o.is_published_to_gallery) && (o.final_image_url || o.collage_image_url) ? (
                             <div className="flex flex-wrap items-center gap-2">
                               <button
                                 type="button"
@@ -557,7 +574,9 @@ export default function AccountPage() {
                           ) : (
                             <span className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2.5 py-1 text-right">
                               {o.status === "DELIVERED"
-                                ? "✓ Package Delivered — Final gallery showcase being prepared"
+                                ? "✓ Package Delivered"
+                                : o.status === "PUBLISHED"
+                                ? "✓ Artwork Published"
                                 : "⏳ Artwork completed & packaged — preparing for delivery dispatch"}
                             </span>
                           )

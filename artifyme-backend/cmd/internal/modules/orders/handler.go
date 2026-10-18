@@ -410,7 +410,7 @@ func (h *Handler) AdminConfirmGalleryPublish(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "painting confirmed and published to gallery successfully",
+		"message": "painting confirmed and published successfully",
 		"order":   toOrderDTO(o),
 	})
 }

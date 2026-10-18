@@ -147,7 +147,7 @@ export const CollageArtworkModal: React.FC<CollageArtworkModalProps> = ({
             {onConfirmPublish && (
               isPublishedToGallery ? (
                 <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-950/70 border border-emerald-500/50 px-3 py-1.5 text-xs font-semibold text-emerald-300">
-                  <span>✓</span> Published to Gallery
+                  <span>✓</span> Published
                 </span>
               ) : (
                 <button
@@ -156,7 +156,7 @@ export const CollageArtworkModal: React.FC<CollageArtworkModalProps> = ({
                   disabled={isConfirming}
                   className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 font-semibold text-white transition inline-flex items-center gap-1.5 shadow-sm disabled:opacity-50"
                 >
-                  <span>✓</span> {isConfirming ? "Publishing..." : "Confirm & Publish to Gallery"}
+                  <span>✓</span> {isConfirming ? "Publishing..." : "Publish Artwork"}
                 </button>
               )
             )}

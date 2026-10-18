@@ -1,0 +1,1 @@
+-- Note: PostgreSQL ENUM values cannot be directly removed without recreating the type.

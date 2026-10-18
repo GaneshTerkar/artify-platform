@@ -1103,20 +1103,32 @@ export default function AdminPage() {
               )}
             </div>
 
-            {/* Reset Shortcut */}
+            {/* Reset Shortcut Button with Tooltip */}
             {(orderRoleFilter !== "ALL" || statusFilter !== "ALL" || orderSearchQuery.trim() !== "") && (
-              <button
-                onClick={() => {
-                  setOrderRoleFilter("ALL");
-                  setStatusFilter("ALL");
-                  setArtistFilter("ALL");
-                  setDeliveryPartnerFilter("ALL");
-                  setOrderSearchQuery("");
-                }}
-                className="text-xs text-amber-400 hover:text-amber-300 underline font-medium whitespace-nowrap flex items-center gap-1 flex-shrink-0"
-              >
-                <span>↺</span> Clear filters
-              </button>
+              <div className="relative group flex items-center flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOrderRoleFilter("ALL");
+                    setStatusFilter("ALL");
+                    setArtistFilter("ALL");
+                    setDeliveryPartnerFilter("ALL");
+                    setOrderSearchQuery("");
+                  }}
+                  className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 border border-amber-500/40 hover:border-amber-400 text-amber-400 hover:text-amber-300 transition flex items-center justify-center shadow-sm cursor-pointer"
+                  title="Clear all active filters"
+                  aria-label="Clear filters"
+                >
+                  <span className="text-sm font-bold">↺</span>
+                </button>
+                {/* Tooltip on Hover */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center pointer-events-none z-30">
+                  <span className="rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1 text-[11px] font-medium text-amber-300 shadow-xl whitespace-nowrap">
+                    Clear filters
+                  </span>
+                  <span className="w-1.5 h-1.5 bg-slate-950 border-r border-b border-slate-700 transform rotate-45 -mt-1"></span>
+                </div>
+              </div>
             )}
 
             {/* Showing Count */}
@@ -1450,18 +1462,30 @@ export default function AdminPage() {
               )}
             </div>
 
-            {/* Reset Shortcut */}
+            {/* Reset Shortcut Button with Tooltip */}
             {(userRoleFilter !== "ALL" || userSubFilter !== "ALL" || userSearchQuery.trim() !== "") && (
-              <button
-                onClick={() => {
-                  setUserRoleFilter("ALL");
-                  setUserSubFilter("ALL");
-                  setUserSearchQuery("");
-                }}
-                className="text-xs text-amber-400 hover:text-amber-300 underline font-medium whitespace-nowrap flex items-center gap-1 flex-shrink-0"
-              >
-                <span>↺</span> Clear filters
-              </button>
+              <div className="relative group flex items-center flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUserRoleFilter("ALL");
+                    setUserSubFilter("ALL");
+                    setUserSearchQuery("");
+                  }}
+                  className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 border border-amber-500/40 hover:border-amber-400 text-amber-400 hover:text-amber-300 transition flex items-center justify-center shadow-sm cursor-pointer"
+                  title="Clear all active filters"
+                  aria-label="Clear filters"
+                >
+                  <span className="text-sm font-bold">↺</span>
+                </button>
+                {/* Tooltip on Hover */}
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:flex flex-col items-center pointer-events-none z-30">
+                  <span className="rounded-md bg-slate-950 border border-slate-700 px-2.5 py-1 text-[11px] font-medium text-amber-300 shadow-xl whitespace-nowrap">
+                    Clear filters
+                  </span>
+                  <span className="w-1.5 h-1.5 bg-slate-950 border-r border-b border-slate-700 transform rotate-45 -mt-1"></span>
+                </div>
+              </div>
             )}
 
             {/* Policy Thresholds Icon Button with Tooltip */}
@@ -1487,14 +1511,14 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Export CSV Button */}
+            {/* Export Button */}
             <button
               type="button"
               onClick={() => exportUsersToCSV(filteredUsers)}
               className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition flex items-center gap-1 shadow-sm whitespace-nowrap flex-shrink-0 cursor-pointer"
               title="Export current user list to CSV for Excel"
             >
-              <span>📥</span> <span>Export CSV</span>
+              <span>📥</span> <span>Export</span>
             </button>
 
             {/* Showing Count */}

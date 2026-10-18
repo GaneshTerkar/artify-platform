@@ -236,17 +236,6 @@ export default function AdminPage() {
     statusFilter !== "PLACED" &&
     statusFilter !== "CANCELLED";
 
-  const showDeliveryFilter =
-    (orderRoleFilter === "ALL" || orderRoleFilter === "DELIVERY_AGENT") &&
-    (statusFilter === "ALL" ||
-      [
-        "ASSIGNED_DELIVERY_AGENT",
-        "IN_TRANSIT",
-        "OUT_FOR_DELIVERY",
-        "DELIVERY_FAILED",
-        "DELIVERED",
-      ].includes(statusFilter));
-
   const handleRoleFilterChange = (role: "ALL" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT") => {
     setOrderRoleFilter(role);
     if (role !== "ALL") {
@@ -307,14 +296,7 @@ export default function AdminPage() {
   });
   const allOrders = ordersData?.orders ?? [];
 
-  // 2. Fetch Artists in Review Queue
-  const { data: reviewQueue, isLoading: queueLoading } = useQuery({
-    queryKey: ["admin_review_queue"],
-    queryFn: () => api<ArtistReviewItem[]>("/api/admin/artists/review-queue"),
-  });
-  const pendingArtists = reviewQueue ?? [];
-
-  // 3. Fetch Verified Artists
+  // 2. Fetch Verified Artists
   const { data: verifiedData } = useQuery({
     queryKey: ["verified_artists"],
     queryFn: () => api<{ verified_artists: VerifiedArtist[] }>("/api/v1/artists/verified"),
@@ -345,14 +327,6 @@ export default function AdminPage() {
     return counts;
   }, [allOrders]);
 
-  const inspectedCount = useMemo(() => {
-    return allOrders.filter((o) => o.is_published_to_gallery).length;
-  }, [allOrders]);
-
-  const needsInspectionCount = useMemo(() => {
-    return allOrders.filter((o) => o.status === "COMPLETED" && !o.is_published_to_gallery).length;
-  }, [allOrders]);
-
   const roleCounts = useMemo(() => {
     let customer = 0;
     let artist = 0;
@@ -375,41 +349,6 @@ export default function AdminPage() {
       DELIVERY_AGENT: delivery,
     };
   }, [allOrders]);
-
-  const ROLE_TABS = [
-    { id: "ALL", label: "All Roles", icon: "🌐", count: roleCounts.ALL },
-    { id: "CUSTOMER", label: "Customer Phase", icon: "👤", count: roleCounts.CUSTOMER },
-    { id: "ARTIST", label: "Artist Stage", icon: "🎨", count: roleCounts.ARTIST },
-    { id: "DELIVERY_AGENT", label: "Delivery Agent", icon: "🚚", count: roleCounts.DELIVERY_AGENT },
-  ] as const;
-
-  const STATUS_PILLS = [
-    { id: "ALL", label: "ALL", count: allOrders.length },
-    { id: "PLACED", label: "PLACED", count: statusCounts["PLACED"] || 0 },
-    { id: "CONFIRMED", label: "CONFIRMED", count: statusCounts["CONFIRMED"] || 0 },
-    { id: "ASSIGNED_ARTIST", label: "ASSIGNED ARTIST", count: statusCounts["ASSIGNED_ARTIST"] || 0 },
-    { id: "IN_PROGRESS", label: "IN PROGRESS", count: statusCounts["IN_PROGRESS"] || 0 },
-    { id: "COMPLETED", label: "COMPLETED", count: statusCounts["COMPLETED"] || 0 },
-    { id: "ASSIGNED_DELIVERY_AGENT", label: "ASSIGNED DELIVERY AGENT", count: statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0 },
-    { id: "IN_TRANSIT", label: "IN TRANSIT", count: statusCounts["IN_TRANSIT"] || 0 },
-    { id: "OUT_FOR_DELIVERY", label: "OUT FOR DELIVERY", count: statusCounts["OUT_FOR_DELIVERY"] || 0 },
-    { id: "DELIVERY_FAILED", label: "DELIVERY FAILED", count: statusCounts["DELIVERY_FAILED"] || 0 },
-    { id: "DELIVERED", label: "DELIVERED", count: statusCounts["DELIVERED"] || 0 },
-    { id: "PUBLISHED", label: "PUBLISHED", count: statusCounts["PUBLISHED"] || 0 },
-    { id: "CANCELLED", label: "CANCELLED", count: statusCounts["CANCELLED"] || 0 },
-  ] as const;
-
-  const activeStatusPills = useMemo(() => {
-    if (orderRoleFilter === "ALL") {
-      return STATUS_PILLS;
-    }
-    const allowed = ROLE_STATUS_MAP[orderRoleFilter] || [];
-    const roleTotal = roleCounts[orderRoleFilter] || 0;
-    return [
-      { id: "ALL", label: "ALL", count: roleTotal },
-      ...STATUS_PILLS.filter((p) => p.id !== "ALL" && allowed.includes(p.id)),
-    ];
-  }, [orderRoleFilter, STATUS_PILLS, roleCounts]);
 
   const filteredOrders = useMemo(() => {
     return allOrders.filter((o) => {
@@ -754,20 +693,6 @@ export default function AdminPage() {
       setAssigningDeliveryOrder(null);
       setSelectedDeliveryAgentId("");
       showMessage("Delivery partner assigned successfully!");
-    },
-    onError: (err: Error) => showMessage(err.message, "error"),
-  });
-
-  const retryDeliveryMutation = useMutation({
-    mutationFn: ({ orderId }: { orderId: string }) =>
-      api(`/api/v1/admin/orders/${orderId}/status`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: "OUT_FOR_DELIVERY" }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin_orders"] });
-      queryClient.invalidateQueries({ queryKey: ["my-orders"] });
-      showMessage("Delivery re-attempt scheduled (Out for Delivery)!");
     },
     onError: (err: Error) => showMessage(err.message, "error"),
   });
@@ -2998,7 +2923,6 @@ export default function AdminPage() {
           : allOrders.filter((o) => o.status === "COMPLETED" || o.status === "PUBLISHED" || o.status === "DELIVERED");
         const lifetimeRevenue = activeOrdersList.reduce((sum, o) => sum + (Number(o.total_price) || 0), 0);
         const lifetimeCommission = Math.round(lifetimeRevenue * DELIVERY_COMMISSION_PERCENTAGE);
-        const lifetimeStudioShare = Math.round(lifetimeRevenue * PLATFORM_MARGIN_PERCENTAGE);
         const lifetimeCount = activeOrdersList.length;
 
         return (

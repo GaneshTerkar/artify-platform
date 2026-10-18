@@ -46,8 +46,6 @@ export const CollageArtworkModal: React.FC<CollageArtworkModalProps> = ({
 
   if (!isOpen) return null;
 
-  const downloadTarget = collageImageUrl || finalImageUrl;
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-3 sm:p-6 backdrop-blur-md animate-in fade-in"

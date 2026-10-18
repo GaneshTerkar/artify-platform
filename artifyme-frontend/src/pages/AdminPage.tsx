@@ -236,18 +236,6 @@ export default function AdminPage() {
 
   const handleStatusFilterChange = (status: string) => {
     setStatusFilter(status);
-    if (status === "PLACED" || status === "CANCELLED") {
-      setArtistFilter("ALL");
-    }
-    if (status !== "ALL") {
-      if (ROLE_STATUS_MAP.CUSTOMER.includes(status)) {
-        setOrderRoleFilter("CUSTOMER");
-      } else if (ROLE_STATUS_MAP.ARTIST.includes(status)) {
-        setOrderRoleFilter("ARTIST");
-      } else if (ROLE_STATUS_MAP.DELIVERY_AGENT.includes(status)) {
-        setOrderRoleFilter("DELIVERY_AGENT");
-      }
-    }
   };
   const [userRoleFilter, setUserRoleFilter] = useState<"ALL" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT" | "ADMIN">("ALL");
   const [userSearchQuery, setUserSearchQuery] = useState<string>("");
@@ -1049,23 +1037,17 @@ export default function AdminPage() {
                   {orderRoleFilter === "ALL" && (
                     <>
                       <option value="ALL">All ({allOrders.length})</option>
-                      <optgroup label="👤 Customer">
-                        <option value="PLACED">PLACED ({statusCounts["PLACED"] || 0})</option>
-                        <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
-                        <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
-                      </optgroup>
-                      <optgroup label="🎨 Artist">
-                        <option value="ASSIGNED_ARTIST">ASSIGNED ARTIST ({statusCounts["ASSIGNED_ARTIST"] || 0})</option>
-                        <option value="IN_PROGRESS">IN PROGRESS ({statusCounts["IN_PROGRESS"] || 0})</option>
-                        <option value="COMPLETED">STUDIO READY ({statusCounts["COMPLETED"] || 0})</option>
-                      </optgroup>
-                      <optgroup label="🚚 Delivery Partner">
-                        <option value="ASSIGNED_DELIVERY_AGENT">COURIER ASSIGNED ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
-                        <option value="IN_TRANSIT">IN TRANSIT ({statusCounts["IN_TRANSIT"] || 0})</option>
-                        <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
-                        <option value="DELIVERY_FAILED">DELIVERY RETRY ({statusCounts["DELIVERY_FAILED"] || 0})</option>
-                        <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
-                      </optgroup>
+                      <option value="PLACED">PLACED ({statusCounts["PLACED"] || 0})</option>
+                      <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
+                      <option value="ASSIGNED_ARTIST">ASSIGNED ARTIST ({statusCounts["ASSIGNED_ARTIST"] || 0})</option>
+                      <option value="IN_PROGRESS">IN PROGRESS ({statusCounts["IN_PROGRESS"] || 0})</option>
+                      <option value="COMPLETED">STUDIO READY ({statusCounts["COMPLETED"] || 0})</option>
+                      <option value="ASSIGNED_DELIVERY_AGENT">COURIER ASSIGNED ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
+                      <option value="IN_TRANSIT">IN TRANSIT ({statusCounts["IN_TRANSIT"] || 0})</option>
+                      <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
+                      <option value="DELIVERY_FAILED">DELIVERY RETRY ({statusCounts["DELIVERY_FAILED"] || 0})</option>
+                      <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
+                      <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
                     </>
                   )}
 

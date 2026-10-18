@@ -1037,8 +1037,8 @@ export default function AdminPage() {
         <div className="space-y-6">
           {/* Filters Bar */}
           <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
-            {/* Row 1: Filter Dropdowns */}
-            <div className="flex flex-wrap items-center gap-3 text-xs">
+            {/* Row 1: Filter Dropdowns (Strict single line, no wrapping) */}
+            <div className="flex items-center gap-3 text-xs overflow-x-auto scrollbar-none whitespace-nowrap">
               {/* User Dropdown */}
               <div className="flex items-center gap-1.5">
                 <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1">

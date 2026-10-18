@@ -1057,10 +1057,10 @@ export default function AdminPage() {
                 </select>
               </div>
 
-              {/* Order Status Dropdown */}
+              {/* Status Dropdown */}
               <div className="flex items-center gap-1.5">
                 <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1">
-                  <span>📦</span> Order Status:
+                  <span>📦</span> Status:
                 </label>
                 <select
                   value={statusFilter}
@@ -1192,16 +1192,11 @@ export default function AdminPage() {
                   <span>↺</span> Clear filters
                 </button>
               )}
-
-              <span className="text-slate-400 text-xs ml-auto whitespace-nowrap">
-                Showing <strong className="text-white">{sortedOrders.length}</strong> of{" "}
-                <strong className="text-white">{allOrders.length}</strong> orders
-              </span>
             </div>
 
-            {/* Row 2: Search Bar Below Dropdowns */}
-            <div className="relative pt-1 border-t border-slate-800/60">
-              <div className="flex items-center gap-2 w-full relative">
+            {/* Row 2: Search Bar and Showing Count in Line */}
+            <div className="flex items-center gap-3 pt-1 border-t border-slate-800/60">
+              <div className="flex items-center gap-2 flex-1 relative">
                 <span className="text-slate-400 absolute left-3 pointer-events-none text-xs">🔍</span>
                 <input
                   type="text"
@@ -1219,6 +1214,11 @@ export default function AdminPage() {
                   </button>
                 )}
               </div>
+
+              <span className="text-slate-400 text-xs whitespace-nowrap">
+                Showing <strong className="text-white">{sortedOrders.length}</strong> of{" "}
+                <strong className="text-white">{allOrders.length}</strong> orders
+              </span>
             </div>
           </div>
 

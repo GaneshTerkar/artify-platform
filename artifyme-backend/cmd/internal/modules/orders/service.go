@@ -23,15 +23,23 @@ type Service struct {
 	relay      *events.Relay
 }
 
-func NewService(repo *Repository, uploader FileUploader, baseURL string, pool *worker.Pool, eventsRepo events.Repository, relay *events.Relay) *Service {
-	return &Service{
-		repo:       repo,
-		uploader:   uploader,
-		baseURL:    baseURL,
-		pool:       pool,
-		eventsRepo: eventsRepo,
-		relay:      relay,
+func NewService(repo *Repository, uploader FileUploader, baseURL string, extras ...interface{}) *Service {
+	s := &Service{
+		repo:     repo,
+		uploader: uploader,
+		baseURL:  baseURL,
 	}
+	for _, extra := range extras {
+		switch v := extra.(type) {
+		case *worker.Pool:
+			s.pool = v
+		case events.Repository:
+			s.eventsRepo = v
+		case *events.Relay:
+			s.relay = v
+		}
+	}
+	return s
 }
 
 func (s *Service) emitEvent(ctx context.Context, aggregateID string, eventType string, payload map[string]interface{}) {

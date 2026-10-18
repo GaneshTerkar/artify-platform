@@ -1037,17 +1037,17 @@ export default function AdminPage() {
         <div className="space-y-6">
           {/* Filters Bar */}
           <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-4 space-y-3">
-            {/* Row 1: Filter Dropdowns (Strict single line, flex-fit with no scrollbar) */}
-            <div className="flex items-center gap-2.5 text-xs w-full">
+            {/* Row 1: Filter Dropdowns (User and Status) */}
+            <div className="flex items-center gap-3 text-xs w-full">
               {/* User Dropdown */}
-              <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1.5 flex-shrink-0">
                   <span>👥</span> User:
                 </label>
                 <select
                   value={orderRoleFilter}
                   onChange={(e) => handleRoleFilterChange(e.target.value as any)}
-                  className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm w-full min-w-0 truncate cursor-pointer"
+                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm w-full min-w-0 truncate cursor-pointer"
                 >
                   <option value="ALL">All ({allOrders.length})</option>
                   <option value="CUSTOMER">👤 Customer ({roleCounts.CUSTOMER})</option>
@@ -1058,14 +1058,14 @@ export default function AdminPage() {
               </div>
 
               {/* Status Dropdown */}
-              <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1.5 flex-shrink-0">
                   <span>📦</span> Status:
                 </label>
                 <select
                   value={statusFilter}
                   onChange={(e) => handleStatusFilterChange(e.target.value)}
-                  className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm w-full min-w-0 truncate cursor-pointer"
+                  className="rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm w-full min-w-0 truncate cursor-pointer"
                 >
                   {orderRoleFilter === "ALL" && (
                     <>
@@ -1130,52 +1130,6 @@ export default function AdminPage() {
                   )}
                 </select>
               </div>
-
-              {/* Artist Filter Dropdown */}
-              {showArtistFilter && (
-                <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                  <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1 flex-shrink-0">
-                    <span>🖌️</span> Artist:
-                  </label>
-                  <select
-                    value={artistFilter}
-                    onChange={(e) => setArtistFilter(e.target.value)}
-                    className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-brand shadow-sm w-full min-w-0 truncate cursor-pointer"
-                  >
-                    <option value="ALL">All</option>
-                    <option value="ASSIGNED">Any Assigned</option>
-                    <option value="UNASSIGNED">Unassigned Only</option>
-                    {verifiedArtists.map((a) => (
-                      <option key={a.artist_id} value={a.artist_id}>
-                        {a.full_name} ({a.specialization || "Artist"})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {/* Delivery Partner Filter Dropdown */}
-              {showDeliveryFilter && (
-                <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                  <label className="text-slate-300 font-semibold whitespace-nowrap flex items-center gap-1 flex-shrink-0">
-                    <span>🛵</span> Courier:
-                  </label>
-                  <select
-                    value={deliveryPartnerFilter}
-                    onChange={(e) => setDeliveryPartnerFilter(e.target.value)}
-                    className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-brand shadow-sm w-full min-w-0 truncate cursor-pointer"
-                  >
-                    <option value="ALL">All</option>
-                    <option value="ASSIGNED">Any Assigned</option>
-                    <option value="UNASSIGNED">Unassigned Only</option>
-                    {activeDeliveryPartners.map((c) => (
-                      <option key={c.user_id} value={c.user_id}>
-                        {c.full_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
             </div>
 
             {/* Row 2: Search Bar, Clear filters, and Showing Count in Line */}
@@ -1187,7 +1141,7 @@ export default function AdminPage() {
                   value={orderSearchQuery}
                   onChange={(e) => setOrderSearchQuery(e.target.value)}
                   placeholder="Search by ID, customer, artist, courier, address, notes..."
-                  className="rounded-lg bg-slate-800/90 border border-slate-700 pl-8 pr-16 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
+                  className="rounded-lg bg-slate-800/90 border border-slate-700 pl-8 pr-16 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
                 />
                 {orderSearchQuery && (
                   <button
@@ -1200,7 +1154,7 @@ export default function AdminPage() {
               </div>
 
               {/* Reset shortcut */}
-              {(orderRoleFilter !== "ALL" || statusFilter !== "ALL" || artistFilter !== "ALL" || deliveryPartnerFilter !== "ALL" || orderSearchQuery.trim() !== "") && (
+              {(orderRoleFilter !== "ALL" || statusFilter !== "ALL" || orderSearchQuery.trim() !== "") && (
                 <button
                   onClick={() => {
                     setOrderRoleFilter("ALL");

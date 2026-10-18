@@ -41,10 +41,11 @@ export interface UserWarningRecord {
 
 export type UserWarningsMap = Record<string, UserWarningRecord>;
 
-export function FacebookVerifiedBadge({ className = "w-4 h-4" }: { className?: string }) {
+export function FacebookVerifiedBadge({ className = "w-4 h-4", size = 18 }: { className?: string; size?: number }) {
   return (
     <svg
       className={`${className} text-[#1877F2] flex-shrink-0 inline-block`}
+      style={{ width: size, height: size, minWidth: size, minHeight: size }}
       viewBox="0 0 24 24"
       fill="currentColor"
     >
@@ -1079,10 +1080,10 @@ export default function AdminPage() {
       {activeTab === "users" && (
         <div className="space-y-6">
           {/* Filters & Search Bar */}
-          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-3.5 space-y-2.5">
-            {/* ROW 1: Role Filter Pills (Left) + Search & Export (Right) */}
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-3.5 space-y-3">
+            {/* ROW 1: Role Navigation Tabs (Left) + Policy & Export Actions (Right) */}
             <div className="flex flex-wrap items-center justify-between gap-3">
-              {/* Role Filter Pills */}
+              {/* Role Navigation Tabs */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
                 {(
                   [
@@ -1125,27 +1126,8 @@ export default function AdminPage() {
                 })}
               </div>
 
-              {/* Right Side: Quick Search, Policy Thresholds & Export CSV */}
-              <div className="flex items-center gap-2 flex-1 sm:flex-initial justify-end">
-                <div className="relative min-w-[180px] max-w-xs flex-1">
-                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
-                  <input
-                    type="text"
-                    value={userSearchQuery}
-                    onChange={(e) => setUserSearchQuery(e.target.value)}
-                    placeholder="Search users..."
-                    className="rounded-lg bg-slate-800 border border-slate-700 pl-7 pr-7 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
-                  />
-                  {userSearchQuery && (
-                    <button
-                      onClick={() => setUserSearchQuery("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-
+              {/* Right Side: Global Administrative Actions */}
+              <div className="flex items-center gap-2 ml-auto">
                 <button
                   type="button"
                   onClick={() => {
@@ -1165,117 +1147,141 @@ export default function AdminPage() {
                   className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition flex items-center gap-1 shadow-sm whitespace-nowrap"
                   title="Export current user list to CSV for Excel"
                 >
-                  <span>📥</span> <span className="hidden sm:inline">Export</span> CSV
+                  <span>📥</span> <span>Export CSV</span>
                 </button>
 
-                <span className="text-slate-400 text-xs whitespace-nowrap hidden lg:inline">
+                <span className="text-slate-400 text-xs whitespace-nowrap hidden sm:inline ml-1 font-medium">
                   <strong className="text-white">{filteredUsers.length}</strong>/{allUsers.length}
                 </span>
               </div>
             </div>
 
-            {/* ROW 2: Contextual Sub-filters (Hidden for ADMINS) */}
-            {userRoleFilter !== "ADMIN" && (
-              <div className="flex flex-wrap items-center gap-1.5 pt-2.5 border-t border-slate-800/60 text-xs">
-                <div className="flex items-center gap-1.5 mr-1">
-                  <span className="text-slate-500 font-medium text-[11px] uppercase tracking-wider">
-                    Filter:
-                  </span>
-                  {userSubFilter !== "ALL" && (
-                    <button
-                      type="button"
-                      onClick={() => setUserSubFilter("ALL")}
-                      className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700 hover:border-slate-600 transition flex items-center gap-1 shadow-sm"
-                      title="Clear active filter"
-                    >
-                      <span>✕</span>
-                      <span>Clear</span>
-                    </button>
-                  )}
-                </div>
-
-                {/* 1. Verified (Artists only) */}
-                {userRoleFilter === "ARTIST" && (
+            {/* ROW 2: Quick Search (Left) + Contextual Filters (Right) */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-800/60 text-xs">
+              {/* Quick Search */}
+              <div className="relative min-w-[220px] max-w-sm flex-1">
+                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs">🔍</span>
+                <input
+                  type="text"
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  placeholder="Search by name, email, phone, username..."
+                  className="rounded-lg bg-slate-800 border border-slate-700 pl-7 pr-7 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
+                />
+                {userSearchQuery && (
                   <button
-                    type="button"
-                    onClick={() => setUserSubFilter(userSubFilter === "VERIFIED" ? "ALL" : "VERIFIED")}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                      userSubFilter === "VERIFIED"
-                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold shadow-sm"
-                        : "bg-slate-800/90 text-slate-400 hover:text-emerald-300 border border-transparent"
-                    }`}
+                    onClick={() => setUserSearchQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white text-xs"
                   >
-                    <FacebookVerifiedBadge className="w-3.5 h-3.5" />
-                    <span>Verified</span>
-                    <span className="rounded-full bg-emerald-500/30 text-emerald-200 px-1.5 py-0.2 text-[10px] font-bold">
-                      {userCounts.VERIFIED_ARTIST}
-                    </span>
-                  </button>
-                )}
-
-                {/* 2. Pending Review (Artists only) */}
-                {userRoleFilter === "ARTIST" && (
-                  <button
-                    type="button"
-                    onClick={() => setUserSubFilter(userSubFilter === "PENDING_REVIEW" ? "ALL" : "PENDING_REVIEW")}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                      userSubFilter === "PENDING_REVIEW"
-                        ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold shadow-sm"
-                        : "bg-slate-800/90 text-slate-400 hover:text-amber-300 border border-transparent"
-                    }`}
-                  >
-                    <span>⏳ Pending Review</span>
-                    <span className="rounded-full bg-amber-500/30 text-amber-200 px-1.5 py-0.2 text-[10px] font-bold">
-                      {userCounts.PENDING_REVIEW}
-                    </span>
-                  </button>
-                )}
-
-                {/* 3. At-Risk / Needs Attention */}
-                <button
-                  type="button"
-                  onClick={() => setUserSubFilter(userSubFilter === "AT_RISK" ? "ALL" : "AT_RISK")}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                    userSubFilter === "AT_RISK"
-                      ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 font-semibold shadow-sm"
-                      : "bg-slate-800/90 text-slate-400 hover:text-rose-300 border border-transparent"
-                  }`}
-                  title={
-                    userRoleFilter === "CUSTOMER"
-                      ? "Show customers with excessive cancellations or unconfirmed placed orders"
-                      : userRoleFilter === "ARTIST"
-                      ? "Show artists with stalled assignments or cancellations"
-                      : "Show accounts flagged as needing attention"
-                  }
-                >
-                  <span>⚠️</span>
-                  <span>Needs Attention</span>
-                  <span className="rounded-full bg-rose-500/30 text-rose-200 px-1.5 py-0.2 text-[10px] font-bold">
-                    {userRiskCounts.atRisk}
-                  </span>
-                </button>
-
-                {/* 4. Admin-Eligible (Artists or All only - Hidden for Customers) */}
-                {userRoleFilter !== "CUSTOMER" && (
-                  <button
-                    type="button"
-                    onClick={() => setUserSubFilter(userSubFilter === "ADMIN_ELIGIBLE" ? "ALL" : "ADMIN_ELIGIBLE")}
-                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
-                      userSubFilter === "ADMIN_ELIGIBLE"
-                        ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold shadow-sm"
-                        : "bg-slate-800/90 text-slate-400 hover:text-amber-300 border border-transparent"
-                    }`}
-                    title={`Show verified artists with at least ${policyThresholds.minArtistCompletedOrders} completed commissions and 0 stalled assignments`}
-                  >
-                    <span>⭐</span>
-                    <span>Admin-Eligible</span>
-                    <span className="rounded-full bg-amber-500/30 text-amber-200 px-1.5 py-0.2 text-[10px] font-bold">
-                      {userRiskCounts.adminEligible}
-                    </span>
+                    ✕
                   </button>
                 )}
               </div>
-            )}
+
+              {/* Contextual Sub-filters */}
+              {userRoleFilter !== "ADMIN" && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 mr-1">
+                    <span className="text-slate-500 font-medium text-[11px] uppercase tracking-wider">
+                      Filter:
+                    </span>
+                    {userSubFilter !== "ALL" && (
+                      <button
+                        type="button"
+                        onClick={() => setUserSubFilter("ALL")}
+                        className="rounded px-1.5 py-0.5 text-[10px] font-semibold bg-slate-800 text-slate-400 hover:text-white border border-slate-700 hover:border-slate-600 transition flex items-center gap-1 shadow-sm"
+                        title="Clear active filter"
+                      >
+                        <span>✕</span>
+                        <span>Clear</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 1. Verified (Artists only) */}
+                  {userRoleFilter === "ARTIST" && (
+                    <button
+                      type="button"
+                      onClick={() => setUserSubFilter(userSubFilter === "VERIFIED" ? "ALL" : "VERIFIED")}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
+                        userSubFilter === "VERIFIED"
+                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-semibold shadow-sm"
+                          : "bg-slate-800/90 text-slate-400 hover:text-emerald-300 border border-transparent"
+                      }`}
+                    >
+                      <FacebookVerifiedBadge size={14} className="w-3.5 h-3.5" />
+                      <span>Verified</span>
+                      <span className="rounded-full bg-emerald-500/30 text-emerald-200 px-1.5 py-0.2 text-[10px] font-bold">
+                        {userCounts.VERIFIED_ARTIST}
+                      </span>
+                    </button>
+                  )}
+
+                  {/* 2. Pending Review (Artists only) */}
+                  {userRoleFilter === "ARTIST" && (
+                    <button
+                      type="button"
+                      onClick={() => setUserSubFilter(userSubFilter === "PENDING_REVIEW" ? "ALL" : "PENDING_REVIEW")}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
+                        userSubFilter === "PENDING_REVIEW"
+                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold shadow-sm"
+                          : "bg-slate-800/90 text-slate-400 hover:text-amber-300 border border-transparent"
+                      }`}
+                    >
+                      <span>⏳</span>
+                      <span>Pending Review</span>
+                      <span className="rounded-full bg-amber-500/30 text-amber-200 px-1.5 py-0.2 text-[10px] font-bold">
+                        {userCounts.PENDING_REVIEW}
+                      </span>
+                    </button>
+                  )}
+
+                  {/* 3. At-Risk / Needs Attention */}
+                  <button
+                    type="button"
+                    onClick={() => setUserSubFilter(userSubFilter === "AT_RISK" ? "ALL" : "AT_RISK")}
+                    className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
+                      userSubFilter === "AT_RISK"
+                        ? "bg-rose-500/20 text-rose-300 border border-rose-500/40 font-semibold shadow-sm"
+                        : "bg-slate-800/90 text-slate-400 hover:text-rose-300 border border-transparent"
+                    }`}
+                    title={
+                      userRoleFilter === "CUSTOMER"
+                        ? "Show customers with excessive cancellations or unconfirmed placed orders"
+                        : userRoleFilter === "ARTIST"
+                        ? "Show artists with stalled assignments or cancellations"
+                        : "Show accounts flagged as needing attention"
+                    }
+                  >
+                    <span>⚠️</span>
+                    <span>Needs Attention</span>
+                    <span className="rounded-full bg-rose-500/30 text-rose-200 px-1.5 py-0.2 text-[10px] font-bold">
+                      {userRiskCounts.atRisk}
+                    </span>
+                  </button>
+
+                  {/* 4. Admin-Eligible (Artists or All only - Hidden for Customers) */}
+                  {userRoleFilter !== "CUSTOMER" && (
+                    <button
+                      type="button"
+                      onClick={() => setUserSubFilter(userSubFilter === "ADMIN_ELIGIBLE" ? "ALL" : "ADMIN_ELIGIBLE")}
+                      className={`rounded-lg px-2.5 py-1 text-xs font-medium transition flex items-center gap-1.5 ${
+                        userSubFilter === "ADMIN_ELIGIBLE"
+                          ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold shadow-sm"
+                          : "bg-slate-800/90 text-slate-400 hover:text-amber-300 border border-transparent"
+                      }`}
+                      title={`Show verified artists with at least ${policyThresholds.minArtistCompletedOrders} completed commissions and 0 stalled assignments`}
+                    >
+                      <span>⭐</span>
+                      <span>Admin-Eligible</span>
+                      <span className="rounded-full bg-amber-500/30 text-amber-200 px-1.5 py-0.2 text-[10px] font-bold">
+                        {userRiskCounts.adminEligible}
+                      </span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Users List */}
@@ -1342,7 +1348,7 @@ export default function AdminPage() {
                                 title="Verified Artist: Portfolio approved and verified by Admin"
                                 className="inline-flex items-center cursor-help transition-transform hover:scale-125 ml-0.5"
                               >
-                                <FacebookVerifiedBadge className="w-4.5 h-4.5" />
+                                <FacebookVerifiedBadge size={19} className="w-5 h-5 ml-0.5" />
                               </span>
                             )}
                           </div>

@@ -205,7 +205,7 @@ export default function AdminPage() {
   const ROLE_STATUS_MAP: Record<string, string[]> = {
     CUSTOMER: ["PLACED", "CONFIRMED", "CANCELLED"],
     ARTIST: ["ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED"],
-    DELIVERY_AGENT: ["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED", "PUBLISHED"],
+    DELIVERY_AGENT: ["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED"],
   };
 
   const showArtistFilter =
@@ -222,7 +222,6 @@ export default function AdminPage() {
         "OUT_FOR_DELIVERY",
         "DELIVERY_FAILED",
         "DELIVERED",
-        "PUBLISHED",
       ].includes(statusFilter));
 
   const handleRoleFilterChange = (role: "ALL" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT") => {
@@ -1058,7 +1057,6 @@ export default function AdminPage() {
                     <option value="ALL">All ({roleCounts.CUSTOMER})</option>
                     <option value="PLACED">PLACED ({statusCounts["PLACED"] || 0})</option>
                     <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
-                    <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
                     <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
                   </>
                 )}
@@ -1080,7 +1078,6 @@ export default function AdminPage() {
                     <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
                     <option value="DELIVERY_FAILED">DELIVERY FAILED ({statusCounts["DELIVERY_FAILED"] || 0})</option>
                     <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
-                    <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
                   </>
                 )}
               </select>
@@ -1354,6 +1351,13 @@ export default function AdminPage() {
                         )}
                       </div>
                     )}
+
+                      {/* 8. If PUBLISHED: Published to Gallery */}
+                      {o.status === "PUBLISHED" && (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 text-xs font-medium text-emerald-300">
+                          <span>🌟</span> Published to Gallery
+                        </span>
+                      )}
 
                       {/* 11. If CANCELLED: Archived */}
                       {o.status === "CANCELLED" && (

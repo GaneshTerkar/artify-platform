@@ -14,6 +14,12 @@ export type Order = {
   user_id?: string;
   artist_id?: string;
   delivery_agent_id?: string;
+  customer_name?: string;
+  customer_phone?: string;
+  artist_name?: string;
+  artist_phone?: string;
+  delivery_agent_name?: string;
+  delivery_agent_phone?: string;
   status: string;
   lifecycle_label: string;
   painting_category: string;
@@ -47,6 +53,7 @@ export type VerifiedArtist = {
   artist_id: string;
   full_name: string;
   email: string;
+  phone_number?: string;
   experience_years: number;
   bio: string;
 };

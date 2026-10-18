@@ -7,6 +7,12 @@ type orderDTO struct {
 	UserID                string     `json:"user_id"`
 	ArtistID              *string    `json:"artist_id,omitempty"`
 	DeliveryAgentID       *string    `json:"delivery_agent_id,omitempty"`
+	CustomerName          string     `json:"customer_name,omitempty"`
+	CustomerPhone         string     `json:"customer_phone,omitempty"`
+	ArtistName            *string    `json:"artist_name,omitempty"`
+	ArtistPhone           *string    `json:"artist_phone,omitempty"`
+	DeliveryAgentName     *string    `json:"delivery_agent_name,omitempty"`
+	DeliveryAgentPhone    *string    `json:"delivery_agent_phone,omitempty"`
 	PaintingCategory      string     `json:"painting_category"`
 	ReferenceImageURL     string     `json:"reference_image_url"`
 	FinalImageURL         *string    `json:"final_image_url,omitempty"`
@@ -60,6 +66,12 @@ func toOrderDTO(o *Order) orderDTO {
 	d := orderDTO{
 		OrderID:               o.OrderID.String(),
 		UserID:                o.UserID.String(),
+		CustomerName:          o.CustomerName,
+		CustomerPhone:         o.CustomerPhone,
+		ArtistName:            o.ArtistName,
+		ArtistPhone:           o.ArtistPhone,
+		DeliveryAgentName:     o.DeliveryAgentName,
+		DeliveryAgentPhone:    o.DeliveryAgentPhone,
 		PaintingCategory:      string(o.PaintingCategory),
 		ReferenceImageURL:     o.ReferenceImageURL,
 		FinalImageURL:         o.FinalImageURL,

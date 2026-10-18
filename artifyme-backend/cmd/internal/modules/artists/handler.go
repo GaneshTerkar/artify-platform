@@ -96,6 +96,9 @@ func (h *ArtistHandler) MyPaintings(c *gin.Context) {
 		return
 	}
 
+	if paintings == nil {
+		paintings = []ArtistPainting{}
+	}
 	c.JSON(http.StatusOK, paintings)
 }
 

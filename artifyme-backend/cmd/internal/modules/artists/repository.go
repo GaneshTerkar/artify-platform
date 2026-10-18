@@ -153,6 +153,10 @@ func (r *ArtistRepository) GetArtistPaintings(
 		paintings = append(paintings, p)
 	}
 
+	if paintings == nil {
+		paintings = []ArtistPainting{}
+	}
+
 	return paintings, nil
 }
 

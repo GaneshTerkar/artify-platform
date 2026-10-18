@@ -6,6 +6,7 @@ import { useAuth } from "../lib/auth";
 import type { Order, VerifiedArtist, ArtistReviewItem, PlatformUser, ActiveDeliveryAgent } from "../types/order";
 import { CollageThumbnail } from "../components/CollageThumbnail";
 import { CollageArtworkModal } from "../components/CollageArtworkModal";
+import { OrderCard } from "../components/OrderCard";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
@@ -308,7 +309,11 @@ export default function AdminPage() {
     queryKey: ["admin_users"],
     queryFn: () => api<{ users: PlatformUser[] }>("/api/v1/admin/users"),
   });
-  const allUsers = usersData?.users ?? [];
+  const allUsersRaw = usersData?.users ?? [];
+  // Admin can see only other users list except himself
+  const allUsers = useMemo(() => {
+    return allUsersRaw.filter((u) => u.user_id !== user?.user_id && u.email !== user?.email);
+  }, [allUsersRaw, user]);
 
   // 5. Fetch Active Delivery Agents
   const { data: deliveryAgentsData } = useQuery({
@@ -516,6 +521,7 @@ export default function AdminPage() {
 
   const filteredUsers = useMemo(() => {
     return allUsers.filter((u) => {
+      if (u.user_id === user?.user_id || u.email === user?.email) return false;
       if (userRoleFilter === "CUSTOMER" && u.role !== "CUSTOMER") return false;
       if (userRoleFilter === "ADMIN" && u.role !== "ADMIN") return false;
       if (userRoleFilter === "ARTIST" && u.role !== "ARTIST") return false;
@@ -1110,228 +1116,28 @@ export default function AdminPage() {
             </div>
           ) : (
             <div className="grid gap-4">
-              {sortedOrders.map((o, index) => {
-                const displayStatus = getOrderLifecycleStatus(o);
-                const prevStatus = index > 0 ? getOrderLifecycleStatus(sortedOrders[index - 1]) : null;
-                const isFirstOfStatus = prevStatus !== displayStatus;
-                const assignedArtist = verifiedArtists.find((a) => a.artist_id === o.artist_id);
-                const assignedDeliveryAgent = deliveryAgents.find((a) => a.user_id === o.delivery_agent_id);
+              {sortedOrders.map((o) => {
                 return (
-                  <div key={o.order_id} className="space-y-3">
-                    {statusFilter === "ALL" && isFirstOfStatus && (
-                      <div className={`flex items-center gap-3 ${index > 0 ? "pt-5" : "pt-1"} pb-1`}>
-                        <span
-                          className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${getStatusBadge(
-                            displayStatus
-                          )}`}
-                        >
-                          {displayStatus.replace("_", " ")}
-                        </span>
-                        <div className="h-px bg-slate-800/80 flex-1" />
-                      </div>
-                    )}
-                    <div
-                      className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 shadow-lg flex flex-col md:flex-row gap-5 items-start justify-between"
-                    >
-                      {/* Left: Thumbnail & Core Details */}
-                      <div className="flex gap-4 items-start w-full md:w-auto">
-                        {/* Left: Thumbnail Preview (Reference image until published, except when waiting for admin inspection) */}
-                        {o.status === "COMPLETED" && (o.collage_image_url || o.final_image_url) ? (
-                          <CollageThumbnail
-                            sizeClass="w-20 aspect-[4/5] sm:w-24 sm:aspect-[4/5]"
-                            finalImageUrl={resolveImage(o.original_final_image_url || o.final_image_url!)}
-                            refImageUrl={o.reference_image_url ? resolveImage(o.reference_image_url) : undefined}
-                            collageImageUrl={o.collage_image_url ? resolveImage(o.collage_image_url) : undefined}
-                            onClick={() => setInspectingOrder(o)}
-                          />
-                        ) : o.reference_image_url ? (
-                          <div
-                            onClick={() => setSelectedPhoto(resolveImage(o.reference_image_url))}
-                            className="relative w-20 aspect-[4/5] sm:w-24 sm:aspect-[4/5] rounded-xl overflow-hidden bg-slate-800 flex-shrink-0 cursor-pointer border border-slate-700 group shadow"
-                            title="Click to view full reference photo"
-                          >
-                            <img
-                              src={resolveImage(o.reference_image_url)}
-                              alt="Customer Reference"
-                              className="w-full h-full object-cover group-hover:scale-105 transition"
-                            />
-                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition text-xs font-semibold text-white">
-                              View Ref
-                            </div>
-                          </div>
-                        ) : (
-                          <div
-                            className="relative w-20 aspect-[4/5] sm:w-24 sm:aspect-[4/5] rounded-xl overflow-hidden bg-slate-800/60 flex-shrink-0 border border-slate-700/60 flex flex-col items-center justify-center text-slate-500 text-[11px] select-none p-1 text-center"
-                            title="No reference photo attached"
-                          >
-                            <span className="text-xl mb-1">🖼️</span>
-                            <span>No Photo</span>
-                          </div>
-                        )}
-
-                        <div className="space-y-1.5 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span
-                              className={`rounded-full border px-2.5 py-0.5 text-xs font-semibold ${getStatusBadge(
-                                displayStatus
-                              )}`}
-                            >
-                              {displayStatus.replace("_", " ")}
-                            </span>
-                          <span className="rounded-md bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-300">
-                            {o.painting_category}
-                          </span>
-                          <span className="rounded-md bg-slate-800 px-2 py-0.5 text-xs font-medium text-slate-300">
-                            {o.size} • {o.persons_included}
-                          </span>
-                        </div>
-
-                        <p className="text-lg font-bold text-white">₹{Number(o.total_price).toLocaleString("en-IN")}</p>
-
-                        <div className="text-xs text-slate-400 space-y-0.5">
-                          <p>
-                            <strong className="text-slate-300">Delivery Address:</strong> {o.delivery_address}
-                          </p>
-                          {o.customer_notes && (
-                            <p>
-                              <strong className="text-slate-300">Notes:</strong>{" "}
-                              <span className="italic text-slate-300">"{o.customer_notes}"</span>
-                            </p>
-                          )}
-                          <p>
-                            <strong className="text-slate-300">Assigned Artist:</strong>{" "}
-                            {assignedArtist ? (
-                              <span className="text-emerald-400 font-semibold">{assignedArtist.full_name}</span>
-                            ) : o.artist_id ? (
-                              <span className="text-slate-300">ID: {o.artist_id.slice(0, 8)}</span>
-                            ) : (
-                              <span className="text-amber-400 font-medium">Unassigned</span>
-                            )}
-                          </p>
-                          <p>
-                            <strong className="text-slate-300">Delivery Agent:</strong>{" "}
-                            {(() => {
-                              const agent = deliveryAgents.find((a) => a.user_id === o.delivery_agent_id);
-                              if (agent) {
-                                return <span className="text-cyan-400 font-semibold">{agent.full_name}</span>;
-                              }
-                              if (o.delivery_agent_id) {
-                                return <span className="text-slate-300">ID: {o.delivery_agent_id.slice(0, 8)}</span>;
-                              }
-                              return <span className="text-slate-500 font-normal">Not assigned</span>;
-                            })()}
-                          </p>
-                        </div>
-
-                        {o.status === "ASSIGNED_ARTIST" && (
-                          <div className="pt-1">
-                            <span className="inline-flex items-center gap-1.5 rounded-md bg-purple-500/10 border border-purple-500/30 px-2.5 py-1 text-xs text-purple-300 font-medium">
-                              <span>⏳</span> Assigned to {assignedArtist?.full_name || "Artist"} (Awaiting Artist Confirmation)
-                            </span>
-                          </div>
-                        )}
-
-                        {o.status === "ASSIGNED_DELIVERY_AGENT" && (
-                          <div className="pt-1">
-                            <span className="inline-flex items-center gap-1.5 rounded-md bg-cyan-500/10 border border-cyan-500/30 px-2.5 py-1 text-xs text-cyan-300 font-medium">
-                              <span>⏳</span> Assigned to {assignedDeliveryAgent?.full_name || "Delivery Agent"} (Awaiting Courier Confirmation)
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Right: Actions Bar */}
-                    {["PLACED", "CONFIRMED", "COMPLETED", "DELIVERY_FAILED", "DELIVERED"].includes(o.status) && (
-                      <div className="flex flex-wrap md:flex-col items-stretch md:items-end gap-2 w-full md:w-auto pt-3 md:pt-0 border-t md:border-t-0 border-slate-800 flex-shrink-0">
-                        {/* 1. If PLACED (Unconfirmed / Unpaid): Only allow Confirming Order */}
-                        {o.status === "PLACED" && (
-                          <button
-                            onClick={() => statusMutation.mutate({ orderId: o.order_id, status: "CONFIRMED" })}
-                            disabled={statusMutation.isPending}
-                            className="rounded-lg bg-amber-500 hover:bg-amber-600 px-3.5 py-1.5 text-xs font-semibold text-black transition flex items-center justify-center gap-1 shadow-sm whitespace-nowrap flex-shrink-0"
-                          >
-                            <span>✓</span> Confirm Order
-                          </button>
-                        )}
-
-                        {/* 2. If CONFIRMED: Payment is verified, admin assigns artist */}
-                        {o.status === "CONFIRMED" && (
-                          <button
-                            onClick={() => {
-                              setAssigningOrder(o);
-                              setSelectedArtistId("");
-                            }}
-                            className="rounded-lg bg-brand hover:bg-brand/90 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
-                          >
-                            <span>👤</span> Assign Artist
-                          </button>
-                        )}
-
-                        {/* 3. If COMPLETED: Studio quality inspection (Assign Delivery Agent is handled inside the inspection modal) */}
-                        {o.status === "COMPLETED" && (
-                          <div className="flex flex-col sm:flex-row md:flex-col items-stretch md:items-end gap-1.5">
-                            <button
-                              onClick={() => setInspectingOrder(o)}
-                              className="rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white px-3.5 py-1.5 text-xs font-semibold transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
-                              title="Inspect finished artwork & assign delivery agent"
-                            >
-                              <span>👁️</span> Inspect Artwork
-                            </button>
-                          </div>
-                        )}
-
-                        {/* 4. If ASSIGNED_DELIVERY_AGENT / IN_TRANSIT / OUT_FOR_DELIVERY: Managed by Delivery Agent in courier portal */}
-
-                        {/* 6. If DELIVERY_FAILED: Courier logged failed attempt */}
-                        {o.status === "DELIVERY_FAILED" && (
-                          <div className="flex flex-col items-stretch md:items-end gap-1.5">
-                            <div className="rounded-lg bg-rose-950/60 border border-rose-500/40 p-2 text-xs text-rose-200 text-left md:text-right max-w-xs">
-                              <p className="font-semibold text-rose-300">⚠️ Attempt {o.delivery_attempts || 1}/3 Failed</p>
-                              <p className="text-[11px] text-slate-300">{o.delivery_failure_reason || "Customer unavailable"}</p>
-                            </div>
-                            <button
-                              onClick={() => {
-                                setAssigningDeliveryOrder(o);
-                                setSelectedDeliveryAgentId("");
-                              }}
-                              className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap"
-                            >
-                              <span>🚚</span> Assign Delivery Agent
-                            </button>
-                          </div>
-                        )}
-
-                        {/* 7. If DELIVERED: Admin can Publish artwork */}
-                        {o.status === "DELIVERED" && (
-                          <div className="flex flex-col items-stretch md:items-end gap-1.5">
-                            <button
-                              onClick={() => confirmGalleryMutation.mutate(o.order_id)}
-                              disabled={confirmGalleryMutation.isPending}
-                              className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
-                              title="Publish artwork"
-                            >
-                              <span>🌟</span> {confirmGalleryMutation.isPending ? "Publishing..." : "Publish"}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                      {/* 8. If PUBLISHED: Published to Gallery */}
-                      {o.status === "PUBLISHED" && (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 text-xs font-medium text-emerald-300">
-                          <span>🌟</span> Published to Gallery
-                        </span>
-                      )}
-
-                      {/* 11. If CANCELLED: Archived */}
-                      {o.status === "CANCELLED" && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-slate-800/80 border border-slate-700 px-3 py-1 text-xs font-medium text-slate-400">
-                          Archived (Cancelled)
-                        </span>
-                      )}
-                    </div>
+                  <div key={o.order_id}>
+                    <OrderCard
+                      order={o}
+                      role="ADMIN"
+                      verifiedArtists={verifiedArtists}
+                      deliveryAgents={deliveryAgents}
+                      onInspectCollage={(order) => setInspectingOrder(order)}
+                      onViewPhoto={(url) => setSelectedPhoto(url)}
+                      onAdminConfirmOrder={(order) => statusMutation.mutate({ orderId: order.order_id, status: "CONFIRMED" })}
+                      onAdminAssignArtist={(order) => {
+                        setAssigningOrder(order);
+                        setSelectedArtistId("");
+                      }}
+                      onAdminAssignDelivery={(order) => {
+                        setAssigningDeliveryOrder(order);
+                        setSelectedDeliveryAgentId("");
+                      }}
+                      onAdminPublish={(order) => confirmGalleryMutation.mutate(order.order_id)}
+                      isPublishing={confirmGalleryMutation.isPending}
+                    />
                   </div>
                 );
               })}
@@ -1493,7 +1299,11 @@ export default function AdminPage() {
             <p className="text-center py-12 text-slate-400 text-sm">Loading platform users...</p>
           ) : filteredUsers.length === 0 ? (
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center space-y-3">
-              <p className="text-slate-300 font-medium">No users found matching current filters.</p>
+              <p className="text-slate-300 font-medium">
+                {allUsers.length === 0
+                  ? "No other platform users registered yet."
+                  : "No users found matching current filters."}
+              </p>
               <button
                 onClick={() => {
                   setUserRoleFilter("ALL");
@@ -1674,11 +1484,6 @@ export default function AdminPage() {
                           {u.phone_number && (
                             <p>
                               <strong className="text-slate-300">Phone:</strong> {u.phone_number}
-                            </p>
-                          )}
-                          {u.address && (
-                            <p>
-                              <strong className="text-slate-300">Address:</strong> {u.address}
                             </p>
                           )}
 
@@ -2854,7 +2659,7 @@ export default function AdminPage() {
                                   src={resolveImage(o.final_image_url || o.reference_image_url)}
                                   alt="Portrait"
                                   onClick={() => setSelectedPhoto(resolveImage(o.final_image_url || o.reference_image_url))}
-                                  className="w-12 h-12 rounded-lg object-cover border border-slate-700 cursor-pointer hover:scale-105 transition"
+                                  className="w-12 h-12 rounded-lg object-contain bg-slate-950 border border-slate-700 cursor-pointer hover:scale-105 transition"
                                   title="Click to view artwork"
                                 />
                               ) : (

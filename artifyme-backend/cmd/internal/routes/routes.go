@@ -69,8 +69,68 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config) {
 		c.JSON(200, gin.H{
 			"user_id": userID.String(),
 			"role":    c.MustGet("role").(string),
-			"status": c.MustGet("status").(string),
+			"status":  c.MustGet("status").(string),
 		})
+	})
+
+	api.GET("/user/profile", func(c *gin.Context) {
+		userID := c.MustGet("user_id").(uuid.UUID)
+		var u struct {
+			UserID      string `json:"user_id"`
+			FullName    string `json:"full_name"`
+			Email       string `json:"email"`
+			PhoneNumber string `json:"phone_number"`
+			Address     string `json:"address"`
+			Role        string `json:"role"`
+			Status      string `json:"status"`
+		}
+		err := pool.QueryRow(c.Request.Context(), `
+			SELECT user_id, full_name, email, phone_number, address, role::text, status::text
+			FROM users WHERE user_id = $1
+		`, userID).Scan(&u.UserID, &u.FullName, &u.Email, &u.PhoneNumber, &u.Address, &u.Role, &u.Status)
+		if err != nil {
+			c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
+			return
+		}
+		c.JSON(http.StatusOK, u)
+	})
+
+	api.PUT("/user/profile", func(c *gin.Context) {
+		userID := c.MustGet("user_id").(uuid.UUID)
+		var body struct {
+			FullName    string `json:"full_name"`
+			PhoneNumber string `json:"phone_number"`
+			Address     string `json:"address"`
+		}
+		if err := c.ShouldBindJSON(&body); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
+			return
+		}
+		var u struct {
+			UserID      string `json:"user_id"`
+			FullName    string `json:"full_name"`
+			Email       string `json:"email"`
+			PhoneNumber string `json:"phone_number"`
+			Address     string `json:"address"`
+			Role        string `json:"role"`
+			Status      string `json:"status"`
+		}
+		err := pool.QueryRow(c.Request.Context(), `
+			UPDATE users
+			SET full_name = COALESCE(NULLIF($1, ''), full_name),
+			    phone_number = COALESCE(NULLIF($2, ''), phone_number),
+			    address = COALESCE(NULLIF($3, ''), address),
+			    updated_at = NOW()
+			WHERE user_id = $4
+			RETURNING user_id, full_name, email, phone_number, address, role::text, status::text
+		`, body.FullName, body.PhoneNumber, body.Address, userID).Scan(
+			&u.UserID, &u.FullName, &u.Email, &u.PhoneNumber, &u.Address, &u.Role, &u.Status,
+		)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, u)
 	})
 
 	// ======================

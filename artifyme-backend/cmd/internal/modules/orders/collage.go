@@ -138,11 +138,14 @@ func bilinearScale(src image.Image, dstW, dstH int) *image.RGBA {
 		return dst
 	}
 
-	xRatio := float64(srcW-1) / float64(dstW)
-	yRatio := float64(srcH-1) / float64(dstH)
+	xRatio := float64(srcW) / float64(dstW)
+	yRatio := float64(srcH) / float64(dstH)
 
 	for y := 0; y < dstH; y++ {
-		srcY := float64(y) * yRatio
+		srcY := (float64(y) + 0.5)*yRatio - 0.5
+		if srcY < 0 {
+			srcY = 0
+		}
 		yLow := int(srcY)
 		yHigh := yLow + 1
 		if yHigh >= srcH {
@@ -151,7 +154,10 @@ func bilinearScale(src image.Image, dstW, dstH int) *image.RGBA {
 		yWeight := srcY - float64(yLow)
 
 		for x := 0; x < dstW; x++ {
-			srcX := float64(x) * xRatio
+			srcX := (float64(x) + 0.5)*xRatio - 0.5
+			if srcX < 0 {
+				srcX = 0
+			}
 			xLow := int(srcX)
 			xHigh := xLow + 1
 			if xHigh >= srcW {
@@ -192,12 +198,14 @@ func bilinearScale(src image.Image, dstW, dstH int) *image.RGBA {
 
 // GenerateCollage composites the customer's reference photo into the bottom-left
 // corner of the artist's finished artwork, matching the ArtifyMe collage format.
+// It normalizes the canvas to the exact standard 4:5 portrait card ratio (1200 x 1500)
+// matching the platform's order cards and public gallery frames with high-resolution clarity.
 func GenerateCollage(ctx context.Context, orderID uuid.UUID, mainImageURL, refImageURL string, uploader FileUploader, baseURL string) (string, error) {
 	if mainImageURL == "" || refImageURL == "" {
 		return "", fmt.Errorf("both main and reference image URLs are required")
 	}
 
-	slog.Info("generating artwork collage", "order_id", orderID, "main", mainImageURL, "ref", refImageURL)
+	slog.Info("generating artwork collage with 4:5 exact card ratio enhancement", "order_id", orderID, "main", mainImageURL, "ref", refImageURL)
 
 	mainImg, err := loadImage(mainImageURL)
 	if err != nil {
@@ -221,87 +229,102 @@ func GenerateCollage(ctx context.Context, orderID uuid.UUID, mainImageURL, refIm
 		return "", fmt.Errorf("invalid image dimensions")
 	}
 
-	// Inset sizing: ~24% of the main canvas width
-	insetW := int(float64(mainW) * 0.24)
-	if insetW < 140 && mainW >= 280 {
-		insetW = 140
-	}
-	if insetW > mainW/3 {
-		insetW = mainW / 3
+	// Exact target canvas resolution: 1200 x 1500 (4:5 Card Ratio)
+	canvasW := 1200
+	canvasH := 1500
+	canvas := image.NewRGBA(image.Rect(0, 0, canvasW, canvasH))
+
+	mainRatio := float64(mainW) / float64(mainH)
+	targetRatio := float64(canvasW) / float64(canvasH) // 0.80
+
+	if mainRatio >= 0.76 && mainRatio <= 0.84 {
+		// Native 4:5 portrait artwork: scale directly to fill the 1200x1500 canvas
+		scaledMain := bilinearScale(mainImg, canvasW, canvasH)
+		draw.Draw(canvas, canvas.Bounds(), scaledMain, image.Point{}, draw.Src)
+	} else {
+		// Non-4:5 artwork (Landscape, Square, or Ultra-wide):
+		// 1. Create luxurious ambient background by downsampling main image to 24x30 and scaling up to 1200x1500
+		tiny := bilinearScale(mainImg, 24, 30)
+		ambient := bilinearScale(tiny, canvasW, canvasH)
+		draw.Draw(canvas, canvas.Bounds(), ambient, image.Point{}, draw.Src)
+
+		// 2. Darken ambient background with deep studio wash
+		darkWash := color.RGBA{R: 11, G: 15, B: 25, A: 190}
+		draw.Draw(canvas, canvas.Bounds(), &image.Uniform{darkWash}, image.Point{}, draw.Over)
+
+		// 3. Scale main artwork to fit within canvas bounds without ANY cropping
+		var drawW, drawH int
+		if mainRatio > targetRatio {
+			// Wider than 4:5: Fit width
+			drawW = canvasW
+			drawH = int(float64(canvasW) / mainRatio)
+		} else {
+			// Taller than 4:5: Fit height
+			drawH = canvasH
+			drawW = int(float64(canvasH) * mainRatio)
+		}
+
+		scaledMain := bilinearScale(mainImg, drawW, drawH)
+		offsetX := (canvasW - drawW) / 2
+		offsetY := (canvasH - drawH) / 2
+
+		// 4. Subtle drop shadow behind the main artwork
+		if offsetY > 0 || offsetX > 0 {
+			shadowColor := color.RGBA{R: 0, G: 0, B: 0, A: 140}
+			shadowRect := image.Rect(offsetX, offsetY+4, offsetX+drawW, offsetY+drawH+12)
+			draw.Draw(canvas, shadowRect, &image.Uniform{shadowColor}, image.Point{}, draw.Over)
+		}
+
+		// 5. Draw main artwork centered
+		mainRect := image.Rect(offsetX, offsetY, offsetX+drawW, offsetY+drawH)
+		draw.Draw(canvas, mainRect, scaledMain, image.Point{}, draw.Over)
 	}
 
-	// Maintain aspect ratio of reference image
+	// 6. High-Definition Reference Photo Inset in bottom-left
+	insetW := 280
 	insetH := int(float64(refH) * float64(insetW) / float64(refW))
-	maxAllowedH := int(float64(mainH) * 0.35)
-	if insetH > maxAllowedH && maxAllowedH > 0 {
-		insetH = maxAllowedH
+	if insetH > 350 {
+		insetH = 350
 		insetW = int(float64(refW) * float64(insetH) / float64(refH))
 	}
 
-	// Crisp border and corner margin
-	border := int(float64(insetW) * 0.035)
-	if border < 4 {
-		border = 4
-	}
-
-	margin := int(float64(mainW) * 0.02)
-	if margin < 12 {
-		margin = 12
-	}
+	border := 7
+	margin := 36
 
 	cardW := insetW + border*2
 	cardH := insetH + border*2
-
-	// Position at bottom-left
 	cardX := margin
-	cardY := mainH - cardH - margin
-	if cardY < 0 {
-		cardY = 0
-	}
+	cardY := canvasH - cardH - margin
 
-	// Create output canvas
-	canvas := image.NewRGBA(image.Rect(0, 0, mainW, mainH))
-
-	// 1. Draw main finished artwork onto canvas
-	draw.Draw(canvas, canvas.Bounds(), mainImg, mainBounds.Min, draw.Src)
-
-	// 2. Draw subtle drop shadow behind the inset photo
-	shadowOffset := border / 2
-	if shadowOffset < 2 {
-		shadowOffset = 2
-	}
-	shadowColor := color.RGBA{R: 0, G: 0, B: 0, A: 65}
-	shadowRect := image.Rect(
-		cardX+shadowOffset,
-		cardY+shadowOffset,
-		cardX+cardW+shadowOffset,
-		cardY+cardH+shadowOffset,
-	)
+	// Drop shadow for reference card
+	shadowOffset := 6
+	shadowColor := color.RGBA{R: 0, G: 0, B: 0, A: 140}
+	shadowRect := image.Rect(cardX+shadowOffset, cardY+shadowOffset, cardX+cardW+shadowOffset, cardY+cardH+shadowOffset)
 	draw.Draw(canvas, shadowRect, &image.Uniform{shadowColor}, image.Point{}, draw.Over)
 
-	// 3. Draw clean white photo card border
+	// Crisp white photo card border
 	cardRect := image.Rect(cardX, cardY, cardX+cardW, cardY+cardH)
 	draw.Draw(canvas, cardRect, &image.Uniform{color.White}, image.Point{}, draw.Over)
 
-	// 4. Scale reference image and draw inside card
+	// Scaled reference photo
 	scaledRef := bilinearScale(refImg, insetW, insetH)
 	innerRect := image.Rect(cardX+border, cardY+border, cardX+border+insetW, cardY+border+insetH)
 	draw.Draw(canvas, innerRect, scaledRef, image.Point{}, draw.Over)
 
-	// 5. Encode output JPEG with high quality
+	// 7. Encode output JPEG with high quality (94)
 	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, canvas, &jpeg.Options{Quality: 92}); err != nil {
+	if err := jpeg.Encode(&buf, canvas, &jpeg.Options{Quality: 94}); err != nil {
 		return "", fmt.Errorf("failed to encode collage JPEG: %w", err)
 	}
 
-	// 6. Save/upload file
+	// 8. Save/upload file
 	filename := fmt.Sprintf("collage_%s.jpg", orderID.String())
 	if uploader != nil {
 		collageURL, err := uploader.UploadBytes(ctx, buf.Bytes(), filename, "image/jpeg", baseURL)
 		if err != nil {
 			return "", fmt.Errorf("failed to upload collage: %w", err)
 		}
-		slog.Info("collage successfully created and uploaded", "order_id", orderID, "url", collageURL)
+		slog.Info("collage successfully created and uploaded with 4:5 exact card ratio", "order_id", orderID, "url", collageURL)
 		return collageURL, nil
 	}
 

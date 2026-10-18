@@ -33,13 +33,13 @@ export const CollageThumbnail: React.FC<CollageThumbnailProps> = ({
     return (
       <div
         onClick={onClick}
-        className={`relative ${sizeClass} rounded-xl overflow-hidden bg-slate-900 border ${borderClass} flex-shrink-0 cursor-pointer group shadow-lg ${className}`}
+        className={`relative ${sizeClass} rounded-xl overflow-hidden bg-slate-950 border ${borderClass} flex-shrink-0 cursor-pointer group shadow-lg flex items-center justify-center ${className}`}
         title="View Combined Collage Artwork (Sketch + Reference Photo)"
       >
         <img
           src={collageImageUrl}
           alt="Combined Artwork Collage"
-          className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+          className="w-full h-full object-contain group-hover:scale-105 transition duration-300"
           loading="lazy"
           onError={(e) => {
             if (finalImageUrl) {
@@ -63,14 +63,14 @@ export const CollageThumbnail: React.FC<CollageThumbnailProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`relative ${sizeClass} rounded-xl overflow-hidden bg-slate-900 border ${borderClass} flex-shrink-0 cursor-pointer group shadow-lg ${className}`}
+      className={`relative ${sizeClass} rounded-xl overflow-hidden bg-slate-950 border ${borderClass} flex-shrink-0 cursor-pointer group shadow-lg flex items-center justify-center ${className}`}
       title="View Combined Collage Artwork (Sketch + Reference Photo)"
     >
       {/* Main Completed Sketch */}
       <img
         src={finalImageUrl}
         alt="Final Sketch"
-        className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+        className="w-full h-full object-contain group-hover:scale-105 transition duration-300"
         loading="lazy"
         onError={(e) => {
           if (refImageUrl) {

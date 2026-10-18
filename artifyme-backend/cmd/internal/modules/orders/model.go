@@ -27,6 +27,7 @@ type VerifiedArtist struct {
 	ArtistID        uuid.UUID `json:"artist_id"`
 	FullName        string    `json:"full_name"`
 	Email           string    `json:"email"`
+	PhoneNumber     string    `json:"phone_number"`
 	ExperienceYears int       `json:"experience_years"`
 	Bio             string    `json:"bio"`
 }
@@ -49,6 +50,12 @@ type Order struct {
 	UserID                uuid.UUID
 	ArtistID              *uuid.UUID
 	DeliveryAgentID       *uuid.UUID
+	CustomerName          string
+	CustomerPhone         string
+	ArtistName            *string
+	ArtistPhone           *string
+	DeliveryAgentName     *string
+	DeliveryAgentPhone    *string
 	PaintingCategory      PaintingCategory
 	ReferenceImageURL     string
 	FinalImageURL         *string

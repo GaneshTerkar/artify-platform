@@ -7,7 +7,6 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const category = searchParams.get("category");
-  const redirectTarget = category ? `/order?category=${encodeURIComponent(category)}` : "/order";
 
   const [selectedRole, setSelectedRole] = useState<"CUSTOMER" | "ARTIST" | "DELIVERY_AGENT">("CUSTOMER");
   const [form, setForm] = useState({
@@ -24,10 +23,10 @@ export default function RegisterPage() {
     setError("");
     try {
       const user = await register({ ...form, role: selectedRole });
-      if (user.role === "ARTIST" || user.role === "DELIVERY_AGENT") {
-        navigate("/account");
+      if (category && user.role === "CUSTOMER") {
+        navigate(`/order?category=${encodeURIComponent(category)}`);
       } else {
-        navigate(redirectTarget);
+        navigate("/");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");

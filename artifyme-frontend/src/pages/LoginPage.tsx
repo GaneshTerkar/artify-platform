@@ -7,7 +7,6 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const category = searchParams.get("category");
-  const redirectTarget = category ? `/order?category=${encodeURIComponent(category)}` : "/order";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,13 +16,11 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     try {
-      const user = await login(email, password);
-      if (user.role === "ADMIN") {
-        navigate("/admin");
-      } else if (user.role === "ARTIST" || user.role === "DELIVERY_AGENT") {
-        navigate("/account");
+      const loggedUser = await login(email, password);
+      if (category && loggedUser.role === "CUSTOMER") {
+        navigate(`/order?category=${encodeURIComponent(category)}`);
       } else {
-        navigate(redirectTarget);
+        navigate("/");
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");

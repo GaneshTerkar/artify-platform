@@ -8,11 +8,13 @@ import {
 } from "react";
 import { api } from "./api";
 
-type User = {
+export type User = {
   user_id: string;
   full_name: string;
   email: string;
   role: string;
+  phone_number?: string;
+  address?: string;
 };
 
 type AuthContextValue = {
@@ -20,6 +22,7 @@ type AuthContextValue = {
   token: string | null;
   login: (email: string, password: string) => Promise<User>;
   register: (payload: RegisterPayload) => Promise<User>;
+  updateUser: (updatedFields: Partial<User>) => void;
   logout: () => void;
 };
 
@@ -81,9 +84,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const updateUser = useCallback((updatedFields: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return null;
+      const updated = { ...prev, ...updatedFields };
+      localStorage.setItem("artify_user", JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   const value = useMemo(
-    () => ({ user, token, login, register, logout }),
-    [user, token, login, register, logout],
+    () => ({ user, token, login, register, updateUser, logout }),
+    [user, token, login, register, updateUser, logout],
   );
 
   return (

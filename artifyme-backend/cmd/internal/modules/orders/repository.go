@@ -40,8 +40,99 @@ type CreateOrderInput struct {
 	CustomerNotes     *string
 }
 
+func (r *Repository) scanAndEnrichOrder(ctx context.Context, row pgx.Row) (*Order, error) {
+	o, err := r.scanOrder(row)
+	if err != nil {
+		return nil, err
+	}
+	_ = r.enrichOrders(ctx, []*Order{o})
+	return o, nil
+}
+
+func (r *Repository) enrichOrders(ctx context.Context, orders []*Order) error {
+	if len(orders) == 0 {
+		return nil
+	}
+
+	idMap := make(map[uuid.UUID]bool)
+	for _, o := range orders {
+		if o == nil {
+			continue
+		}
+		if o.UserID != uuid.Nil {
+			idMap[o.UserID] = true
+		}
+		if o.ArtistID != nil && *o.ArtistID != uuid.Nil {
+			idMap[*o.ArtistID] = true
+		}
+		if o.DeliveryAgentID != nil && *o.DeliveryAgentID != uuid.Nil {
+			idMap[*o.DeliveryAgentID] = true
+		}
+	}
+
+	if len(idMap) == 0 {
+		return nil
+	}
+
+	ids := make([]uuid.UUID, 0, len(idMap))
+	for id := range idMap {
+		ids = append(ids, id)
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		SELECT user_id, full_name, COALESCE(phone_number, '')
+		FROM users
+		WHERE user_id = ANY($1)
+	`, ids)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	type userInfo struct {
+		name  string
+		phone string
+	}
+	users := make(map[uuid.UUID]userInfo)
+	for rows.Next() {
+		var uid uuid.UUID
+		var u userInfo
+		if err := rows.Scan(&uid, &u.name, &u.phone); err == nil {
+			users[uid] = u
+		}
+	}
+
+	for _, o := range orders {
+		if o == nil {
+			continue
+		}
+		if u, ok := users[o.UserID]; ok {
+			o.CustomerName = u.name
+			o.CustomerPhone = u.phone
+		}
+		if o.ArtistID != nil {
+			if u, ok := users[*o.ArtistID]; ok {
+				name := u.name
+				phone := u.phone
+				o.ArtistName = &name
+				o.ArtistPhone = &phone
+			}
+		}
+		if o.DeliveryAgentID != nil {
+			if u, ok := users[*o.DeliveryAgentID]; ok {
+				name := u.name
+				phone := u.phone
+				o.DeliveryAgentName = &name
+				o.DeliveryAgentPhone = &phone
+			}
+		}
+	}
+
+	return nil
+}
+
 func (r *Repository) Create(ctx context.Context, in CreateOrderInput) (*Order, error) {
-	return r.scanOrder(r.pool.QueryRow(ctx, `
+	return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
 		INSERT INTO orders (
 			user_id,
 			painting_category,
@@ -60,7 +151,7 @@ func (r *Repository) Create(ctx context.Context, in CreateOrderInput) (*Order, e
 }
 
 func (r *Repository) GetByID(ctx context.Context, orderID uuid.UUID) (*Order, error) {
-	return r.scanOrder(r.pool.QueryRow(ctx, `
+	return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
 		SELECT `+orderColumns+`
 		FROM orders WHERE order_id = $1
 	`, orderID))
@@ -84,7 +175,15 @@ func (r *Repository) ListByUser(ctx context.Context, userID uuid.UUID) ([]Order,
 		}
 		list = append(list, *o)
 	}
-	return list, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	ptrs := make([]*Order, len(list))
+	for i := range list {
+		ptrs[i] = &list[i]
+	}
+	_ = r.enrichOrders(ctx, ptrs)
+	return list, nil
 }
 
 func (r *Repository) ListAll(ctx context.Context, status *string) ([]Order, error) {
@@ -114,7 +213,15 @@ func (r *Repository) ListAll(ctx context.Context, status *string) ([]Order, erro
 		}
 		list = append(list, *o)
 	}
-	return list, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	ptrs := make([]*Order, len(list))
+	for i := range list {
+		ptrs[i] = &list[i]
+	}
+	_ = r.enrichOrders(ctx, ptrs)
+	return list, nil
 }
 
 func (r *Repository) UpdateDraft(ctx context.Context, orderID, userID uuid.UUID, fields map[string]interface{}) (*Order, error) {
@@ -140,7 +247,7 @@ func (r *Repository) UpdateDraft(ctx context.Context, orderID, userID uuid.UUID,
 		notes = &n
 	}
 
-	return r.scanOrder(r.pool.QueryRow(ctx, `
+	return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
 		UPDATE orders SET
 			painting_category = COALESCE(NULLIF($3, ''), painting_category),
 			size = COALESCE(NULLIF($4, '')::painting_size, size),
@@ -155,7 +262,7 @@ func (r *Repository) UpdateDraft(ctx context.Context, orderID, userID uuid.UUID,
 }
 
 func (r *Repository) UpdateStatus(ctx context.Context, orderID uuid.UUID, newStatus OrderStatus, updatedBy uuid.UUID, artistID *uuid.UUID, finalURL *string, collageURL *string) (*Order, error) {
-	return r.scanOrder(r.pool.QueryRow(ctx, `
+	return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
 		UPDATE orders SET
 			status = $2::order_status,
 			artist_id = CASE
@@ -175,7 +282,7 @@ func (r *Repository) UpdateStatus(ctx context.Context, orderID uuid.UUID, newSta
 }
 
 func (r *Repository) ConfirmGalleryPublish(ctx context.Context, orderID, adminID uuid.UUID) (*Order, error) {
-	return r.scanOrder(r.pool.QueryRow(ctx, `
+	return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
 		UPDATE orders SET
 			original_final_image_url = COALESCE(original_final_image_url, final_image_url),
 			final_image_url = COALESCE(collage_image_url, final_image_url),
@@ -447,6 +554,7 @@ func (r *Repository) ListVerifiedArtists(ctx context.Context) ([]VerifiedArtist,
 			u.user_id,
 			u.full_name,
 			u.email,
+			COALESCE(u.phone_number, ''),
 			COALESCE(ap.experience_years, 0),
 			COALESCE(ap.bio, '')
 		FROM artist_profiles ap
@@ -462,7 +570,7 @@ func (r *Repository) ListVerifiedArtists(ctx context.Context) ([]VerifiedArtist,
 	var list []VerifiedArtist
 	for rows.Next() {
 		var a VerifiedArtist
-		if err := rows.Scan(&a.ArtistID, &a.FullName, &a.Email, &a.ExperienceYears, &a.Bio); err != nil {
+		if err := rows.Scan(&a.ArtistID, &a.FullName, &a.Email, &a.PhoneNumber, &a.ExperienceYears, &a.Bio); err != nil {
 			return nil, err
 		}
 		list = append(list, a)
@@ -471,7 +579,7 @@ func (r *Repository) ListVerifiedArtists(ctx context.Context) ([]VerifiedArtist,
 }
 
 func (r *Repository) AssignArtist(ctx context.Context, orderID uuid.UUID, artistID uuid.UUID, updatedBy uuid.UUID, newStatus OrderStatus) (*Order, error) {
-	return r.scanOrder(r.pool.QueryRow(ctx, `
+	return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
 		UPDATE orders SET
 			artist_id = $2,
 			status = $3::order_status,
@@ -482,7 +590,7 @@ func (r *Repository) AssignArtist(ctx context.Context, orderID uuid.UUID, artist
 }
 
 func (r *Repository) AssignDeliveryAgent(ctx context.Context, orderID uuid.UUID, agentID uuid.UUID, updatedBy uuid.UUID) (*Order, error) {
-	return r.scanOrder(r.pool.QueryRow(ctx, `
+	return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
 		UPDATE orders SET
 			delivery_agent_id = $2,
 			status = 'ASSIGNED_DELIVERY_AGENT'::order_status,
@@ -493,7 +601,7 @@ func (r *Repository) AssignDeliveryAgent(ctx context.Context, orderID uuid.UUID,
 }
 
 func (r *Repository) UnassignDeliveryAgent(ctx context.Context, orderID uuid.UUID, updatedBy uuid.UUID) (*Order, error) {
-	return r.scanOrder(r.pool.QueryRow(ctx, `
+	return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
 		UPDATE orders SET
 			delivery_agent_id = NULL,
 			status = 'COMPLETED'::order_status,
@@ -541,7 +649,7 @@ func (r *Repository) UpdateDeliveryStatus(ctx context.Context, orderID uuid.UUID
 		if failureReason != nil && *failureReason != "" {
 			reason = *failureReason
 		}
-		return r.scanOrder(r.pool.QueryRow(ctx, `
+		return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
 			UPDATE orders SET
 				status = $2::order_status,
 				delivery_attempts = delivery_attempts + 1,
@@ -552,7 +660,7 @@ func (r *Repository) UpdateDeliveryStatus(ctx context.Context, orderID uuid.UUID
 			WHERE order_id = $1
 			RETURNING `+orderColumns, orderID, string(newStatus), reason, actorID))
 	} else if newStatus == StatusOutForDelivery {
-		return r.scanOrder(r.pool.QueryRow(ctx, `
+		return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
 			UPDATE orders SET
 				status = $2::order_status,
 				last_delivery_attempt_at = NOW(),
@@ -561,7 +669,7 @@ func (r *Repository) UpdateDeliveryStatus(ctx context.Context, orderID uuid.UUID
 			WHERE order_id = $1
 			RETURNING `+orderColumns, orderID, string(newStatus), actorID))
 	} else {
-		return r.scanOrder(r.pool.QueryRow(ctx, `
+		return r.scanAndEnrichOrder(ctx, r.pool.QueryRow(ctx, `
 			UPDATE orders SET
 				status = $2::order_status,
 				updated_at = NOW(),

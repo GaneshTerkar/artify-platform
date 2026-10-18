@@ -1090,7 +1090,7 @@ export default function AdminPage() {
                 type="text"
                 value={orderSearchQuery}
                 onChange={(e) => setOrderSearchQuery(e.target.value)}
-                placeholder="Search by ID, customer, artist, courier, address..."
+                placeholder="Search orders..."
                 className="rounded-lg bg-slate-800/90 border border-slate-700 pl-8 pr-14 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
               />
               {orderSearchQuery && (
@@ -1437,7 +1437,7 @@ export default function AdminPage() {
                 type="text"
                 value={userSearchQuery}
                 onChange={(e) => setUserSearchQuery(e.target.value)}
-                placeholder="Search by name, email, phone, username..."
+                placeholder="Search users..."
                 className="rounded-lg bg-slate-800/90 border border-slate-700 pl-8 pr-14 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand w-full"
               />
               {userSearchQuery && (

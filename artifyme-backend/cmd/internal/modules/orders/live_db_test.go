@@ -421,6 +421,7 @@ func TestLiveOrderFullLifecycleAndGalleryConfirmation(t *testing.T) {
 	adminID := ensureTestUser(t, pool, "ADMIN", "ganesh@example.com", "Ganesh Terkar")
 	artistID := ensureTestUser(t, pool, "ARTIST", "rohan.artist@example.com", "Rohan Artist")
 	customerID := ensureTestUser(t, pool, "CUSTOMER", "priya.customer@example.com", "Priya Customer")
+	deliveryAgentID := ensureTestUser(t, pool, "DELIVERY_AGENT", "vikram.delivery@example.com", "Vikram Delivery")
 
 	// Strictly fresh unused images for this live test:
 	refPhotoFile := "fresh_test_ref_girl_glasses.jpg"
@@ -524,10 +525,52 @@ func TestLiveOrderFullLifecycleAndGalleryConfirmation(t *testing.T) {
 		}
 	}
 
-	// STEP 7: Admin inspects collage and confirms publication
+	// STEP 7: Admin assigns Delivery Agent -> ASSIGNED_DELIVERY_AGENT
+	ord, err = service.AssignDeliveryAgent(ctx, orderID, adminID, "ADMIN", deliveryAgentID)
+	if err != nil {
+		t.Fatalf("Step 7 failed: AssignDeliveryAgent: %v", err)
+	}
+	if ord.Status != orders.StatusAssignedDeliveryAgent {
+		t.Fatalf("Expected status ASSIGNED_DELIVERY_AGENT, got %s", ord.Status)
+	}
+	if ord.DeliveryAgentID == nil || *ord.DeliveryAgentID != deliveryAgentID {
+		t.Fatalf("Expected delivery_agent_id %s, got %v", deliveryAgentID, ord.DeliveryAgentID)
+	}
+
+	// STEP 8: Delivery Agent starts transit -> IN_TRANSIT
+	ord, err = service.TransitionStatus(ctx, orderID, deliveryAgentID, "DELIVERY_AGENT", orders.StatusInTransit, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("Step 8 failed: TransitionStatus to IN_TRANSIT: %v", err)
+	}
+	if ord.Status != orders.StatusInTransit {
+		t.Fatalf("Expected status IN_TRANSIT, got %s", ord.Status)
+	}
+
+	// STEP 9: Delivery Agent moves out for delivery -> OUT_FOR_DELIVERY
+	ord, err = service.TransitionStatus(ctx, orderID, deliveryAgentID, "DELIVERY_AGENT", orders.StatusOutForDelivery, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("Step 9 failed: TransitionStatus to OUT_FOR_DELIVERY: %v", err)
+	}
+	if ord.Status != orders.StatusOutForDelivery {
+		t.Fatalf("Expected status OUT_FOR_DELIVERY, got %s", ord.Status)
+	}
+
+	// STEP 10: Delivery Agent confirms doorstep delivery -> DELIVERED
+	ord, err = service.TransitionStatus(ctx, orderID, deliveryAgentID, "DELIVERY_AGENT", orders.StatusDelivered, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("Step 10 failed: TransitionStatus to DELIVERED: %v", err)
+	}
+	if ord.Status != orders.StatusDelivered {
+		t.Fatalf("Expected status DELIVERED, got %s", ord.Status)
+	}
+
+	// STEP 11: Admin inspects collage & delivered artwork, and confirms publication -> PUBLISHED
 	ord, err = service.ConfirmGalleryPublish(ctx, orderID, adminID, "ADMIN")
 	if err != nil {
-		t.Fatalf("Step 7 failed: ConfirmGalleryPublish: %v", err)
+		t.Fatalf("Step 11 failed: ConfirmGalleryPublish: %v", err)
+	}
+	if ord.Status != orders.StatusPublished {
+		t.Fatalf("Expected status PUBLISHED, got %s", ord.Status)
 	}
 	if !ord.IsPublishedToGallery {
 		t.Fatalf("Expected is_published_to_gallery=TRUE after admin confirmation, got FALSE")
@@ -537,10 +580,10 @@ func TestLiveOrderFullLifecycleAndGalleryConfirmation(t *testing.T) {
 			*ord.CollageImageURL, ord.FinalImageURL)
 	}
 
-	// STEP 8: Verify confirmed collaged artwork IS now visible in public gallery
+	// STEP 12: Verify confirmed collaged artwork IS now visible in public gallery
 	galleryAfter, err := service.ListGalleryPaintings(ctx, "PENCIL")
 	if err != nil {
-		t.Fatalf("Step 8 failed: ListGalleryPaintings after publish: %v", err)
+		t.Fatalf("Step 12 failed: ListGalleryPaintings after publish: %v", err)
 	}
 	foundInGallery := false
 	for _, p := range galleryAfter {
@@ -557,16 +600,16 @@ func TestLiveOrderFullLifecycleAndGalleryConfirmation(t *testing.T) {
 		t.Fatalf("Confirmed order %s was not found in public gallery!", orderID)
 	}
 
-	// STEP 9: Verify complete audit history in DB
+	// STEP 13: Verify complete audit history in DB
 	history, err := service.History(ctx, orderID, adminID, "ADMIN")
 	if err != nil {
-		t.Fatalf("Step 9 failed: service.History: %v", err)
+		t.Fatalf("Step 13 failed: service.History: %v", err)
 	}
-	if len(history) < 4 {
-		t.Fatalf("Expected at least 4 status transitions in history, got %d", len(history))
+	if len(history) < 8 {
+		t.Fatalf("Expected at least 8 status transitions in history, got %d", len(history))
 	}
 
-	t.Logf("SUCCESS: Live DB full order workflow and gallery confirmation passed 100%% for order %s", orderID)
+	t.Logf("SUCCESS: Live DB full multi-role order workflow (Customer -> Admin -> Artist -> Delivery Agent -> Admin Publish) passed 100%% for order %s", orderID)
 }
 
 // TestLiveRoleAuthorizationEnforcement verifies security boundaries on the live DB.
@@ -617,6 +660,13 @@ func TestLiveRoleAuthorizationEnforcement(t *testing.T) {
 	_, err = service.TransitionStatus(ctx, testOrd.OrderID, artistID, "ARTIST", orders.StatusInProgress, nil, nil, nil)
 	if err == nil {
 		t.Fatalf("Expected error when unassigned artist tries to update order, got nil")
+	}
+
+	// Delivery agent cannot update an unassigned order
+	deliveryAgentID := ensureTestUser(t, pool, "DELIVERY_AGENT", "vikram.delivery@example.com", "Vikram Delivery")
+	_, err = service.TransitionStatus(ctx, testOrd.OrderID, deliveryAgentID, "DELIVERY_AGENT", orders.StatusInTransit, nil, nil, nil)
+	if err == nil {
+		t.Fatalf("Expected error when unassigned delivery agent tries to update order, got nil")
 	}
 
 	// Random unverified artist cannot be assigned

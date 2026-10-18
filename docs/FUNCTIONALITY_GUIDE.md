@@ -68,7 +68,7 @@ flowchart TD
     ModArtists -->|pgxpool| PG
     ModFiles -->|Disk Save| DiskUploads
     ModFiles -->|AWS SDK| S3Bucket
-    AutoMigrate -->|Run on Startup 001-010| PG
+    AutoMigrate -->|Run on Startup 001-012| PG
     Router -->|Serve Static| DiskPaintings
     Router -->|Serve Static| DiskUploads
 ```
@@ -479,21 +479,27 @@ erDiagram
 | `007` | `calculate_order_total_price` | Dynamic pricing calculation functions. |
 | `008` | `payments_and_order_notes` | Adds `payments` table, `notes` column to orders, and unique Stripe session index. |
 | `009` | `restore_orders_timestamp_defaults` | Restores `DEFAULT NOW()` for `created_at` and `updated_at` on orders. |
-| `010` | `seed_gallery_paintings` | Seeds 22 authentic paintings into `artist_paintings` with verified categories (Pencil: 9, Charcoal: 9, Watercolor: 1, Acrylic: 2, Oil: 1). |
+| `010` | `add_collage_and_gallery_confirmation` | Adds `collage_image_url`, `original_final_image_url`, and `is_published_to_gallery` confirmation flag to `orders`. |
+| `011` | `add_delivery_transit_and_retry` | Adds `delivery_agent_id` foreign key, `DELIVERY_AGENT` user role, courier transit statuses (`IN_TRANSIT`, `DELIVERY_FAILED`), `delivery_attempts` counter, and `delivery_failure_reason`. |
+| `012` | `add_published_order_status` | Extends PostgreSQL `order_status` enum to include `PUBLISHED` status. |
 
 ---
 
 ## 🎯 Summary Checklist
 
-- [x] **JWT Auth & RBAC** (Customer, Artist, Admin)
-- [x] **Dynamic Gallery** (DB-driven, unites artist portfolio + completed orders)
+- [x] **JWT Auth & Multi-Role RBAC** (Customer, Artist, Delivery Agent, Admin)
+- [x] **Dynamic Gallery** (DB-driven, unites artist portfolio + published orders)
 - [x] **Categorization** (Pencil, Charcoal, Watercolor, Acrylic, Oil)
 - [x] **1:1 Aspect Ratio** (Eliminates cropping of original artwork and corner reference photos)
 - [x] **Device Photo Uploader** (Browse files from phone/laptop/desktop + drag-and-drop)
 - [x] **Multi-Step Order Wizard** (Size, Medium, Number of Faces, Delivery notes)
 - [x] **Live Dynamic Pricing Engine** (Calculates price in real time based on dimensions and subjects)
 - [x] **Guest Order Redirect Flow** (Seamless login/register redirection while preserving order intent)
-- [x] **Customer Order Tracking** (Visual status badges and finished artwork download)
+- [x] **Multi-Role Dashboards** (Customer tracking timeline, Artist workbench, Courier parcel portal, Admin hub)
+- [x] **Automated Collage Synthesis** (Side-by-side comparison collage generated upon sketch completion)
+- [x] **Studio Quality Inspection** (Admin inspection modal verifying reference, sketch, and collage)
+- [x] **Doorstep Delivery Tracking** (Assignment, transit, failure logs with attempt retry, and delivery handover)
+- [x] **Public Gallery Confirmation Gate** (Admin confirms and promotes delivered collages to public gallery)
 - [x] **Dual Storage Engine** (Local disk fallback and S3/MinIO cloud support)
-- [x] **Embedded Auto-Migrations** (001 to 010 run automatically on server boot)
+- [x] **Embedded Auto-Migrations** (001 to 012 run automatically on server boot)
 - [x] **Interactive Swagger Docs** (Available at `/swagger/index.html`)

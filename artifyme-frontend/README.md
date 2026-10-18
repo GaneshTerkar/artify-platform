@@ -22,8 +22,15 @@ Modern, responsive customer web application for the Artify platform, built with 
 - **Seamless Guest & User Flow**:
   - Guest customers browsing the gallery are prompted to Log In or Register before submitting their custom order.
   - State persistence preserves selected category/medium across the login/register transition.
-- **Account & Order History**:
-  - View placed orders, order status badges (`PLACED`, `CONFIRMED`, `IN_PROGRESS`, `COMPLETED`), delivery notes, and final completed portrait artwork.
+- **Account & Multi-Role Portal ([`AccountPage.tsx`](file:///d:/ArtifyMe/artify-platform/artifyme-frontend/src/pages/AccountPage.tsx))**:
+  - **Customer View**: Live status timeline tracking from `PLACED` to `PUBLISHED`, delivery address inspection, and full-resolution finished portrait collage downloads.
+  - **Artist View**: Commission workbench displaying assigned orders, artwork drawing status (`IN_PROGRESS`), and high-res finished sketch uploader to auto-generate comparison collages.
+  - **Courier View**: Assigned parcel dispatch queue with real-time transit controls (`IN_TRANSIT`, `OUT_FOR_DELIVERY`, `DELIVERY_FAILED` with retry notes, and doorstep `DELIVERED` handover).
+- **Admin Operations Hub ([`AdminPage.tsx`](file:///d:/ArtifyMe/artify-platform/artifyme-frontend/src/pages/AdminPage.tsx))**:
+  - Full platform order lifecycle control: payment confirmation, verified artist assignment, studio quality inspection, delivery agent courier assignment, and public gallery publishing.
+  - Artist verification queue: inspect portfolio paintings, approve or reject applicant artists.
+  - Studio inspection modal ([`CollageArtworkModal.tsx`](file:///d:/ArtifyMe/artify-platform/artifyme-frontend/src/components/CollageArtworkModal.tsx)): side-by-side verification of customer reference photo vs. artist portrait sketch before public exposure.
+  - Platform user management: overview of all platform accounts and role elevations.
 
 ---
 
@@ -47,17 +54,20 @@ artifyme-frontend/
 ├── src/
 │   ├── assets/              # Static media assets
 │   ├── components/
-│   │   └── PhotoUploader.tsx # File browser & drag-and-drop reference photo uploader
+│   │   ├── CollageArtworkModal.tsx # Studio quality inspection & comparison collage preview
+│   │   ├── CollageThumbnail.tsx   # Aspect-ratio-safe artwork thumbnail card
+│   │   └── PhotoUploader.tsx      # File browser & drag-and-drop reference photo uploader
 │   ├── lib/
 │   │   ├── api.ts           # Centralized API fetch wrapper with Auth Bearer tokens
 │   │   └── auth.tsx         # AuthContext provider & hooks (login, register, logout)
 │   ├── pages/
 │   │   ├── HomePage.tsx     # Landing page & dynamic categorized gallery
-│   │   ├── LoginPage.tsx    # Customer login
-│   │   ├── RegisterPage.tsx # Customer registration
+│   │   ├── LoginPage.tsx    # User login
+│   │   ├── RegisterPage.tsx # User registration (Customer, Artist, Delivery Agent)
 │   │   ├── OrderWizardPage.tsx # Custom portrait ordering wizard
 │   │   ├── OrderSuccessPage.tsx# Post-order confirmation screen
-│   │   └── AccountPage.tsx  # Customer profile & order history tracking
+│   │   ├── AccountPage.tsx  # Multi-role dashboard (Customer, Artist, Courier)
+│   │   └── AdminPage.tsx    # Administrative operations hub & gallery publishing
 │   ├── types/
 │   │   └── order.ts         # TypeScript definitions for orders, products, paintings
 │   ├── App.tsx              # Root component & Route definitions

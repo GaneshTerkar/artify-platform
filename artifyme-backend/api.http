@@ -80,6 +80,35 @@ Content-Type: application/json
 ### Store Artist Token
 @artistToken = {{artistLogin.response.body.Token}}
 
+### --------------------------------------------------------------------
+
+### Register a new DELIVERY_AGENT
+# @name deliveryRegister
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "full_name": "Vikram Delivery",
+  "email": "courier_vikram@example.com",
+  "password": "password123",
+  "address": "Shivajinagar, Pune, Maharashtra",
+  "phone_number": "+919811223344",
+  "role": "DELIVERY_AGENT"
+}
+
+### Login as DELIVERY_AGENT
+# @name deliveryLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "courier_vikram@example.com",
+  "password": "password123"
+}
+
+### Store Delivery Agent Token
+@deliveryToken = {{deliveryLogin.response.body.Token}}
+
 
 ### ====================================================================
 ### 2. PUBLIC APIS (No Token Required)
@@ -212,7 +241,7 @@ Content-Type: application/json
   "status": "IN_PROGRESS"
 }
 
-### Complete Order & Publish to Public Gallery
+### Complete Artwork & Auto-Synthesize Comparison Collage
 PATCH {{baseUrl}}/api/v1/admin/orders/{{orderId}}/status
 Authorization: Bearer {{adminToken}}
 Content-Type: application/json
@@ -221,6 +250,72 @@ Content-Type: application/json
   "status": "COMPLETED",
   "final_image_url": "/paintings/PhotoGrid_1581055541054.jpg"
 }
+
+### --------------------------------------------------------------------
+### 5b. DELIVERY AGENT & COURIER TRANSIT
+### --------------------------------------------------------------------
+
+### List Active Delivery Agents
+GET {{baseUrl}}/api/v1/admin/delivery-agents
+Authorization: Bearer {{adminToken}}
+
+### Admin Assigns Delivery Agent
+POST {{baseUrl}}/api/v1/admin/orders/{{orderId}}/assign-delivery
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "delivery_agent_id": "c0a80123-4567-89ab-cdef-0123456789ab"
+}
+
+### Delivery Agent Views Assigned Parcels
+GET {{baseUrl}}/api/v1/orders
+Authorization: Bearer {{deliveryToken}}
+
+### Delivery Agent Marks IN_TRANSIT (Dispatched from Studio)
+PATCH {{baseUrl}}/api/v1/orders/{{orderId}}/status
+Authorization: Bearer {{deliveryToken}}
+Content-Type: application/json
+
+{
+  "status": "IN_TRANSIT"
+}
+
+### Delivery Agent Marks OUT_FOR_DELIVERY (Courier on Route)
+PATCH {{baseUrl}}/api/v1/orders/{{orderId}}/status
+Authorization: Bearer {{deliveryToken}}
+Content-Type: application/json
+
+{
+  "status": "OUT_FOR_DELIVERY"
+}
+
+### Delivery Agent Marks DELIVERY_FAILED (Exception / Retry Log)
+PATCH {{baseUrl}}/api/v1/orders/{{orderId}}/status
+Authorization: Bearer {{deliveryToken}}
+Content-Type: application/json
+
+{
+  "status": "DELIVERY_FAILED",
+  "delivery_failure_reason": "Customer premises locked / phone unreachable"
+}
+
+### Delivery Agent Confirms Handover (DELIVERED)
+PATCH {{baseUrl}}/api/v1/orders/{{orderId}}/status
+Authorization: Bearer {{deliveryToken}}
+Content-Type: application/json
+
+{
+  "status": "DELIVERED"
+}
+
+### --------------------------------------------------------------------
+### 5c. ADMIN QUALITY CONFIRMATION & PUBLIC GALLERY PUBLISH
+### --------------------------------------------------------------------
+
+### Admin Confirms Artwork & Publishes to Public Gallery
+POST {{baseUrl}}/api/v1/admin/orders/{{orderId}}/confirm-gallery
+Authorization: Bearer {{adminToken}}
 
 
 ### ====================================================================

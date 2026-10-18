@@ -20,7 +20,7 @@ artify-platform/
 │   ├── cmd/
 │   │   ├── internal/       # Config, db, logger, middleware, routes, and domain modules
 │   │   │   └── modules/    # artists, auth, files, orders, users
-│   │   ├── migrations/     # PostgreSQL SQL migrations (001 to 010)
+│   │   ├── migrations/     # PostgreSQL SQL migrations (001 to 012)
 │   │   └── server/         # API server entrypoint (main.go)
 │   ├── docs/               # Swagger API specifications
 │   ├── Paintings/          # Authentic artist catalog images served at /paintings/
@@ -78,7 +78,7 @@ go run cmd/server/main.go
 ```
 
 > [!TIP]
-> **Automatic Migrations**: The backend automatically connects to PostgreSQL and applies all pending SQL migrations (`001` through `010`) on startup. No manual migration CLI commands are required!
+> **Automatic Migrations**: The backend automatically connects to PostgreSQL and applies all pending SQL migrations (`001` through `012`) on startup. No manual migration CLI commands are required!
 
 The API will be live at:
 - **API Base**: `http://localhost:8080`
@@ -208,10 +208,15 @@ A single reference file is provided at [`.env.example`](.env.example).
 | `GET` | `/api/v1/products/price/estimate` | Public | Calculate order pricing based on specs |
 | `POST` | `/api/v1/upload` | User | Upload customer reference photo |
 | `POST` | `/api/v1/orders` | User | Create a new custom portrait order |
-| `GET` | `/api/v1/orders` | User | List orders for current authenticated user |
+| `GET` | `/api/v1/orders` | User | List orders for current authenticated user / courier |
 | `POST` | `/api/v1/orders/:id/checkout` | User | Generate checkout session |
+| `POST` | `/api/v1/orders/:id/assign` | Artist/Admin | Assign order to verified portrait artist |
+| `PATCH` | `/api/v1/orders/:id/status` | Artist/Courier | Update order state (drawing progress, courier transit) |
 | `GET` | `/api/v1/admin/orders` | Admin | Review all platform orders |
 | `PATCH` | `/api/v1/admin/orders/:id/status` | Admin | Update order lifecycle status |
+| `POST` | `/api/v1/admin/orders/:id/assign-delivery` | Admin | Assign delivery agent to completed portrait |
+| `GET` | `/api/v1/admin/delivery-agents` | Admin | List active verified delivery agents |
+| `POST` | `/api/v1/admin/orders/:id/confirm-gallery` | Admin | Confirm & publish delivered artwork to public gallery |
 
 For the complete role-by-role API specification and ready-to-run requests, see [`docs/API_DOCUMENTATION.md`](docs/API_DOCUMENTATION.md) and [`artifyme-backend/api.http`](artifyme-backend/api.http).
 

@@ -90,7 +90,9 @@ When `cmd/server/main.go` starts, it automatically applies all pending SQL migra
 7. `007_calculate_order_total_price`: Dynamic pricing calculations.
 8. `008_payments_and_order_notes`: Payments table, Stripe session tracking, order delivery notes.
 9. `009_restore_orders_timestamp_defaults`: Restores standard timestamps on orders.
-10. `010_seed_gallery_paintings`: Seeds the 22 authentic paintings into `artist_paintings` categorized by artistic medium.
+10. `010_add_collage_and_gallery_confirmation`: Auto-generated comparison collage URLs, original sketch preservation, and `is_published_to_gallery` confirmation flag.
+11. `011_add_delivery_transit_and_retry`: Delivery agent assignment (`delivery_agent_id`), courier transit states (`IN_TRANSIT`, `DELIVERY_FAILED`), attempt counter, and failure reasons.
+12. `012_add_published_order_status`: Extends PostgreSQL `order_status` enum adding `PUBLISHED` status.
 
 ### Manual Migrations (Optional CLI)
 

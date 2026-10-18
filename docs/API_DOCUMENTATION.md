@@ -12,8 +12,9 @@ This document contains full, executable documentation for all REST API endpoints
 4. [Public APIs (No Auth Required)](#4-public-apis-no-auth-required)
 5. [Customer APIs (`CUSTOMER`)](#5-customer-apis-customer)
 6. [Artist APIs (`ARTIST`)](#6-artist-apis-artist)
-7. [Admin APIs (`ADMIN`)](#7-admin-apis-admin)
-8. [Quick Verification Script](#8-quick-verification-script)
+7. [Delivery Agent APIs (`DELIVERY_AGENT`)](#7-delivery-agent-apis-delivery_agent)
+8. [Admin APIs (`ADMIN`)](#8-admin-apis-admin)
+9. [Quick Verification Script](#9-quick-verification-script)
 
 ---
 
@@ -22,9 +23,10 @@ This document contains full, executable documentation for all REST API endpoints
 | Role | Permitted Actions |
 | :--- | :--- |
 | **`PUBLIC`** | Browse dynamic gallery, inspect product catalog, estimate custom order pricing. |
-| **`CUSTOMER`** | Upload reference photos, configure and create portrait orders, view personal order history, proceed to checkout. |
-| **`ARTIST`** | View/update artist profile, submit artwork portfolio, view assigned orders, assign orders to verified artists. |
-| **`ADMIN`** | Review artist queue, approve/reject artists, view all customer orders, update order statuses, assign artists. |
+| **`CUSTOMER`** | Upload reference photos, configure and create portrait orders, view personal order history, live delivery tracking, proceed to checkout. |
+| **`ARTIST`** | View/update artist profile, submit artwork portfolio, view assigned orders, update order status to `IN_PROGRESS` and `COMPLETED` with finished sketch, assign orders to verified artists. |
+| **`DELIVERY_AGENT`** | View assigned delivery parcels, update parcel transit status (`IN_TRANSIT`, `OUT_FOR_DELIVERY`, `DELIVERED`, `DELIVERY_FAILED` with retry logs), decline assignment back to studio. |
+| **`ADMIN`** | Review artist queue, approve/reject artists, view all customer orders, inspect completed collages, assign artists, assign delivery agents, confirm public gallery publication, manage user roles and statuses. |
 
 ---
 
@@ -289,31 +291,80 @@ curl -X GET http://localhost:8080/api/v1/artists/verified \
 
 ---
 
-## 7. Admin APIs (`ADMIN`)
+## 7. Delivery Agent APIs (`DELIVERY_AGENT`)
+
+Header required: `Authorization: Bearer <DELIVERY_AGENT_TOKEN>`
+
+### 7.1 View Assigned Delivery Parcels (`GET /api/v1/orders`)
+Returns all parcels assigned to the authenticated delivery agent.
+```bash
+curl -X GET http://localhost:8080/api/v1/orders \
+  -H "Authorization: Bearer <DELIVERY_AGENT_TOKEN>"
+```
+
+### 7.2 Update Delivery Transit Status (`PATCH /api/v1/orders/:id/status`)
+Allows assigned delivery agents to transition parcel states:
+- `IN_TRANSIT`: Parcel picked up from studio / in dispatch.
+- `OUT_FOR_DELIVERY`: Parcel en route to doorstep.
+- `DELIVERED`: Physical handover confirmed with customer.
+- `DELIVERY_FAILED`: Exception encountered (e.g. customer unavailable, incorrect address).
+
+```bash
+# Accept parcel and mark in transit
+curl -X PATCH http://localhost:8080/api/v1/orders/<ORDER_ID>/status \
+  -H "Authorization: Bearer <DELIVERY_AGENT_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "IN_TRANSIT"
+  }'
+
+# Mark out for delivery
+curl -X PATCH http://localhost:8080/api/v1/orders/<ORDER_ID>/status \
+  -H "Authorization: Bearer <DELIVERY_AGENT_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "OUT_FOR_DELIVERY"
+  }'
+
+# Confirm doorstep delivery
+curl -X PATCH http://localhost:8080/api/v1/orders/<ORDER_ID>/status \
+  -H "Authorization: Bearer <DELIVERY_AGENT_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "DELIVERED"
+  }'
+
+# Log delivery failure with retry attempt
+curl -X PATCH http://localhost:8080/api/v1/orders/<ORDER_ID>/status \
+  -H "Authorization: Bearer <DELIVERY_AGENT_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "status": "DELIVERY_FAILED",
+    "delivery_failure_reason": "Customer premises locked / phone unreachable"
+  }'
+```
+
+---
+
+## 8. Admin APIs (`ADMIN`)
 
 Header required: `Authorization: Bearer <ADMIN_TOKEN>`
 
-### 7.1 View Artist Review Queue (`GET /api/admin/artists/review-queue`)
+### 8.1 View Artist Review Queue (`GET /api/admin/artists/review-queue`)
 Lists all artists awaiting review and approval.
 ```bash
 curl -X GET http://localhost:8080/api/admin/artists/review-queue \
   -H "Authorization: Bearer <ADMIN_TOKEN>"
 ```
-*If a `CUSTOMER` or `ARTIST` calls this endpoint, the backend returns:*
-```json
-{
-  "error": "you are not allowed to perform this action with role 'CUSTOMER'. Required role: ADMIN"
-}
-```
 
-### 7.2 Verify / Approve Artist (`POST /api/admin/verify-artist/:id`)
+### 8.2 Verify / Approve Artist (`POST /api/admin/verify-artist/:id`)
 Approves an artist, setting `artist_profiles.verified = true` and activating their account.
 ```bash
 curl -X POST http://localhost:8080/api/admin/verify-artist/<ARTIST_ID> \
   -H "Authorization: Bearer <ADMIN_TOKEN>"
 ```
 
-### 7.3 Reject Artist (`POST /api/admin/reject-artist/:id`)
+### 8.3 Reject Artist (`POST /api/admin/reject-artist/:id`)
 Rejects an unapproved artist with a mandatory reason.
 ```bash
 curl -X POST http://localhost:8080/api/admin/reject-artist/<ARTIST_ID> \
@@ -324,14 +375,14 @@ curl -X POST http://localhost:8080/api/admin/reject-artist/<ARTIST_ID> \
   }'
 ```
 
-### 7.4 List All Platform Orders (`GET /api/v1/admin/orders`)
+### 8.4 List All Platform Orders (`GET /api/v1/admin/orders`)
 Lists all customer orders with optional status filter (`?status=PLACED`).
 ```bash
 curl -X GET "http://localhost:8080/api/v1/admin/orders?status=PLACED" \
   -H "Authorization: Bearer <ADMIN_TOKEN>"
 ```
 
-### 7.5 Update Order Status & Complete Artwork (`PATCH /api/v1/admin/orders/:id/status`)
+### 8.5 Update Order Status & Complete Artwork (`PATCH /api/v1/admin/orders/:id/status`)
 Allows admin to transition order status and upload final artwork.
 ```bash
 curl -X PATCH http://localhost:8080/api/v1/admin/orders/<ORDER_ID>/status \
@@ -342,11 +393,56 @@ curl -X PATCH http://localhost:8080/api/v1/admin/orders/<ORDER_ID>/status \
     "final_image_url": "/paintings/final_portrait.jpg"
   }'
 ```
-*(When marked `COMPLETED`, the painting automatically appears in the public gallery!)*
+> [!NOTE]
+> When an order is transitioned to `COMPLETED`, the system automatically synthesizes a high-resolution side-by-side comparison collage (`collage_image_url`). However, the artwork **remains private** (`is_published_to_gallery = false`) until courier delivery and Admin confirmation.
+
+### 8.6 Assign Delivery Partner (`POST /api/v1/admin/orders/:id/assign-delivery`)
+Assigns a verified delivery agent to a completed or in-delivery order.
+```bash
+curl -X POST http://localhost:8080/api/v1/admin/orders/<ORDER_ID>/assign-delivery \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "delivery_agent_id": "<DELIVERY_AGENT_UUID>"
+  }'
+```
+
+### 8.7 List Active Delivery Partners (`GET /api/v1/admin/delivery-agents`)
+Lists all active delivery agents available for courier dispatch.
+```bash
+curl -X GET http://localhost:8080/api/v1/admin/delivery-agents \
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
+```
+
+### 8.8 Confirm & Publish Artwork to Public Gallery (`POST /api/v1/admin/orders/:id/confirm-gallery`)
+Admin quality inspection approval. Promotes the delivered artwork's comparison collage to the Public Art Gallery (`/gallery`), setting `is_published_to_gallery = true` and status `PUBLISHED`.
+```bash
+curl -X POST http://localhost:8080/api/v1/admin/orders/<ORDER_ID>/confirm-gallery \
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
+```
+
+### 8.9 Platform User Management (`GET /api/v1/admin/users`, `PATCH status`, `PATCH role`)
+```bash
+# List all platform users with role counts
+curl -X GET http://localhost:8080/api/v1/admin/users \
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
+
+# Update user status (ACTIVE, SUSPENDED)
+curl -X PATCH http://localhost:8080/api/v1/admin/users/<USER_ID>/status \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{ "status": "ACTIVE" }'
+
+# Elevate user to ARTIST
+curl -X PATCH http://localhost:8080/api/v1/admin/users/<USER_ID>/role \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{ "role": "ARTIST" }'
+```
 
 ---
 
-## 8. Quick Verification Script
+## 9. Quick Verification Script
 
 You can run this Node.js script to test role validation directly from the command line:
 

@@ -365,8 +365,8 @@ export default function AdminPage() {
     { id: "CONFIRMED", label: "CONFIRMED", count: statusCounts["CONFIRMED"] || 0 },
     { id: "ASSIGNED_ARTIST", label: "ASSIGNED ARTIST", count: statusCounts["ASSIGNED_ARTIST"] || 0 },
     { id: "IN_PROGRESS", label: "IN PROGRESS", count: statusCounts["IN_PROGRESS"] || 0 },
-    { id: "COMPLETED", label: "STUDIO READY", count: statusCounts["COMPLETED"] || 0 },
-    { id: "ASSIGNED_DELIVERY_AGENT", label: "COURIER ASSIGNED", count: statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0 },
+    { id: "COMPLETED", label: "COMPLETED", count: statusCounts["COMPLETED"] || 0 },
+    { id: "ASSIGNED_DELIVERY_AGENT", label: "ASSIGNED DELIVERY AGENT", count: statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0 },
     { id: "IN_TRANSIT", label: "IN TRANSIT", count: statusCounts["IN_TRANSIT"] || 0 },
     { id: "OUT_FOR_DELIVERY", label: "OUT FOR DELIVERY", count: statusCounts["OUT_FOR_DELIVERY"] || 0 },
     { id: "DELIVERY_FAILED", label: "DELIVERY RETRY", count: statusCounts["DELIVERY_FAILED"] || 0 },
@@ -1041,8 +1041,8 @@ export default function AdminPage() {
                       <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
                       <option value="ASSIGNED_ARTIST">ASSIGNED ARTIST ({statusCounts["ASSIGNED_ARTIST"] || 0})</option>
                       <option value="IN_PROGRESS">IN PROGRESS ({statusCounts["IN_PROGRESS"] || 0})</option>
-                      <option value="COMPLETED">STUDIO READY ({statusCounts["COMPLETED"] || 0})</option>
-                      <option value="ASSIGNED_DELIVERY_AGENT">COURIER ASSIGNED ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
+                      <option value="COMPLETED">COMPLETED ({statusCounts["COMPLETED"] || 0})</option>
+                      <option value="ASSIGNED_DELIVERY_AGENT">ASSIGNED DELIVERY AGENT ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
                       <option value="IN_TRANSIT">IN TRANSIT ({statusCounts["IN_TRANSIT"] || 0})</option>
                       <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
                       <option value="DELIVERY_FAILED">DELIVERY RETRY ({statusCounts["DELIVERY_FAILED"] || 0})</option>
@@ -1065,14 +1065,14 @@ export default function AdminPage() {
                       <option value="ALL">All ({roleCounts.ARTIST})</option>
                       <option value="ASSIGNED_ARTIST">ASSIGNED ARTIST ({statusCounts["ASSIGNED_ARTIST"] || 0})</option>
                       <option value="IN_PROGRESS">IN PROGRESS ({statusCounts["IN_PROGRESS"] || 0})</option>
-                      <option value="COMPLETED">STUDIO READY ({statusCounts["COMPLETED"] || 0})</option>
+                      <option value="COMPLETED">COMPLETED ({statusCounts["COMPLETED"] || 0})</option>
                     </>
                   )}
 
                   {orderRoleFilter === "DELIVERY_AGENT" && (
                     <>
                       <option value="ALL">All ({roleCounts.DELIVERY_AGENT})</option>
-                      <option value="ASSIGNED_DELIVERY_AGENT">COURIER ASSIGNED ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
+                      <option value="ASSIGNED_DELIVERY_AGENT">ASSIGNED DELIVERY AGENT ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
                       <option value="IN_TRANSIT">IN TRANSIT ({statusCounts["IN_TRANSIT"] || 0})</option>
                       <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
                       <option value="DELIVERY_FAILED">DELIVERY RETRY ({statusCounts["DELIVERY_FAILED"] || 0})</option>

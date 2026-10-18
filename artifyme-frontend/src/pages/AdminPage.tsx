@@ -373,6 +373,7 @@ export default function AdminPage() {
     { id: "OUT_FOR_DELIVERY", label: "OUT FOR DELIVERY", count: statusCounts["OUT_FOR_DELIVERY"] || 0 },
     { id: "DELIVERY_FAILED", label: "DELIVERY RETRY", count: statusCounts["DELIVERY_FAILED"] || 0 },
     { id: "DELIVERED", label: "DELIVERED", count: statusCounts["DELIVERED"] || 0 },
+    { id: "PUBLISHED", label: "PUBLISHED", count: statusCounts["PUBLISHED"] || 0 },
     { id: "CANCELLED", label: "CANCELLED", count: statusCounts["CANCELLED"] || 0 },
   ] as const;
 
@@ -1049,6 +1050,7 @@ export default function AdminPage() {
                       <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
                       <option value="DELIVERY_FAILED">DELIVERY RETRY ({statusCounts["DELIVERY_FAILED"] || 0})</option>
                       <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
+                      <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
                       <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
                     </>
                   )}
@@ -1058,6 +1060,7 @@ export default function AdminPage() {
                       <option value="ALL">All ({roleCounts.CUSTOMER})</option>
                       <option value="PLACED">PLACED ({statusCounts["PLACED"] || 0})</option>
                       <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
+                      <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
                       <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
                     </>
                   )}
@@ -1079,6 +1082,7 @@ export default function AdminPage() {
                       <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
                       <option value="DELIVERY_FAILED">DELIVERY RETRY ({statusCounts["DELIVERY_FAILED"] || 0})</option>
                       <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
+                      <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
                     </>
                   )}
                 </select>
@@ -1327,24 +1331,15 @@ export default function AdminPage() {
                               <p className="font-semibold text-rose-300">⚠️ Attempt {o.delivery_attempts || 1}/3 Failed</p>
                               <p className="text-[11px] text-slate-300">{o.delivery_failure_reason || "Customer unavailable"}</p>
                             </div>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => retryDeliveryMutation.mutate({ orderId: o.order_id })}
-                                disabled={retryDeliveryMutation.isPending}
-                                className="rounded-lg bg-sky-600 hover:bg-sky-500 px-3 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1 shadow-sm whitespace-nowrap"
-                              >
-                                <span>🔁</span> Re-attempt
-                              </button>
-                              <button
-                                onClick={() => {
-                                  setAssigningDeliveryOrder(o);
-                                  setSelectedDeliveryAgentId(o.delivery_agent_id || "");
-                                }}
-                                className="rounded-lg border border-slate-700 hover:bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-300 whitespace-nowrap"
-                              >
-                                Reassign
-                              </button>
-                            </div>
+                            <button
+                              onClick={() => {
+                                setAssigningDeliveryOrder(o);
+                                setSelectedDeliveryAgentId("");
+                              }}
+                              className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap"
+                            >
+                              <span>🚚</span> Assign Delivery Agent
+                            </button>
                           </div>
                         )}
 
@@ -2395,16 +2390,18 @@ export default function AdminPage() {
 
       {/* MODAL: ASSIGN / REASSIGN DELIVERY PARTNER */}
       {assigningDeliveryOrder && (() => {
-        const availablePartners = activeDeliveryPartners.length > 0 ? activeDeliveryPartners : deliveryAgents;
-        const isReassign = Boolean(assigningDeliveryOrder.delivery_agent_id);
-        const currentAgent = availablePartners.find((a) => a.user_id === assigningDeliveryOrder.delivery_agent_id);
+        const rawPartners = activeDeliveryPartners.length > 0 ? activeDeliveryPartners : deliveryAgents;
+        // Exclude the earlier assigned delivery agent so they cannot be selected again
+        const availablePartners = rawPartners.filter((a) => a.user_id !== assigningDeliveryOrder.delivery_agent_id);
+        const currentAgent = rawPartners.find((a) => a.user_id === assigningDeliveryOrder.delivery_agent_id);
+        const isFailed = assigningDeliveryOrder.status === "DELIVERY_FAILED";
 
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm animate-in fade-in">
             <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                  <span>🚚</span> {isReassign ? "Reassign Delivery Partner" : "Assign Delivery Partner"}
+                  <span>🚚</span> Assign Delivery Agent
                 </h3>
                 <button
                   onClick={() => {
@@ -2429,14 +2426,15 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              {isReassign && currentAgent && (
+              {currentAgent && (
                 <div className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg p-3">
-                  ⚠️ Currently assigned to: <strong>{currentAgent.full_name}</strong> ({currentAgent.phone_number || "No phone"}).
+                  ⚠️ Earlier assigned partner: <strong>{currentAgent.full_name}</strong>
+                  {isFailed ? " (Delivery attempt failed). Please select a different delivery partner." : "."}
                 </div>
               )}
 
               <label className="block space-y-1.5 text-xs text-slate-300">
-                <span className="font-medium">Select Active Delivery Partner:</span>
+                <span className="font-medium">Select Delivery Agent (Excluding earlier partner):</span>
                 <select
                   value={selectedDeliveryAgentId}
                   onChange={(e) => setSelectedDeliveryAgentId(e.target.value)}
@@ -2450,7 +2448,7 @@ export default function AdminPage() {
                   ))}
                   {availablePartners.length === 0 && (
                     <option disabled value="">
-                      No active delivery partners registered
+                      No other delivery partners available
                     </option>
                   )}
                 </select>
@@ -2478,11 +2476,7 @@ export default function AdminPage() {
                   }
                   className="rounded-lg bg-cyan-600 hover:bg-cyan-500 px-4 py-2 text-xs font-semibold text-white transition disabled:opacity-50 shadow-sm"
                 >
-                  {assignDeliveryMutation.isPending
-                    ? "Dispatching..."
-                    : isReassign
-                    ? "Confirm Reassignment"
-                    : "Confirm & Dispatch"}
+                  {assignDeliveryMutation.isPending ? "Assigning..." : "Assign Delivery Agent"}
                 </button>
               </div>
             </div>

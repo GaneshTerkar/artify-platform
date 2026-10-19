@@ -123,6 +123,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   role,
   verifiedArtists = [],
   deliveryAgents = [],
+  currentUserName,
   commissionSplit,
   onInspectCollage,
   onViewPhoto,

@@ -130,6 +130,17 @@ export function getUserOrderMetrics(
 
 export default function AdminPage() {
   const { user } = useAuth();
+  // Robust check: does this user row belong to the currently logged-in account?
+  const isCurrentUser = (u: { user_id?: string | null; email?: string | null }) => {
+    const currentUserId = user?.user_id?.toLowerCase().trim();
+    const currentUserEmail = user?.email?.toLowerCase().trim();
+    const targetUserId = u.user_id?.toLowerCase().trim();
+    const targetUserEmail = u.email?.toLowerCase().trim();
+    return Boolean(
+      (currentUserId && targetUserId && currentUserId === targetUserId) ||
+        (currentUserEmail && targetUserEmail && currentUserEmail === targetUserEmail),
+    );
+  };
   const queryClient = useQueryClient();
   // Configurable Commission Split Policy (persisted to localStorage)
   const [commissionSplit, setCommissionSplit] = useState<CommissionSplitConfig>(() => {
@@ -228,34 +239,27 @@ export default function AdminPage() {
   const [suspendingUser, setSuspendingUser] = useState<{ user: PlatformUser; targetStatus: "ACTIVE" | "SUSPENDED" } | null>(null);
   const [suspensionReason, setSuspensionReason] = useState<string>("Frequent unconfirmed or cancelled orders");
   const [userSubFilter, setUserSubFilter] = useState<"ALL" | "VERIFIED" | "PENDING_REVIEW" | "AT_RISK" | "ADMIN_ELIGIBLE">("ALL");
-  const [orderRoleFilter, setOrderRoleFilter] = useState<"ALL" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT">("ALL");
+  const [orderRoleFilter, setOrderRoleFilter] = useState<"ALL" | string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [artistFilter, setArtistFilter] = useState<string>("ALL");
   const [deliveryPartnerFilter, setDeliveryPartnerFilter] = useState<string>("ALL");
   const [orderSearchQuery, setOrderSearchQuery] = useState<string>("");
-
-  const ROLE_STATUS_MAP: Record<string, string[]> = {
-    CUSTOMER: ["PLACED", "CONFIRMED", "CANCELLED"],
-    ARTIST: ["ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED"],
-    DELIVERY_AGENT: ["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED", "PUBLISHED"],
-  };
-
   const showArtistFilter =
-    (orderRoleFilter === "ALL" || orderRoleFilter === "ARTIST") &&
+    orderRoleFilter === "ALL" &&
     statusFilter !== "PLACED" &&
     statusFilter !== "CANCELLED";
 
-  const handleRoleFilterChange = (role: "ALL" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT") => {
-    setOrderRoleFilter(role);
-    if (role !== "ALL") {
-      const allowed = ROLE_STATUS_MAP[role] || [];
-      if (statusFilter !== "ALL" && !allowed.includes(statusFilter)) {
-        setStatusFilter("ALL");
-      }
-    }
+  const handleRoleFilterChange = (userId: string) => {
+    setOrderRoleFilter(userId);
+    // Reset status filter when user changes
+    setStatusFilter("ALL");
   };
 
   const handleStatusFilterChange = (status: string) => {
+    // If a specific user is selected, only allow statuses relevant to their role
+    if (selectedUser && allowedStatusesForUser && status !== "ALL" && !allowedStatusesForUser.includes(status)) {
+      return; // Ignore invalid status for this user's role
+    }
     setStatusFilter(status);
   };
   const [userRoleFilter, setUserRoleFilter] = useState<"ALL" | "CUSTOMER" | "ARTIST" | "DELIVERY_AGENT" | "ADMIN">("ALL");
@@ -276,6 +280,12 @@ export default function AdminPage() {
     DELIVERED: 10,
     PUBLISHED: 11,
     CANCELLED: 12,
+  };
+
+  const ROLE_STATUS_MAP: Record<string, string[]> = {
+    CUSTOMER: ["PLACED", "CONFIRMED", "CANCELLED", "PUBLISHED"],
+    ARTIST: ["ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED", "PUBLISHED"],
+    DELIVERY_AGENT: ["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED", "PUBLISHED"],
   };
 
   function getOrderLifecycleStatus(order: Order): string {
@@ -330,10 +340,10 @@ export default function AdminPage() {
     queryFn: () => api<{ users: PlatformUser[] }>("/api/v1/admin/users"),
   });
   const allUsersRaw = usersData?.users ?? [];
-  // Admin can see only other users list except himself
+  // Include all users (including the logged-in admin) so they can filter their own orders
   const allUsers = useMemo(() => {
-    return allUsersRaw.filter((u) => u.user_id !== user?.user_id && u.email !== user?.email);
-  }, [allUsersRaw, user]);
+    return allUsersRaw;
+  }, [allUsersRaw]);
 
   // 5. Fetch Active Delivery Agents
   const { data: deliveryAgentsData } = useQuery({
@@ -342,48 +352,23 @@ export default function AdminPage() {
   });
   const activeDeliveryPartners = deliveryAgentsData?.delivery_agents ?? [];
 
-  const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = { ALL: allOrders.length };
-    for (const o of allOrders) {
-      if (o.status) {
-        counts[o.status] = (counts[o.status] || 0) + 1;
-      }
-    }
-    return counts;
-  }, [allOrders]);
+  // Get the selected user's role (when a specific user is picked in User filter)
+  const selectedUser = useMemo(() => {
+    if (orderRoleFilter === "ALL") return null;
+    return allUsers.find((u) => u.user_id === orderRoleFilter);
+  }, [orderRoleFilter, allUsers]);
 
-  const roleCounts = useMemo(() => {
-    let customer = 0;
-    let artist = 0;
-    let delivery = 0;
-
-    for (const o of allOrders) {
-      if (["PLACED", "CONFIRMED", "CANCELLED"].includes(o.status)) {
-        customer++;
-      } else if (["ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED"].includes(o.status)) {
-        artist++;
-      } else if (["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED", "PUBLISHED"].includes(o.status)) {
-        delivery++;
-      }
-    }
-
-    return {
-      ALL: allOrders.length,
-      CUSTOMER: customer,
-      ARTIST: artist,
-      DELIVERY_AGENT: delivery,
-    };
-  }, [allOrders]);
+  // Statuses allowed for the selected user's role
+  const allowedStatusesForUser = useMemo(() => {
+    if (!selectedUser) return null; // null means show all statuses
+    return ROLE_STATUS_MAP[selectedUser.role as keyof typeof ROLE_STATUS_MAP];
+  }, [selectedUser]);
 
   const filteredOrders = useMemo(() => {
     return allOrders.filter((o) => {
-      // 1. Role Filter
-      if (orderRoleFilter === "CUSTOMER") {
-        if (!["PLACED", "CONFIRMED", "CANCELLED"].includes(o.status)) return false;
-      } else if (orderRoleFilter === "ARTIST") {
-        if (!["ASSIGNED_ARTIST", "IN_PROGRESS", "COMPLETED"].includes(o.status)) return false;
-      } else if (orderRoleFilter === "DELIVERY_AGENT") {
-        if (!["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED", "DELIVERED", "PUBLISHED"].includes(o.status)) return false;
+      // 1. Role Filter (filter by specific user)
+      if (orderRoleFilter !== "ALL") {
+        if (o.user_id !== orderRoleFilter) return false;
       }
 
       // 2. Status Filter
@@ -541,7 +526,6 @@ export default function AdminPage() {
 
   const filteredUsers = useMemo(() => {
     return allUsers.filter((u) => {
-      if (u.user_id === user?.user_id || u.email === user?.email) return false;
       if (userRoleFilter === "CUSTOMER" && u.role !== "CUSTOMER") return false;
       if (userRoleFilter === "ADMIN" && u.role !== "ADMIN") return false;
       if (userRoleFilter === "ARTIST" && u.role !== "ARTIST") return false;
@@ -1133,13 +1117,28 @@ export default function AdminPage() {
               </label>
               <select
                 value={orderRoleFilter}
-                onChange={(e) => handleRoleFilterChange(e.target.value as any)}
+                onChange={(e) => handleRoleFilterChange(e.target.value)}
                 className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm cursor-pointer"
               >
-                <option value="ALL">All ({allOrders.length})</option>
-                <option value="CUSTOMER">👤 Customer ({roleCounts.CUSTOMER})</option>
-                <option value="ARTIST">🎨 Artist ({roleCounts.ARTIST})</option>
-                <option value="DELIVERY_AGENT">🚚 Delivery Agent ({roleCounts.DELIVERY_AGENT})</option>
+                <option value="ALL">All</option>
+                {allUsers
+                  .sort((a, b) => a.full_name.localeCompare(b.full_name))
+                  .map((u) => {
+                    const roleLabel =
+                      u.role === "CUSTOMER"
+                        ? "👤"
+                        : u.role === "ARTIST"
+                        ? "🎨"
+                        : u.role === "DELIVERY_AGENT"
+                        ? "🚚"
+                        : "👑";
+                    const isYou = isCurrentUser(u);
+                    return (
+                      <option key={u.user_id} value={u.user_id}>
+                        {roleLabel} {u.full_name} {isYou ? "(You)" : ""}
+                      </option>
+                    );
+                  })}
               </select>
             </div>
 
@@ -1153,51 +1152,32 @@ export default function AdminPage() {
                 onChange={(e) => handleStatusFilterChange(e.target.value)}
                 className="rounded-lg bg-slate-800 border border-slate-700 px-2.5 py-1.5 text-xs text-white font-medium focus:outline-none focus:border-brand shadow-sm cursor-pointer"
               >
-                {orderRoleFilter === "ALL" && (
+                {selectedUser && allowedStatusesForUser ? (
                   <>
-                    <option value="ALL">All ({allOrders.length})</option>
-                    <option value="PLACED">PLACED ({statusCounts["PLACED"] || 0})</option>
-                    <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
-                    <option value="ASSIGNED_ARTIST">ASSIGNED ARTIST ({statusCounts["ASSIGNED_ARTIST"] || 0})</option>
-                    <option value="IN_PROGRESS">IN PROGRESS ({statusCounts["IN_PROGRESS"] || 0})</option>
-                    <option value="COMPLETED">COMPLETED ({statusCounts["COMPLETED"] || 0})</option>
-                    <option value="ASSIGNED_DELIVERY_AGENT">ASSIGNED DELIVERY AGENT ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
-                    <option value="IN_TRANSIT">IN TRANSIT ({statusCounts["IN_TRANSIT"] || 0})</option>
-                    <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
-                    <option value="DELIVERY_FAILED">DELIVERY FAILED ({statusCounts["DELIVERY_FAILED"] || 0})</option>
-                    <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
-                    <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
-                    <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
+                    {/* Show only statuses relevant to the selected user's role */}
+                    <option value="ALL">All</option>
+                    {allowedStatusesForUser.map((s) => (
+                      <option key={s} value={s}>
+                        {s.replaceAll("_", " ")}
+                      </option>
+                    ))}
                   </>
-                )}
-
-                {orderRoleFilter === "CUSTOMER" && (
+                ) : (
                   <>
-                    <option value="ALL">All ({roleCounts.CUSTOMER})</option>
-                    <option value="PLACED">PLACED ({statusCounts["PLACED"] || 0})</option>
-                    <option value="CONFIRMED">CONFIRMED ({statusCounts["CONFIRMED"] || 0})</option>
-                    <option value="CANCELLED">CANCELLED ({statusCounts["CANCELLED"] || 0})</option>
-                  </>
-                )}
-
-                {orderRoleFilter === "ARTIST" && (
-                  <>
-                    <option value="ALL">All ({roleCounts.ARTIST})</option>
-                    <option value="ASSIGNED_ARTIST">ASSIGNED ARTIST ({statusCounts["ASSIGNED_ARTIST"] || 0})</option>
-                    <option value="IN_PROGRESS">IN PROGRESS ({statusCounts["IN_PROGRESS"] || 0})</option>
-                    <option value="COMPLETED">COMPLETED ({statusCounts["COMPLETED"] || 0})</option>
-                  </>
-                )}
-
-                {orderRoleFilter === "DELIVERY_AGENT" && (
-                  <>
-                    <option value="ALL">All ({roleCounts.DELIVERY_AGENT})</option>
-                    <option value="ASSIGNED_DELIVERY_AGENT">ASSIGNED DELIVERY AGENT ({statusCounts["ASSIGNED_DELIVERY_AGENT"] || 0})</option>
-                    <option value="IN_TRANSIT">IN TRANSIT ({statusCounts["IN_TRANSIT"] || 0})</option>
-                    <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY ({statusCounts["OUT_FOR_DELIVERY"] || 0})</option>
-                    <option value="DELIVERY_FAILED">DELIVERY FAILED ({statusCounts["DELIVERY_FAILED"] || 0})</option>
-                    <option value="DELIVERED">DELIVERED ({statusCounts["DELIVERED"] || 0})</option>
-                    <option value="PUBLISHED">PUBLISHED ({statusCounts["PUBLISHED"] || 0})</option>
+                    {/* Show all statuses when no specific user is selected */}
+                    <option value="ALL">All</option>
+                    <option value="PLACED">PLACED</option>
+                    <option value="CONFIRMED">CONFIRMED</option>
+                    <option value="ASSIGNED_ARTIST">ASSIGNED ARTIST</option>
+                    <option value="IN_PROGRESS">IN PROGRESS</option>
+                    <option value="COMPLETED">COMPLETED</option>
+                    <option value="ASSIGNED_DELIVERY_AGENT">ASSIGNED DELIVERY AGENT</option>
+                    <option value="IN_TRANSIT">IN TRANSIT</option>
+                    <option value="OUT_FOR_DELIVERY">OUT FOR DELIVERY</option>
+                    <option value="DELIVERY_FAILED">DELIVERY FAILED</option>
+                    <option value="DELIVERED">DELIVERED</option>
+                    <option value="PUBLISHED">PUBLISHED</option>
+                    <option value="CANCELLED">CANCELLED</option>
                   </>
                 )}
               </select>
@@ -1467,7 +1447,7 @@ export default function AdminPage() {
             <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-12 text-center space-y-3">
               <p className="text-slate-300 font-medium">
                 {allUsers.length === 0
-                  ? "No other platform users registered yet."
+                  ? "No platform users registered yet."
                   : "No users found matching current filters."}
               </p>
               <button
@@ -1546,6 +1526,16 @@ export default function AdminPage() {
                       <div className="space-y-1.5 flex-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <h3 className="text-base font-bold text-white mr-1">{u.full_name}</h3>
+
+                          {/* Logged-in Account Marker */}
+                          {isCurrentUser(u) && (
+                            <span
+                              title="This is your own account"
+                              className="inline-flex items-center rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                            >
+                              You
+                            </span>
+                          )}
 
                           {/* Verified Artist Badge (Styled consistently with role and status symbols) */}
                           {isArtist && u.is_verified_artist && (

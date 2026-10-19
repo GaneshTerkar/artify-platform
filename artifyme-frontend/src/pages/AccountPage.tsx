@@ -9,6 +9,7 @@ import { CollageArtworkModal } from "../components/CollageArtworkModal";
 import { getCommissionSplit } from "../lib/commission";
 import type { Order, VerifiedArtist } from "../types/order";
 import { OrderCard } from "../components/OrderCard";
+import { ConfirmModal } from "../components/ConfirmModal";
 import { EarningsDashboardModal } from "../components/EarningsDashboardModal";
 import { ReviewModal } from "../components/ReviewModal";
 
@@ -67,6 +68,20 @@ export default function AccountPage() {
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [showEarningsModal, setShowEarningsModal] = useState<boolean>(false);
   const [reviewingOrder, setReviewingOrder] = useState<Order | null>(null);
+
+  // Custom confirmation dialog for delivery handover (replaces native window.confirm)
+  const [confirmDeliveredDialog, setConfirmDeliveredDialog] = useState<{
+    orderId: string;
+    onConfirm: () => void;
+    isPending: boolean;
+  } | null>(null);
+
+  // Custom confirmation dialog for Pay Now
+  const [confirmPayDialog, setConfirmPayDialog] = useState<{
+    orderId: string;
+    onConfirm: () => void;
+    isPending: boolean;
+  } | null>(null);
 
   // Artist Profile form state
   const [profileBio, setProfileBio] = useState("");
@@ -750,9 +765,13 @@ export default function AccountPage() {
                     }}
                     onDeliveryOutToday={(order) => statusMutation.mutate({ orderId: order.order_id, status: "OUT_FOR_DELIVERY" })}
                     onDeliveryDelivered={(order) => {
-                      if (window.confirm("Confirm that parcel has been safely handed over to the customer?")) {
-                        statusMutation.mutate({ orderId: order.order_id, status: "DELIVERED" });
-                      }
+                      setConfirmDeliveredDialog({
+                        orderId: order.order_id,
+                        onConfirm: () => {
+                          statusMutation.mutate({ orderId: order.order_id, status: "DELIVERED" });
+                        },
+                        isPending: statusMutation.isPending,
+                      });
                     }}
                     onDeliveryFailed={(order) => {
                       setFailingOrder(order);
@@ -760,7 +779,15 @@ export default function AccountPage() {
                       setCustomFailureNotes("");
                     }}
                     onDeliveryReattempt={(order) => statusMutation.mutate({ orderId: order.order_id, status: "OUT_FOR_DELIVERY" })}
-                    onCustomerPay={(orderId) => checkoutMutation.mutate(orderId)}
+                    onCustomerPay={(orderId) => {
+                      setConfirmPayDialog({
+                        orderId,
+                        onConfirm: () => {
+                          checkoutMutation.mutate(orderId);
+                        },
+                        isPending: checkoutMutation.isPending,
+                      });
+                    }}
                     onCustomerCancel={(orderId) => {
                       if (window.confirm("Are you sure you want to cancel this order?")) {
                         statusMutation.mutate({ orderId, status: "CANCELLED" });
@@ -774,6 +801,40 @@ export default function AccountPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* MODAL: DELIVERY HANDOVER CONFIRMATION */}
+      {confirmDeliveredDialog && (
+        <ConfirmModal
+          isOpen={true}
+          onClose={() => setConfirmDeliveredDialog(null)}
+          title="Confirm Delivery Handover"
+          message="Confirm that parcel has been safely handed over to the customer?"
+          confirmLabel="Mark Delivered"
+          onConfirm={() => {
+            if (confirmDeliveredDialog) {
+              statusMutation.mutate({ orderId: confirmDeliveredDialog.orderId, status: "DELIVERED" });
+            }
+          }}
+          isPending={confirmDeliveredDialog?.isPending ?? false}
+        />
+      )}
+
+      {/* MODAL: PAY NOW CONFIRMATION */}
+      {confirmPayDialog && (
+        <ConfirmModal
+          isOpen={true}
+          onClose={() => setConfirmPayDialog(null)}
+          title="Confirm Payment"
+          message="Are you sure you want to proceed to payment for this portrait order?"
+          confirmLabel="Pay Now"
+          onConfirm={() => {
+            if (confirmPayDialog) {
+              checkoutMutation.mutate(confirmPayDialog.orderId);
+            }
+          }}
+          isPending={confirmPayDialog?.isPending ?? false}
+        />
       )}
 
       {/* MODAL: ADD PORTFOLIO PAINTING FOR ARTIST */}

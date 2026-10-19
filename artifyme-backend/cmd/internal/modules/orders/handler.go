@@ -131,7 +131,7 @@ func (h *Handler) ListMyOrders(c *gin.Context) {
 			for i := range allOrders {
 				st := allOrders[i].Status
 				if (allOrders[i].ArtistID != nil && *allOrders[i].ArtistID == userID) ||
-					st == StatusConfirmed || st == StatusInProgress || st == StatusCompleted {
+					st == StatusConfirmed || st == StatusAssignedArtist || st == StatusInProgress || st == StatusCompleted {
 					out = append(out, toOrderDTO(&allOrders[i]))
 				}
 			}
@@ -283,6 +283,57 @@ func (h *Handler) Checkout(c *gin.Context) {
 		"session_id":   sessionID,
 		"amount":       o.TotalPrice,
 		"currency":     "INR",
+	})
+}
+
+func (h *Handler) ConfirmPayment(c *gin.Context) {
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		return
+	}
+	userID := c.MustGet("user_id").(uuid.UUID)
+	role := c.MustGet("role").(string)
+
+	if role != "ADMIN" {
+		c.JSON(http.StatusForbidden, gin.H{"error": "only admin can confirm payment"})
+		return
+	}
+
+	o, err := h.service.GetOrder(c.Request.Context(), orderID, userID, role)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+	if o.Status != StatusPlaced {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "order is not in placed status"})
+		return
+	}
+
+	updated, err := h.service.TransitionStatus(
+		c.Request.Context(),
+		orderID,
+		userID,
+		role,
+		StatusConfirmed,
+		nil,
+		nil,
+		nil,
+	)
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, ErrForbidden) {
+			status = http.StatusForbidden
+		} else if errors.Is(err, ErrConflict) {
+			status = http.StatusConflict
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "payment confirmed successfully",
+		"order":   toOrderDTO(updated),
 	})
 }
 

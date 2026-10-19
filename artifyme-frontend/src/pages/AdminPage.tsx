@@ -693,10 +693,18 @@ export default function AdminPage() {
 
   // Mutations
   const assignMutation = useMutation({
-    mutationFn: ({ orderId, artistId }: { orderId: string; artistId: string }) =>
+    mutationFn: ({
+      orderId,
+      artistId,
+      version,
+    }: {
+      orderId: string;
+      artistId: string;
+      version?: number;
+    }) =>
       api(`/api/v1/orders/${orderId}/assign`, {
         method: "POST",
-        body: JSON.stringify({ artist_id: artistId }),
+        body: JSON.stringify({ artist_id: artistId, version }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin_orders"] });
@@ -704,7 +712,10 @@ export default function AdminPage() {
       setSelectedArtistId("");
       showMessage("Order assigned to verified artist successfully!");
     },
-    onError: (err: Error) => showMessage(err.message, "error"),
+    onError: (err: Error) => {
+      queryClient.invalidateQueries({ queryKey: ["admin_orders"] });
+      showMessage(err.message, "error");
+    },
   });
 
   const assignDeliveryMutation = useMutation({
@@ -2698,6 +2709,7 @@ export default function AdminPage() {
                     assignMutation.mutate({
                       orderId: assigningOrder.order_id,
                       artistId: selectedArtistId,
+                      version: assigningOrder.version,
                     })
                   }
                   className="rounded-lg bg-brand px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"

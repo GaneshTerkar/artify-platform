@@ -129,6 +129,51 @@ func (r *Repository) enrichOrders(ctx context.Context, orders []*Order) error {
 		}
 	}
 
+	// Fallback: resolve artist display name/phone from artist_profiles when
+	// the users lookup did not return a match (so the admin OrderCard can
+	// always show who an order is assigned to).
+	artistIDs := make([]uuid.UUID, 0, len(orders))
+	artistIdx := make(map[uuid.UUID]int)
+	for i, o := range orders {
+		if o == nil || o.ArtistID == nil || *o.ArtistID == uuid.Nil {
+			continue
+		}
+		if _, ok := users[*o.ArtistID]; ok {
+			continue
+		}
+		artistIDs = append(artistIDs, *o.ArtistID)
+		artistIdx[*o.ArtistID] = i
+	}
+
+	if len(artistIDs) > 0 {
+		rows, err := r.pool.Query(ctx, `
+			SELECT u.user_id, u.full_name, COALESCE(u.phone_number, '')
+			FROM artist_profiles ap
+			INNER JOIN users u ON ap.artist_id = u.user_id
+			WHERE u.user_id = ANY($1)
+		`, artistIDs)
+		if err == nil {
+			defer rows.Close()
+			for rows.Next() {
+				var uid uuid.UUID
+				var name, phone string
+				if err := rows.Scan(&uid, &name, &phone); err == nil {
+					if i, ok := artistIdx[uid]; ok && orders[i] != nil {
+						o := orders[i]
+						if o.ArtistName == nil {
+							n := name
+							o.ArtistName = &n
+						}
+						if o.ArtistPhone == nil {
+							p := phone
+							o.ArtistPhone = &p
+						}
+					}
+				}
+			}
+		}
+	}
+
 	return nil
 }
 

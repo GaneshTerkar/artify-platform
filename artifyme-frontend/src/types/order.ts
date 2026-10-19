@@ -42,6 +42,7 @@ export type Order = {
   is_published_to_gallery?: boolean;
   created_at: string;
   updated_at?: string;
+  version?: number;
 };
 
 export type Review = {

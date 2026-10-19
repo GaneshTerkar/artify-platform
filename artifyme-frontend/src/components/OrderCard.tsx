@@ -310,6 +310,9 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                   {artistName ? (
                     <>
                       <span className="text-emerald-400 font-semibold">{artistName}</span>
+                      {role === "ADMIN" && order.artist_id && (
+                        <span className="text-[10px] text-slate-500 ml-1">(assigned)</span>
+                      )}
                       {artistPhone && role !== "CUSTOMER" && (
                         <a
                           href={`tel:${artistPhone}`}

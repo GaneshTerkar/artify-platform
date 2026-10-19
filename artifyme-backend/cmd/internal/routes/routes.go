@@ -232,6 +232,7 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, worke
 		v1Auth.GET("/orders/:id", orderHandler.GetOrder)
 		v1Auth.PATCH("/orders/:id", orderHandler.PatchOrder)
 		v1Auth.POST("/orders/:id/checkout", orderHandler.Checkout)
+		v1Auth.POST("/orders/:id/confirm-payment", orderHandler.ConfirmPayment)
 		v1Auth.POST("/orders/:id/assign", orderHandler.AssignOrder)
 		v1Auth.PATCH("/orders/:id/status", orderHandler.UpdateOrderStatus)
 		v1Auth.GET("/artists/verified", orderHandler.ListVerifiedArtists)

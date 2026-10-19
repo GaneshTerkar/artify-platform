@@ -109,39 +109,6 @@ export default function OrderWizardPage() {
 
       {step === 2 && (
         <section className="space-y-4">
-          {user?.role === "ADMIN" && (
-            <div className="rounded-xl border border-amber-500/40 bg-amber-950/20 p-3 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
-                  <span>⚡</span> Admin Test Helper: Quick-Load Sample Reference Photo
-                </span>
-                <span className="text-[10px] text-amber-400/80 font-mono">Accessible to Admin</span>
-              </div>
-              <p className="text-xs text-slate-300">
-                Click below to instantly load the classical portrait test reference photo with optimal resolution for sketching:
-              </p>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReferenceUrl("/uploads/admin_test_fixtures/suite_1_solo_portrait/reference_photo.png");
-                    if (!notes) {
-                      setNotes("Please capture his wise character and warm expression with rich artisanal textures.");
-                    }
-                  }}
-                  className="rounded-lg bg-amber-500/30 hover:bg-amber-500/50 text-amber-200 border border-amber-500/50 px-3 py-1.5 text-xs font-semibold transition flex items-center gap-2 shadow-sm"
-                >
-                  <img
-                    src="/uploads/admin_test_fixtures/suite_1_solo_portrait/reference_photo.png"
-                    alt="Sample"
-                    className="w-5 h-5 rounded object-cover"
-                  />
-                  <span>Load Suite 1 Reference Photo (Elderly Gentleman)</span>
-                </button>
-              </div>
-            </div>
-          )}
-
           <div className="space-y-1.5">
             <span className="block text-sm font-medium">Reference photo</span>
             <PhotoUploader value={referenceUrl} onChange={setReferenceUrl} />
@@ -162,15 +129,6 @@ export default function OrderWizardPage() {
 
       {step === 3 && (
         <section className="space-y-3">
-          {user?.role === "ADMIN" && (
-            <button
-              type="button"
-              onClick={() => setAddress("ArtifyMe Headquarters, 402 Baner Road, Pune, Maharashtra 411045")}
-              className="text-xs text-amber-400 hover:text-amber-300 font-medium underline flex items-center gap-1"
-            >
-              <span>⚡</span> Quick-fill Admin Testing Delivery Address
-            </button>
-          )}
           <label className="block space-y-1 text-sm">
             <span>Delivery address (or &quot;Digital only&quot;)</span>
             <textarea

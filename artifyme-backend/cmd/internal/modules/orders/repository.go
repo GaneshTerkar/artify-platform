@@ -715,7 +715,8 @@ func (r *Repository) UpdateDeliveryStatus(ctx context.Context, orderID uuid.UUID
 	}
 
 	var row pgx.Row
-	if newStatus == StatusDeliveryFailed {
+	switch newStatus {
+	case StatusDeliveryFailed:
 		reason := "Customer unavailable / delivery attempt unsuccessful"
 		if failureReason != nil && *failureReason != "" {
 			reason = *failureReason
@@ -731,7 +732,7 @@ func (r *Repository) UpdateDeliveryStatus(ctx context.Context, orderID uuid.UUID
 				updated_by = $4
 			WHERE order_id = $1 AND ($5 = 0 OR version = $5)
 			RETURNING `+orderColumns, orderID, string(newStatus), reason, actorID, expVer)
-	} else if newStatus == StatusOutForDelivery {
+	case StatusOutForDelivery:
 		row = r.pool.QueryRow(ctx, `
 			UPDATE orders SET
 				status = $2::order_status,
@@ -741,7 +742,7 @@ func (r *Repository) UpdateDeliveryStatus(ctx context.Context, orderID uuid.UUID
 				updated_by = $3
 			WHERE order_id = $1 AND ($4 = 0 OR version = $4)
 			RETURNING `+orderColumns, orderID, string(newStatus), actorID, expVer)
-	} else {
+	default:
 		row = r.pool.QueryRow(ctx, `
 			UPDATE orders SET
 				status = $2::order_status,

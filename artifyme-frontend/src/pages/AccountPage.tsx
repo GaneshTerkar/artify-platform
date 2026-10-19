@@ -358,58 +358,6 @@ export default function AccountPage() {
         </div>
       </div>
 
-      {/* Admin Testing Perspective Switcher Banner */}
-      {isAdmin && (
-        <div className="rounded-2xl border border-amber-500/30 bg-slate-900/80 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
-          <div className="flex items-center gap-2.5">
-            <span className="text-xl">🎭</span>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-white">Active Perspective:</span>
-                <span className="text-xs font-bold text-amber-400 uppercase tracking-wide">
-                  {isArtist ? "Artist Studio" : isDelivery ? "Delivery Partner Portal" : "Customer Experience"}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Switch views to test commissions, sketch uploads, and handovers from this user's viewpoint.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={() => setSearchParams({ perspective: "customer" })}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                perspectiveParam === "customer" || (!isArtist && !isDelivery)
-                  ? "bg-blue-600 text-white shadow-sm"
-                  : "text-slate-400 hover:text-white"
-              }`}
-            >
-              🛍️ Customer
-            </button>
-            <button
-              type="button"
-              onClick={() => setSearchParams({ perspective: "artist" })}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                isArtist ? "bg-purple-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
-              }`}
-            >
-              🎨 Artist
-            </button>
-            <button
-              type="button"
-              onClick={() => setSearchParams({ perspective: "delivery" })}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
-                isDelivery ? "bg-emerald-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
-              }`}
-            >
-              🚚 Delivery
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* ROLE STATS BANNERS */}
       {/* 1. CUSTOMER SUMMARY CARDS */}
       {isCustomer && (

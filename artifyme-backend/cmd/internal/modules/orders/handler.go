@@ -103,6 +103,73 @@ func (h *Handler) CreateOrder(c *gin.Context) {
 
 func (h *Handler) ListMyOrders(c *gin.Context) {
 	userID := c.MustGet("user_id").(uuid.UUID)
+	role := c.MustGet("role").(string)
+	perspective := c.Query("perspective")
+
+	if role == "ADMIN" {
+		switch perspective {
+		case "customer":
+			list, err := h.service.ListMyOrders(c.Request.Context(), userID)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			out := make([]orderDTO, 0, len(list))
+			for i := range list {
+				out = append(out, toOrderDTO(&list[i]))
+			}
+			c.JSON(http.StatusOK, gin.H{"orders": out})
+			return
+
+		case "artist":
+			allOrders, err := h.service.ListAdminOrders(c.Request.Context(), nil)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			out := make([]orderDTO, 0)
+			for i := range allOrders {
+				st := allOrders[i].Status
+				if (allOrders[i].ArtistID != nil && *allOrders[i].ArtistID == userID) ||
+					st == StatusConfirmed || st == StatusInProgress || st == StatusCompleted {
+					out = append(out, toOrderDTO(&allOrders[i]))
+				}
+			}
+			c.JSON(http.StatusOK, gin.H{"orders": out})
+			return
+
+		case "delivery":
+			allOrders, err := h.service.ListAdminOrders(c.Request.Context(), nil)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			out := make([]orderDTO, 0)
+			for i := range allOrders {
+				st := allOrders[i].Status
+				if (allOrders[i].DeliveryAgentID != nil && *allOrders[i].DeliveryAgentID == userID) ||
+					st == StatusAssignedDeliveryAgent || st == StatusInTransit || st == StatusOutForDelivery || st == StatusDelivered || st == StatusDeliveryFailed || st == StatusCompleted {
+					out = append(out, toOrderDTO(&allOrders[i]))
+				}
+			}
+			c.JSON(http.StatusOK, gin.H{"orders": out})
+			return
+
+		case "all":
+			allOrders, err := h.service.ListAdminOrders(c.Request.Context(), nil)
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			out := make([]orderDTO, 0, len(allOrders))
+			for i := range allOrders {
+				out = append(out, toOrderDTO(&allOrders[i]))
+			}
+			c.JSON(http.StatusOK, gin.H{"orders": out})
+			return
+		}
+	}
+
 	list, err := h.service.ListMyOrders(c.Request.Context(), userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -544,5 +611,61 @@ func (h *Handler) AdminUpdateLogistics(c *gin.Context) {
 	})
 }
 
+type TestFixtureConversion struct {
+	Category    string `json:"category"`
+	Label       string `json:"label"`
+	Description string `json:"description"`
+	ImageURL    string `json:"image_url"`
+}
 
+type TestFixtureSuite struct {
+	SuiteID           string                  `json:"suite_id"`
+	Title             string                  `json:"title"`
+	Description       string                  `json:"description"`
+	ReferenceImageURL string                  `json:"reference_image_url"`
+	Conversions       []TestFixtureConversion `json:"conversions"`
+}
 
+func (h *Handler) AdminGetTestFixtures(c *gin.Context) {
+	suites := []TestFixtureSuite{
+		{
+			SuiteID:           "suite_1_solo_portrait",
+			Title:             "Classical Solo Character Portrait (Elderly Gentleman)",
+			Description:       "Wise expressions, textured silver hair, fine skin contours, and yellow button-up shirt.",
+			ReferenceImageURL: "/uploads/admin_test_fixtures/suite_1_solo_portrait/reference_photo.png",
+			Conversions: []TestFixtureConversion{
+				{
+					Category:    "OIL",
+					Label:       "Fine Art Oil Painting",
+					Description: "Classical Rembrandt impasto brushwork on stretched canvas with warm chiaroscuro lighting.",
+					ImageURL:    "/uploads/admin_test_fixtures/suite_1_solo_portrait/OIL.jpg",
+				},
+				{
+					Category:    "PENCIL",
+					Label:       "Graphite Pencil Sketch",
+					Description: "Hand-drawn delicate cross-hatching, fine sharp pencil shading, and kneaded eraser highlights.",
+					ImageURL:    "/uploads/admin_test_fixtures/suite_1_solo_portrait/PENCIL.jpg",
+				},
+				{
+					Category:    "CHARCOAL",
+					Label:       "Smoky Vine Charcoal Portrait",
+					Description: "Dramatic chiaroscuro with velvety blacks, soft paper blending, and soulful contrast.",
+					ImageURL:    "/uploads/admin_test_fixtures/suite_1_solo_portrait/CHARCOAL.jpg",
+				},
+				{
+					Category:    "WATERCOLOR",
+					Label:       "Luminous Fluid Watercolor",
+					Description: "Transparent wet-on-wet pigments, soft violet blooms, and expressive brushwork.",
+					ImageURL:    "/uploads/admin_test_fixtures/suite_1_solo_portrait/WATERCOLOR.jpg",
+				},
+				{
+					Category:    "ACRYLIC",
+					Label:       "Contemporary Textured Acrylic",
+					Description: "Vibrant layered pigments, energetic palette knife marks, and modern fine-art realism.",
+					ImageURL:    "/uploads/admin_test_fixtures/suite_1_solo_portrait/ACRYLIC.jpg",
+				},
+			},
+		},
+	}
+	c.JSON(http.StatusOK, gin.H{"suites": suites})
+}

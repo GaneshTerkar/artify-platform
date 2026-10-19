@@ -257,6 +257,7 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, worke
 		v1Admin.GET("/reviews", reviewHandler.ListAdminReviews)
 		v1Admin.GET("/reviews/stats", reviewHandler.GetReviewStats)
 		v1Admin.PATCH("/reviews/:id/moderate", reviewHandler.ModerateReview)
+		v1Admin.GET("/test-fixtures", orderHandler.AdminGetTestFixtures)
 	}
 
 	r.POST("/webhooks/stripe", orderHandler.StripeWebhook)

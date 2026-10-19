@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api, API_URL } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import PhotoUploader from "../components/PhotoUploader";
@@ -45,9 +45,13 @@ interface ArtistPainting {
 export default function AccountPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const isArtist = user?.role === "ARTIST";
-  const isDelivery = user?.role === "DELIVERY_AGENT";
-  const isCustomer = !isArtist && !isDelivery && user?.role !== "ADMIN";
+  const [searchParams, setSearchParams] = useSearchParams();
+  const perspectiveParam = searchParams.get("perspective");
+
+  const isAdmin = user?.role === "ADMIN";
+  const isArtist = user?.role === "ARTIST" || (isAdmin && perspectiveParam === "artist");
+  const isDelivery = user?.role === "DELIVERY_AGENT" || (isAdmin && perspectiveParam === "delivery");
+  const isCustomer = user?.role === "CUSTOMER" || (isAdmin && (perspectiveParam === "customer" || (!isArtist && !isDelivery)));
   const commissionSplit = getCommissionSplit();
 
   // Navigation tabs for Artist Studio
@@ -83,8 +87,11 @@ export default function AccountPage() {
 
   // 1. Fetch Orders (Customer orders, assigned artist commissions, or assigned deliveries)
   const { data, isLoading, error } = useQuery({
-    queryKey: ["my-orders"],
-    queryFn: () => api<{ orders: Order[] }>("/api/v1/orders"),
+    queryKey: ["my-orders", perspectiveParam],
+    queryFn: () =>
+      api<{ orders: Order[] }>(
+        isAdmin ? `/api/v1/orders?perspective=${perspectiveParam || "customer"}` : "/api/v1/orders"
+      ),
   });
 
   const orders = Array.isArray(data?.orders) ? data.orders : [];
@@ -351,6 +358,58 @@ export default function AccountPage() {
           )}
         </div>
       </div>
+
+      {/* Admin Testing Perspective Switcher Banner */}
+      {isAdmin && (
+        <div className="rounded-2xl border border-amber-500/30 bg-slate-900/80 p-3 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
+          <div className="flex items-center gap-2.5">
+            <span className="text-xl">🎭</span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-white">Active Perspective:</span>
+                <span className="text-xs font-bold text-amber-400 uppercase tracking-wide">
+                  {isArtist ? "Artist Studio" : isDelivery ? "Delivery Partner Portal" : "Customer Experience"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                Switch views to test commissions, sketch uploads, and handovers from this user's viewpoint.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setSearchParams({ perspective: "customer" })}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                perspectiveParam === "customer" || (!isArtist && !isDelivery)
+                  ? "bg-blue-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              🛍️ Customer
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchParams({ perspective: "artist" })}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                isArtist ? "bg-purple-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              🎨 Artist
+            </button>
+            <button
+              type="button"
+              onClick={() => setSearchParams({ perspective: "delivery" })}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${
+                isDelivery ? "bg-emerald-600 text-white shadow-sm" : "text-slate-400 hover:text-white"
+              }`}
+            >
+              🚚 Delivery
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ROLE STATS BANNERS */}
       {/* 1. CUSTOMER SUMMARY CARDS */}
@@ -882,7 +941,22 @@ export default function AccountPage() {
 
             {/* Photo Uploader Component with Drag & Drop */}
             <div className="space-y-2">
-              <label className="text-xs font-medium text-slate-300 block">Finished Portrait Artwork</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-slate-300 block">Finished Portrait Artwork</label>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cat = completingOrder.painting_category?.toUpperCase() || "OIL";
+                      setFinalImageUrl(`/uploads/admin_test_fixtures/suite_1_solo_portrait/${cat}.jpg`);
+                    }}
+                    className="text-[11px] bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded font-semibold transition flex items-center gap-1 shadow-sm"
+                    title="Load matching converted artwork fixture for this category"
+                  >
+                    <span>⚡</span> Load Converted {completingOrder.painting_category} Fixture
+                  </button>
+                )}
+              </div>
               <PhotoUploader value={finalImageUrl} onChange={setFinalImageUrl} />
             </div>
 

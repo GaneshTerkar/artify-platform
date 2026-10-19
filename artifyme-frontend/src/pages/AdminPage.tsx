@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -150,10 +150,10 @@ export default function AdminPage() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const activeTab: "orders" | "users" | "payroll" | "reviews" =
-    tabParam === "users" ? "users" : tabParam === "payroll" ? "payroll" : tabParam === "reviews" ? "reviews" : "orders";
+  const activeTab: "orders" | "users" | "payroll" | "reviews" | "fixtures" =
+    tabParam === "users" ? "users" : tabParam === "payroll" ? "payroll" : tabParam === "reviews" ? "reviews" : tabParam === "fixtures" ? "fixtures" : "orders";
 
-  const handleTabChange = (tab: "orders" | "users" | "payroll" | "reviews") => {
+  const handleTabChange = (tab: "orders" | "users" | "payroll" | "reviews" | "fixtures") => {
     setSearchParams({ tab });
   };
 
@@ -817,6 +817,27 @@ export default function AdminPage() {
     onError: (err: Error) => showMessage(err.message, "error"),
   });
 
+  interface FixtureConversion {
+    category: string;
+    label: string;
+    description: string;
+    image_url: string;
+  }
+
+  interface FixtureSuite {
+    suite_id: string;
+    title: string;
+    description: string;
+    reference_image_url: string;
+    conversions: FixtureConversion[];
+  }
+
+  const { data: testFixturesData } = useQuery<{ suites: FixtureSuite[] }>({
+    queryKey: ["admin_test_fixtures"],
+    queryFn: () => api<{ suites: FixtureSuite[] }>("/api/v1/admin/test-fixtures"),
+  });
+  const testSuites = testFixturesData?.suites || [];
+
   const { data: reviewStats } = useQuery<ReviewStats>({
     queryKey: ["admin_reviews_stats"],
     queryFn: () => api<ReviewStats>("/api/v1/admin/reviews/stats"),
@@ -979,6 +1000,25 @@ export default function AdminPage() {
               ⭐ {reviewStats?.average_rating ? reviewStats.average_rating.toFixed(1) : "5.0"}
             </p>
           </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange("fixtures")}
+            className={`rounded-xl px-2.5 sm:px-5 py-2 sm:py-2.5 text-center transition border cursor-pointer ${
+              activeTab === "fixtures"
+                ? "bg-slate-800 border-brand shadow-lg ring-1 ring-brand/50"
+                : "bg-slate-800/80 border-slate-700 hover:border-slate-500 hover:bg-slate-800"
+            }`}
+          >
+            <p className={`text-[10px] sm:text-xs uppercase tracking-wider font-semibold ${
+              activeTab === "fixtures" ? "text-brand" : "text-purple-400"
+            }`}>
+              🧪 Test Lab
+            </p>
+            <p className="text-base sm:text-xl font-bold text-purple-300">
+              5 Styles
+            </p>
+          </button>
         </div>
       </div>
 
@@ -1054,6 +1094,19 @@ export default function AdminPage() {
               {reviewStats?.quality_alerts_count} alert{reviewStats?.quality_alerts_count! > 1 ? "s" : ""}
             </span>
           )}
+        </button>
+        <button
+          onClick={() => handleTabChange("fixtures")}
+          className={`pb-3 px-4 border-b-2 transition flex items-center gap-2 ${
+            activeTab === "fixtures"
+              ? "border-brand text-brand font-semibold"
+              : "border-transparent text-slate-400 hover:text-white"
+          }`}
+        >
+          <span>🧪 Test Lab (5 Styles)</span>
+          <span className="rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2 py-0.5 text-xs font-semibold">
+            Ready
+          </span>
         </button>
       </div>
 
@@ -2491,6 +2544,289 @@ export default function AdminPage() {
                           {r.admin_notes ? "Edit Note" : "+ Add Note"}
                         </button>
                       )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 5: ADMIN TEST FIXTURES & LAB */}
+      {activeTab === "fixtures" && (
+        <div className="space-y-8">
+          {/* Omni-Perspective Flow Banner */}
+          <div className="rounded-2xl border border-purple-500/30 bg-gradient-to-r from-purple-950/40 via-slate-900 to-indigo-950/40 p-6 shadow-xl space-y-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-purple-500/20 border border-purple-500/40 px-3 py-1 text-xs font-semibold text-purple-300 mb-2">
+                  <span>🧪</span>
+                  <span>Single-Login Omni-Perspective Testing Lab</span>
+                </div>
+                <h2 className="text-xl sm:text-2xl font-bold text-white">
+                  Custom Order Reference Fixtures &amp; 5-Style Conversions
+                </h2>
+                <p className="text-sm text-slate-300 mt-1 max-w-3xl">
+                  These high-resolution test fixtures are saved directly in your project backend (<code className="text-purple-300 bg-purple-950/60 px-1.5 py-0.5 rounded text-xs">artifyme-backend/admin_assets/test_fixtures/</code>) and accessible exclusively to Admins. Use them to execute the full customer-to-artist-to-delivery lifecycle without logging out.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  to="/order"
+                  className="rounded-xl bg-brand hover:bg-brand/90 px-4 py-2.5 text-xs font-bold text-slate-950 shadow-md transition flex items-center gap-2"
+                >
+                  <span>🛍️ Place Customer Order</span>
+                </Link>
+                <Link
+                  to="/account?perspective=artist"
+                  className="rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2.5 text-xs font-semibold text-white transition flex items-center gap-2"
+                >
+                  <span>🎨 Artist Studio</span>
+                </Link>
+                <Link
+                  to="/account?perspective=delivery"
+                  className="rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-4 py-2.5 text-xs font-semibold text-white transition flex items-center gap-2"
+                >
+                  <span>🚚 Delivery Hub</span>
+                </Link>
+              </div>
+            </div>
+
+            {/* Step-by-Step Testing Flow Roadmap */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-4 border-t border-slate-800/80">
+              <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3 space-y-1">
+                <div className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">Step 1 • Customer</div>
+                <div className="text-xs font-semibold text-white">Place Custom Order</div>
+                <p className="text-[11px] text-slate-400">Click &ldquo;1-Click Order&rdquo; below to launch wizard with preloaded reference photo.</p>
+              </div>
+              <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3 space-y-1">
+                <div className="text-[11px] font-bold text-blue-400 uppercase tracking-wider">Step 2 • Admin</div>
+                <div className="text-xs font-semibold text-white">Assign Artist</div>
+                <p className="text-[11px] text-slate-400">Under Orders tab, assign order to verified Artist (or yourself as Super-Artist).</p>
+              </div>
+              <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3 space-y-1">
+                <div className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">Step 3 • Artist</div>
+                <div className="text-xs font-semibold text-white">Complete Artwork</div>
+                <p className="text-[11px] text-slate-400">In Artist Studio, 1-click load the matching converted medium fixture to submit work.</p>
+              </div>
+              <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3 space-y-1">
+                <div className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">Step 4 • Logistics</div>
+                <div className="text-xs font-semibold text-white">Dispatch &amp; Deliver</div>
+                <p className="text-[11px] text-slate-400">Switch to Delivery Hub to mark package In-Transit, add tracking, and Deliver.</p>
+              </div>
+              <div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3 space-y-1">
+                <div className="text-[11px] font-bold text-yellow-400 uppercase tracking-wider">Step 5 • Customer &amp; CSAT</div>
+                <div className="text-xs font-semibold text-white">Review &amp; Feature</div>
+                <p className="text-[11px] text-slate-400">Customer leaves 5-star unboxing review, and Admin features it into the public gallery.</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Test Suites Display */}
+          {testSuites.length === 0 ? (
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/50 p-12 text-center space-y-3">
+              <div className="text-4xl">⏳</div>
+              <h3 className="text-lg font-bold text-white">Loading Test Fixture Suites...</h3>
+              <p className="text-sm text-slate-400">Please ensure backend server is running and fixtures endpoint is reachable.</p>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {testSuites.map((suite) => (
+                <div key={suite.suite_id} className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 space-y-6">
+                  {/* Suite Header */}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-md bg-purple-500/20 text-purple-300 border border-purple-500/30 px-2 py-0.5 text-xs font-bold">
+                          {suite.suite_id}
+                        </span>
+                        <h3 className="text-lg font-bold text-white">{suite.title}</h3>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">{suite.description}</p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Link
+                        to={`/order?ref_url=${encodeURIComponent(suite.reference_image_url)}&ref_name=Elderly+Gentleman`}
+                        className="rounded-xl bg-purple-600 hover:bg-purple-500 px-4 py-2 text-xs font-bold text-white shadow transition flex items-center gap-2"
+                      >
+                        <span>⚡ 1-Click Order with this Photo</span>
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigator.clipboard.writeText(resolveImage(suite.reference_image_url));
+                          showMessage("Reference photo URL copied to clipboard!");
+                        }}
+                        className="rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-2 text-xs font-medium text-slate-300 transition"
+                      >
+                        📋 Copy Ref URL
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Layout: Left Reference Photo Card | Right 5 Conversions */}
+                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
+                    {/* Reference Photo Card */}
+                    <div className="lg:col-span-1 rounded-xl border border-purple-500/40 bg-purple-950/20 p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-purple-300 uppercase tracking-wider">
+                          📸 Reference Photo
+                        </span>
+                        <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full font-mono">
+                          Original Input
+                        </span>
+                      </div>
+
+                      <div
+                        className="relative group cursor-pointer overflow-hidden rounded-lg border border-slate-700 aspect-[4/5] bg-slate-950 flex items-center justify-center"
+                        onClick={() => setSelectedPhoto(resolveImage(suite.reference_image_url))}
+                      >
+                        <img
+                          src={resolveImage(suite.reference_image_url)}
+                          alt="Customer Reference Photo"
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold gap-1">
+                          <span>🔍 Click to Zoom</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 text-xs">
+                        <div className="flex justify-between text-slate-400 text-[11px]">
+                          <span>Subject:</span>
+                          <span className="text-slate-200 font-medium">Elderly Gentleman</span>
+                        </div>
+                        <div className="flex justify-between text-slate-400 text-[11px]">
+                          <span>Aspect Ratio:</span>
+                          <span className="text-slate-200 font-mono">4:5 Portrait</span>
+                        </div>
+                        <div className="flex justify-between text-slate-400 text-[11px]">
+                          <span>File Location:</span>
+                          <span className="text-purple-300 font-mono text-[10px] truncate max-w-[150px]">
+                            backend/admin_assets
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-purple-500/20">
+                        <Link
+                          to={`/order?ref_url=${encodeURIComponent(suite.reference_image_url)}&ref_name=Elderly+Gentleman`}
+                          className="w-full block text-center rounded-lg bg-brand hover:bg-brand/90 py-2 text-xs font-bold text-slate-950 transition"
+                        >
+                          Use in Custom Order →
+                        </Link>
+                      </div>
+                    </div>
+
+                    {/* 5 Conversions Grid */}
+                    <div className="lg:col-span-3 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+                            🎨 Completed Artwork Conversions (All 5 Mediums)
+                          </span>
+                          <span className="rounded-full bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 font-bold">
+                            {suite.conversions.length} Styles
+                          </span>
+                        </div>
+                        <span className="text-xs text-slate-400">
+                          Click any image to inspect details • 1-click load in Artist Studio
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                        {suite.conversions.map((conv) => {
+                          const categoryTheme: Record<string, { badge: string; border: string; glow: string }> = {
+                            OIL: {
+                              badge: "bg-amber-500/20 text-amber-300 border-amber-500/40",
+                              border: "hover:border-amber-500/60",
+                              glow: "group-hover:ring-amber-500/30",
+                            },
+                            PENCIL: {
+                              badge: "bg-slate-400/20 text-slate-200 border-slate-400/40",
+                              border: "hover:border-slate-400/60",
+                              glow: "group-hover:ring-slate-400/30",
+                            },
+                            CHARCOAL: {
+                              badge: "bg-zinc-800 text-zinc-200 border-zinc-600",
+                              border: "hover:border-zinc-500/60",
+                              glow: "group-hover:ring-zinc-500/30",
+                            },
+                            WATERCOLOR: {
+                              badge: "bg-cyan-500/20 text-cyan-300 border-cyan-500/40",
+                              border: "hover:border-cyan-500/60",
+                              glow: "group-hover:ring-cyan-500/30",
+                            },
+                            ACRYLIC: {
+                              badge: "bg-purple-500/20 text-purple-300 border-purple-500/40",
+                              border: "hover:border-purple-500/60",
+                              glow: "group-hover:ring-purple-500/30",
+                            },
+                          };
+                          const theme = categoryTheme[conv.category] || {
+                            badge: "bg-slate-700 text-slate-300 border-slate-600",
+                            border: "hover:border-slate-500",
+                            glow: "group-hover:ring-slate-500/30",
+                          };
+
+                          return (
+                            <div
+                              key={conv.category}
+                              className={`rounded-xl border border-slate-800 bg-slate-900/90 p-3.5 space-y-3 transition-all ${theme.border} group`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className={`text-[11px] font-bold px-2 py-0.5 rounded border ${theme.badge}`}>
+                                  {conv.label}
+                                </span>
+                                <span className="text-[10px] text-slate-500 font-mono">
+                                  {conv.category}
+                                </span>
+                              </div>
+
+                              <div
+                                className="relative cursor-pointer overflow-hidden rounded-lg border border-slate-800 aspect-[4/5] bg-slate-950 flex items-center justify-center group-hover:ring-2 transition-all"
+                                onClick={() => setSelectedPhoto(resolveImage(conv.image_url))}
+                              >
+                                <img
+                                  src={resolveImage(conv.image_url)}
+                                  alt={conv.label}
+                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                                />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-xs font-semibold gap-1">
+                                  <span>🔍 Full Art Preview</span>
+                                </div>
+                              </div>
+
+                              <p className="text-[11px] text-slate-400 line-clamp-2" title={conv.description}>
+                                {conv.description}
+                              </p>
+
+                              <div className="pt-2 border-t border-slate-800/80 flex items-center gap-2">
+                                <Link
+                                  to={`/order?category=${conv.category}&ref_url=${encodeURIComponent(suite.reference_image_url)}&ref_name=Elderly+Gentleman`}
+                                  className="flex-1 text-center rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 py-1.5 text-[11px] font-semibold text-white transition"
+                                >
+                                  Order {conv.category}
+                                </Link>
+                                <button
+                                  type="button"
+                                  title="Copy URL to upload as Artist in Studio"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(resolveImage(conv.image_url));
+                                    showMessage(`Copied ${conv.label} artwork URL for Artist upload!`);
+                                  }}
+                                  className="rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-[11px] text-slate-300 hover:text-white transition"
+                                >
+                                  📋 URL
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>

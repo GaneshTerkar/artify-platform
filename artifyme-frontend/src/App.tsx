@@ -1,5 +1,5 @@
 import React, { Component, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from "react";
-import { Link, Navigate, Route, Routes } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useAuth } from "./lib/auth";
 import AccountPage from "./pages/AccountPage";
 import AdminPage from "./pages/AdminPage";
@@ -177,16 +177,71 @@ function UserProfileDropdown({
               </>
             )}
 
-            {/* Admin: Orders, Users, Payroll, Profile, Admin Operations Hub */}
+            {/* Admin Omni-Testing Options: Switch perspectives or jump to hubs */}
             {user.role === "ADMIN" && (
               <>
+                <div className="px-3 py-1 text-[10px] uppercase tracking-wider font-bold text-amber-400/90">
+                  ⚡ Testing Perspectives
+                </div>
+                <Link
+                  to="/order"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-slate-200 hover:bg-slate-800 hover:text-white transition font-medium"
+                >
+                  <span className="text-sm">🛍️</span>
+                  <span>Order Custom Art (Wizard)</span>
+                </Link>
+                <Link
+                  to="/account?perspective=customer"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-slate-200 hover:bg-slate-800 hover:text-white transition font-medium"
+                >
+                  <span className="text-sm">📦</span>
+                  <span>Customer Commissions & Review</span>
+                </Link>
+                <Link
+                  to="/account?perspective=artist"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-slate-200 hover:bg-slate-800 hover:text-white transition font-medium"
+                >
+                  <span className="text-sm">🎨</span>
+                  <span>Artist Studio & Upload Work</span>
+                </Link>
+                <Link
+                  to="/account?perspective=delivery"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-slate-200 hover:bg-slate-800 hover:text-white transition font-medium"
+                >
+                  <span className="text-sm">🚚</span>
+                  <span>Delivery Agent Logistics</span>
+                </Link>
+                <div className="my-1 border-t border-slate-800" />
+                <div className="px-3 py-1 text-[10px] uppercase tracking-wider font-bold text-slate-400">
+                  👑 Admin Operations
+                </div>
                 <Link
                   to="/admin?tab=orders"
                   onClick={() => setIsOpen(false)}
                   className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-slate-200 hover:bg-slate-800 hover:text-white transition font-medium"
                 >
                   <span className="text-sm">📋</span>
-                  <span>Orders</span>
+                  <span>Orders & Logistics</span>
+                </Link>
+                <Link
+                  to="/admin?tab=reviews"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-slate-200 hover:bg-slate-800 hover:text-white transition font-medium"
+                >
+                  <span className="text-sm">⭐</span>
+                  <span>CSAT & Reviews</span>
+                </Link>
+                <Link
+                  to="/admin?tab=fixtures"
+                  onClick={() => setIsOpen(false)}
+                  className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-slate-200 hover:bg-slate-800 hover:text-white transition font-medium"
+                >
+                  <span className="text-sm">🧪</span>
+                  <span>Sample Art Fixtures Lab</span>
                 </Link>
                 <Link
                   to="/admin?tab=users"
@@ -194,7 +249,7 @@ function UserProfileDropdown({
                   className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-slate-200 hover:bg-slate-800 hover:text-white transition font-medium"
                 >
                   <span className="text-sm">👥</span>
-                  <span>Users</span>
+                  <span>Users & Artists</span>
                 </Link>
                 <Link
                   to="/admin?tab=payroll"
@@ -215,14 +270,6 @@ function UserProfileDropdown({
                   <span className="text-sm">👤</span>
                   <span>Profile</span>
                 </button>
-                <Link
-                  to="/admin"
-                  onClick={() => setIsOpen(false)}
-                  className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-slate-200 hover:bg-slate-800 hover:text-white transition font-medium"
-                >
-                  <span className="text-sm">👑</span>
-                  <span>Admin Operations Hub</span>
-                </Link>
               </>
             )}
 
@@ -308,6 +355,9 @@ function UserProfileDropdown({
 function Shell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const currentPerspective = searchParams.get("perspective");
 
   return (
     <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 pb-12 pt-6">
@@ -333,10 +383,28 @@ function Shell({ children }: { children: React.ReactNode }) {
               {user.role === "ADMIN" && (
                 <>
                   <Link
+                    to="/order"
+                    className="text-cyan-300 hover:text-cyan-200 transition font-semibold flex items-center gap-1"
+                  >
+                    <span>+</span> Order Custom Art
+                  </Link>
+                  <Link
                     to="/admin?tab=orders"
                     className="text-slate-300 hover:text-white transition font-medium"
                   >
                     Orders
+                  </Link>
+                  <Link
+                    to="/admin?tab=reviews"
+                    className="text-slate-300 hover:text-white transition font-medium"
+                  >
+                    CSAT
+                  </Link>
+                  <Link
+                    to="/admin?tab=fixtures"
+                    className="text-slate-300 hover:text-white transition font-medium"
+                  >
+                    Test Lab
                   </Link>
                   <Link
                     to="/admin?tab=users"
@@ -374,6 +442,81 @@ function Shell({ children }: { children: React.ReactNode }) {
           )}
         </nav>
       </header>
+
+      {/* Admin Omni-Perspective Testing Mode Switcher Bar */}
+      {user?.role === "ADMIN" && (
+        <div className="mb-6 rounded-2xl border border-amber-500/40 bg-gradient-to-r from-amber-950/40 via-slate-900/90 to-amber-950/40 p-3 sm:p-3.5 backdrop-blur-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-2.5 w-2.5 rounded-full bg-amber-400 animate-pulse shadow-sm shadow-amber-400/50" />
+            <div>
+              <span className="text-[11px] font-extrabold uppercase tracking-wider text-amber-300 block">
+                Single-Login Omni-Perspective Hub
+              </span>
+              <span className="text-[11px] text-slate-300">
+                Experience full flows as Customer, Artist, Delivery Agent, and Admin
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <Link
+              to="/admin"
+              className={`rounded-xl px-3 py-1.5 font-bold transition flex items-center gap-1.5 ${
+                location.pathname === "/admin"
+                  ? "bg-amber-500 text-slate-950 shadow-md ring-2 ring-amber-400/30"
+                  : "bg-slate-900/90 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/80"
+              }`}
+            >
+              <span>👑</span>
+              <span>Admin Hub</span>
+            </Link>
+            <Link
+              to="/order"
+              className={`rounded-xl px-3 py-1.5 font-bold transition flex items-center gap-1.5 ${
+                location.pathname === "/order"
+                  ? "bg-cyan-500 text-slate-950 shadow-md ring-2 ring-cyan-400/30"
+                  : "bg-slate-900/90 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/80"
+              }`}
+            >
+              <span>🛍️</span>
+              <span>Customer Order</span>
+            </Link>
+            <Link
+              to="/account?perspective=artist"
+              className={`rounded-xl px-3 py-1.5 font-bold transition flex items-center gap-1.5 ${
+                location.pathname === "/account" && currentPerspective === "artist"
+                  ? "bg-purple-500 text-slate-950 shadow-md ring-2 ring-purple-400/30"
+                  : "bg-slate-900/90 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/80"
+              }`}
+            >
+              <span>🎨</span>
+              <span>Artist Studio</span>
+            </Link>
+            <Link
+              to="/account?perspective=delivery"
+              className={`rounded-xl px-3 py-1.5 font-bold transition flex items-center gap-1.5 ${
+                location.pathname === "/account" && currentPerspective === "delivery"
+                  ? "bg-emerald-500 text-slate-950 shadow-md ring-2 ring-emerald-400/30"
+                  : "bg-slate-900/90 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/80"
+              }`}
+            >
+              <span>🚚</span>
+              <span>Delivery Partner</span>
+            </Link>
+            <Link
+              to="/account?perspective=customer"
+              className={`rounded-xl px-3 py-1.5 font-bold transition flex items-center gap-1.5 ${
+                location.pathname === "/account" && (currentPerspective === "customer" || !currentPerspective)
+                  ? "bg-blue-500 text-slate-950 shadow-md ring-2 ring-blue-400/30"
+                  : "bg-slate-900/90 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/80"
+              }`}
+            >
+              <span>📦</span>
+              <span>Customer Orders</span>
+            </Link>
+          </div>
+        </div>
+      )}
+
       <main className="flex-1">
         {children}
       </main>
@@ -392,9 +535,8 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 function CustomerRoute({ children }: { children: React.ReactNode }) {
-  const { user, token } = useAuth();
+  const { token } = useAuth();
   if (!token) return <Navigate to="/login" replace />;
-  if (user?.role === "ADMIN") return <Navigate to="/admin" replace />;
   return <>{children}</>;
 }
 

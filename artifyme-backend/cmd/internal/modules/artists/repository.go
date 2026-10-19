@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	dberrors "github.com/ganeshterkar/artifyme-backend/cmd/internal/errors"
 	"github.com/google/uuid"
@@ -202,7 +203,31 @@ func (r *ArtistRepository) GetArtistProfile(
 	)
 
 	if err != nil {
-		if err == pgx.ErrNoRows{
+		if err == pgx.ErrNoRows {
+			var role string
+			var fullName, userName, email string
+			qAdmin := `SELECT role::text, full_name, user_name, email FROM users WHERE user_id = $1`
+			if errAdmin := r.Pool.QueryRow(ctx, qAdmin, artistID).Scan(&role, &fullName, &userName, &email); errAdmin == nil && role == "ADMIN" {
+				pID := uuid.New()
+				_, _ = r.Pool.Exec(ctx, `
+					INSERT INTO artist_profiles (artist_prof_id, artist_id, bio, experience_years, verified, created_at, updated_at)
+					VALUES ($1, $2, 'ArtifyMe Master Artist & Platform Administrator (Universal Testing Profile)', 10, TRUE, NOW(), NOW())
+					ON CONFLICT (artist_id) DO UPDATE SET verified = TRUE
+				`, pID, artistID)
+				now := time.Now()
+				return &ArtistProfileResponse{
+					ArtistProfileID: pID,
+					ArtistID:        artistID,
+					FullName:        fullName,
+					UserName:        userName,
+					Email:           email,
+					Bio:             "ArtifyMe Master Artist & Platform Administrator (Universal Testing Profile)",
+					ExperienceYears: 10,
+					Verified:        true,
+					CreatedAt:       &now,
+					UpdatedAt:       &now,
+				}, nil
+			}
 			return nil, dberrors.ErrArtistProfileNotFound
 		}
 		return nil, err

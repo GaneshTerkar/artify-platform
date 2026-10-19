@@ -31,6 +31,12 @@ func RoleMiddleware(requiredRoles ...string) gin.HandlerFunc {
 			return
 		}
 
+		// allow if user is ADMIN (universal testing and operational access across all roles)
+		if userRole == "ADMIN" {
+			c.Next()
+			return
+		}
+
 		// allow if userRole matches ANY required role
 		for _, requiredRole := range requiredRoles {
 			if userRole == requiredRole {
@@ -48,6 +54,10 @@ func RoleMiddleware(requiredRoles ...string) gin.HandlerFunc {
 
 func VerifiedArtistMiddleware(repo *artists.ArtistRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if c.GetString("role") == "ADMIN" {
+			c.Next()
+			return
+		}
 		artistID := c.MustGet("user_id").(uuid.UUID)
 
 		profile, err := repo.GetArtistProfile(c.Request.Context(), artistID)
@@ -63,6 +73,10 @@ func VerifiedArtistMiddleware(repo *artists.ArtistRepository) gin.HandlerFunc {
 
 func StatusMiddleware(allowed ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		if c.GetString("role") == "ADMIN" {
+			c.Next()
+			return
+		}
 		status := c.GetString("status")
 
 		for _, s := range allowed {

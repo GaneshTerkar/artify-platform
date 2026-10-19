@@ -10,7 +10,6 @@ import { getCommissionSplit } from "../lib/commission";
 import type { Order, VerifiedArtist } from "../types/order";
 import { OrderCard } from "../components/OrderCard";
 import { EarningsDashboardModal } from "../components/EarningsDashboardModal";
-import { ActiveSessionsCard } from "../components/ActiveSessionsCard";
 import { ReviewModal } from "../components/ReviewModal";
 
 interface ArtistProfile {
@@ -828,9 +827,6 @@ export default function AccountPage() {
           )}
         </>
       )}
-
-      {/* ACTIVE SESSIONS & MULTI-DEVICE SECURITY */}
-      <ActiveSessionsCard />
 
       {/* MODAL: ADD PORTFOLIO PAINTING FOR ARTIST */}
       {addingPainting && (

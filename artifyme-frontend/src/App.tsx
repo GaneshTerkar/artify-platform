@@ -331,9 +331,6 @@ function UserProfileDropdown({
 function Shell({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
-  const location = useLocation();
-  const searchParams = new URLSearchParams(location.search);
-  const currentPerspective = searchParams.get("perspective");
 
   return (
     <div className="mx-auto flex min-h-screen max-w-5xl flex-col px-4 pb-12 pt-6">

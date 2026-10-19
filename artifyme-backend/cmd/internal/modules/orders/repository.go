@@ -487,22 +487,6 @@ func (r *Repository) ListGalleryPaintings(ctx context.Context, category string) 
 				sub.created_at
 			FROM (
 				SELECT 
-					ap.painting_id::text AS id,
-					ap.title AS title,
-					ap.category::text AS category,
-					COALESCE(ap.description, '') AS description,
-					ap.image_url AS image_url,
-					COALESCE(u.full_name, 'Ganesh Artist') AS artist_name,
-					'COMPLETED_ARTWORK' AS source,
-					COALESCE(ap.created_at, NOW()) AS created_at
-				FROM artist_paintings ap
-				INNER JOIN artist_profiles apf ON ap.artist_id = apf.artist_id
-				LEFT JOIN users u ON ap.artist_id = u.user_id
-				WHERE apf.verified = TRUE
-
-				UNION ALL
-
-				SELECT 
 					o.order_id::text AS id,
 					CONCAT('Commissioned ', INITCAP(o.painting_category::text), ' Portrait') AS title,
 					o.painting_category::text AS category,
@@ -520,11 +504,6 @@ func (r *Repository) ListGalleryPaintings(ctx context.Context, category string) 
 				  AND TRIM(o.final_image_url) != ''
 				  AND (o.reference_image_url IS NULL OR o.final_image_url != o.reference_image_url)
 				  AND ap.verified = TRUE
-				  AND NOT EXISTS (
-				      SELECT 1 FROM artist_paintings ap2 
-				      WHERE ap2.image_url = o.final_image_url 
-				         OR (o.final_image_url LIKE '%' || ap2.image_url)
-				  )
 			) sub
 			ORDER BY sub.image_url, sub.source ASC, sub.created_at DESC
 		) g

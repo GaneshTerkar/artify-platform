@@ -185,6 +185,7 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, worke
 	admin.Use(middleware.RoleMiddleware("ADMIN"))
 	{
 		admin.GET("/artists/review-queue", artistHandler.AdminReviewQueue)
+		admin.GET("/artists/:id/paintings", artistHandler.AdminGetArtistPaintings)
 		admin.POST("/verify-artist/:id", artistHandler.VerifyArtist)
 		admin.POST("/reject-artist/:id", artistHandler.RejectArtist)
 	}

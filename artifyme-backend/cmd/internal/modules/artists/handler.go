@@ -265,3 +265,19 @@ func (h *ArtistHandler) MyReviewStatus(c *gin.Context) {
 
 	c.JSON(http.StatusOK, resp)
 }
+
+func (h *ArtistHandler) AdminGetArtistPaintings(c *gin.Context) {
+	artistID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid artist id"})
+		return
+	}
+
+	paintings, err := h.service.ListMyPaintings(c.Request.Context(), artistID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch artist paintings"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"paintings": paintings})
+}

@@ -283,6 +283,7 @@ export default function AdminPage() {
 
   const [rejectingArtist, setRejectingArtist] = useState<ArtistReviewItem | null>(null);
   const [rejectReason, setRejectReason] = useState<string>("");
+  const [viewingArtistWorks, setViewingArtistWorks] = useState<{ artistId: string; artistName: string; bio?: string } | null>(null);
 
   const [actionMessage, setActionMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
@@ -290,6 +291,17 @@ export default function AdminPage() {
     setActionMessage({ text, type });
     setTimeout(() => setActionMessage(null), 4000);
   }
+
+  // Fetch portfolio paintings when admin inspects an artist
+  const { data: artistPaintingsData, isLoading: artistPaintingsLoading } = useQuery({
+    queryKey: ["admin_artist_paintings", viewingArtistWorks?.artistId],
+    queryFn: () =>
+      api<{ paintings: { painting_id: string; title: string; description: string; category: string; image_url: string; created_at: string }[] }>(
+        `/api/admin/artists/${viewingArtistWorks?.artistId}/paintings`
+      ),
+    enabled: Boolean(viewingArtistWorks?.artistId),
+  });
+  const artistPaintings = artistPaintingsData?.paintings ?? [];
 
   // 1. Fetch All Platform Orders
   const { data: ordersData, isLoading: ordersLoading } = useQuery({
@@ -1504,6 +1516,14 @@ export default function AdminPage() {
                       {isPendingArtist ? (
                         <>
                           <button
+                            type="button"
+                            onClick={() => setViewingArtistWorks({ artistId: u.user_id, artistName: u.full_name, bio: u.bio })}
+                            className="rounded-lg bg-purple-950/70 hover:bg-purple-900 border border-purple-500/40 px-3 py-1.5 text-xs font-semibold text-purple-300 transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
+                            title="Inspect sample portfolio paintings uploaded by artist"
+                          >
+                            <span>🖼️</span> View Works
+                          </button>
+                          <button
                             onClick={() => verifyArtistMutation.mutate(u.user_id)}
                             disabled={verifyArtistMutation.isPending}
                             className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-white transition flex items-center justify-center gap-1.5 shadow-sm whitespace-nowrap flex-shrink-0"
@@ -1547,6 +1567,17 @@ export default function AdminPage() {
                         </>
                       ) : (
                         <>
+                          {/* 0. View Works for Artists */}
+                          {isArtist && (
+                            <button
+                              type="button"
+                              onClick={() => setViewingArtistWorks({ artistId: u.user_id, artistName: u.full_name, bio: u.bio })}
+                              className="w-8 h-8 rounded-lg bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/40 text-purple-300 transition flex items-center justify-center text-sm shadow-sm hover:scale-110"
+                              title="Inspect artist portfolio paintings"
+                            >
+                              🖼️
+                            </button>
+                          )}
                           {/* 1. View Payroll for Verified Artists (Symbol-only with hover tooltip) */}
                           {isArtist && u.is_verified_artist && (u.status === "ACTIVE" || u.status === "SUSPENDED") && (
                             <button
@@ -2243,6 +2274,103 @@ export default function AdminPage() {
               >
                 {rejectArtistMutation.isPending ? "Rejecting..." : "Confirm Rejection"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: VIEW ARTIST PORTFOLIO WORKS */}
+      {viewingArtistWorks && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm overflow-y-auto">
+          <div className="w-full max-w-4xl rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl space-y-4 my-auto max-h-[92vh] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <span>🎨</span> Portfolio Review: {viewingArtistWorks.artistName}
+                </h3>
+                {viewingArtistWorks.bio && (
+                  <p className="text-xs text-slate-400 italic mt-0.5 max-w-2xl">"{viewingArtistWorks.bio}"</p>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setViewingArtistWorks(null)}
+                className="text-slate-400 hover:text-white text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {artistPaintingsLoading ? (
+              <p className="text-slate-400 py-10 text-center text-xs">Loading uploaded portfolio works…</p>
+            ) : artistPaintings.length === 0 ? (
+              <div className="text-center py-10 space-y-2">
+                <span className="text-3xl">🖼️</span>
+                <p className="text-sm font-semibold text-slate-300">No sample works uploaded yet</p>
+                <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                  This artist has not uploaded any sample portfolio paintings for curation review yet.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                {artistPaintings.map((p) => (
+                  <div
+                    key={p.painting_id}
+                    className="rounded-xl border border-slate-800 bg-slate-950 overflow-hidden flex flex-col group hover:border-slate-700 transition"
+                  >
+                    <div
+                      onClick={() => setSelectedPhoto(resolveImage(p.image_url))}
+                      className="aspect-[4/5] w-full overflow-hidden bg-slate-950 cursor-pointer relative flex items-center justify-center"
+                    >
+                      <img
+                        src={resolveImage(p.image_url)}
+                        alt={p.title}
+                        className="h-full w-full object-contain group-hover:scale-105 transition duration-300"
+                      />
+                      <span className="absolute top-2 right-2 rounded-full bg-black/75 px-2 py-0.5 text-[10px] font-semibold text-purple-300 border border-purple-500/30">
+                        {p.category}
+                      </span>
+                    </div>
+                    <div className="p-3 space-y-1 flex-1 flex flex-col justify-between">
+                      <div>
+                        <h4 className="text-xs font-bold text-white line-clamp-1">{p.title}</h4>
+                        {p.description && (
+                          <p className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{p.description}</p>
+                        )}
+                      </div>
+                      <span className="text-[10px] text-slate-500 pt-1 border-t border-slate-800/80">
+                        Uploaded {new Date(p.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <span className="text-xs text-slate-400">
+                {artistPaintings.length} sample work{artistPaintings.length === 1 ? "" : "s"} uploaded
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setViewingArtistWorks(null)}
+                  className="rounded-lg border border-slate-700 px-4 py-2 text-xs font-semibold text-slate-300 hover:bg-slate-800"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    verifyArtistMutation.mutate(viewingArtistWorks.artistId);
+                    setViewingArtistWorks(null);
+                  }}
+                  disabled={verifyArtistMutation.isPending}
+                  className="rounded-lg bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-xs font-semibold text-white transition flex items-center gap-1.5 shadow-sm"
+                >
+                  <span>✓</span> Approve & Verify Artist
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -3,11 +3,12 @@ import { useSearchParams } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import type { Order, VerifiedArtist, ArtistReviewItem, PlatformUser, ActiveDeliveryAgent } from "../types/order";
+import type { Order, VerifiedArtist, ArtistReviewItem, PlatformUser, ActiveDeliveryAgent, Review, ReviewStats } from "../types/order";
 import { CollageThumbnail } from "../components/CollageThumbnail";
 import { CollageArtworkModal } from "../components/CollageArtworkModal";
 import { OrderCard } from "../components/OrderCard";
 import { EarningsDashboardModal } from "../components/EarningsDashboardModal";
+import { LogisticsModal } from "../components/LogisticsModal";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
@@ -149,12 +150,18 @@ export default function AdminPage() {
 
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const activeTab: "orders" | "users" | "payroll" =
-    tabParam === "users" ? "users" : tabParam === "payroll" ? "payroll" : "orders";
+  const activeTab: "orders" | "users" | "payroll" | "reviews" =
+    tabParam === "users" ? "users" : tabParam === "payroll" ? "payroll" : tabParam === "reviews" ? "reviews" : "orders";
 
-  const handleTabChange = (tab: "orders" | "users" | "payroll") => {
+  const handleTabChange = (tab: "orders" | "users" | "payroll" | "reviews") => {
     setSearchParams({ tab });
   };
+
+  const [logisticsOrder, setLogisticsOrder] = useState<Order | null>(null);
+  const [reviewFilterRating, setReviewFilterRating] = useState<string>("ALL");
+  const [reviewFilterFeatured, setReviewFilterFeatured] = useState<string>("ALL");
+  const [editingAdminNoteId, setEditingAdminNoteId] = useState<string | null>(null);
+  const [adminNoteText, setAdminNoteText] = useState<string>("");
 
   // Policy Thresholds configurable state (persisted to localStorage)
   const [policyThresholds, setPolicyThresholds] = useState<PolicyThresholds>(() => {
@@ -810,6 +817,49 @@ export default function AdminPage() {
     onError: (err: Error) => showMessage(err.message, "error"),
   });
 
+  const { data: reviewStats } = useQuery<ReviewStats>({
+    queryKey: ["admin_reviews_stats"],
+    queryFn: () => api<ReviewStats>("/api/v1/admin/reviews/stats"),
+  });
+
+  const { data: adminReviewsData } = useQuery<{ reviews: Review[] }>({
+    queryKey: ["admin_reviews", reviewFilterRating, reviewFilterFeatured],
+    queryFn: () => {
+      const params = new URLSearchParams();
+      if (reviewFilterRating === "5") {
+        params.append("min_rating", "5");
+        params.append("max_rating", "5");
+      } else if (reviewFilterRating === "4") {
+        params.append("min_rating", "4");
+        params.append("max_rating", "4");
+      } else if (reviewFilterRating === "ALERTS") {
+        params.append("max_rating", "3");
+      }
+      if (reviewFilterFeatured === "FEATURED") {
+        params.append("is_featured", "true");
+      }
+      const qs = params.toString();
+      return api<{ reviews: Review[] }>(`/api/v1/admin/reviews${qs ? `?${qs}` : ""}`);
+    },
+  });
+  const allReviews = adminReviewsData?.reviews || [];
+
+  const moderateReviewMutation = useMutation({
+    mutationFn: ({ reviewId, is_featured, is_approved, admin_notes }: { reviewId: string; is_featured?: boolean; is_approved?: boolean; admin_notes?: string }) =>
+      api<{ message: string; review: Review }>(`/api/v1/admin/reviews/${reviewId}/moderate`, {
+        method: "PATCH",
+        body: JSON.stringify({ is_featured, is_approved, admin_notes }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin_reviews"] });
+      queryClient.invalidateQueries({ queryKey: ["admin_reviews_stats"] });
+      setEditingAdminNoteId(null);
+      setAdminNoteText("");
+      showMessage("Review moderation updated successfully!");
+    },
+    onError: (err: Error) => showMessage(err.message, "error"),
+  });
+
   function resolveImage(url?: string) {
     if (!url) return "";
     return url.startsWith("http") ? url : `${API_URL}${url.startsWith("/") ? "" : "/"}${url}`;
@@ -910,6 +960,25 @@ export default function AdminPage() {
             </p>
             <p className="text-base sm:text-xl font-bold text-amber-300">₹{totalCommissions.toLocaleString("en-IN")}</p>
           </button>
+
+          <button
+            type="button"
+            onClick={() => handleTabChange("reviews")}
+            className={`rounded-xl px-2.5 sm:px-5 py-2 sm:py-2.5 text-center transition border cursor-pointer ${
+              activeTab === "reviews"
+                ? "bg-slate-800 border-brand shadow-lg ring-1 ring-brand/50"
+                : "bg-slate-800/80 border-slate-700 hover:border-slate-500 hover:bg-slate-800"
+            }`}
+          >
+            <p className={`text-[10px] sm:text-xs uppercase tracking-wider font-semibold ${
+              activeTab === "reviews" ? "text-brand" : "text-yellow-400"
+            }`}>
+              CSAT ({reviewStats?.csat_score_percent ? `${reviewStats.csat_score_percent}%` : "100%"})
+            </p>
+            <p className="text-base sm:text-xl font-bold text-yellow-300">
+              ⭐ {reviewStats?.average_rating ? reviewStats.average_rating.toFixed(1) : "5.0"}
+            </p>
+          </button>
         </div>
       </div>
 
@@ -967,6 +1036,24 @@ export default function AdminPage() {
           <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">
             ₹{totalCommissions.toLocaleString("en-IN")}
           </span>
+        </button>
+        <button
+          onClick={() => handleTabChange("reviews")}
+          className={`pb-3 px-4 border-b-2 transition flex items-center gap-2 ${
+            activeTab === "reviews"
+              ? "border-brand text-brand font-semibold"
+              : "border-transparent text-slate-400 hover:text-white"
+          }`}
+        >
+          <span>⭐ Reviews & CSAT</span>
+          <span className="rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-300">
+            {reviewStats?.total_reviews || allReviews.length}
+          </span>
+          {Boolean(reviewStats?.quality_alerts_count) && (
+            <span className="rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 text-[10px] font-semibold">
+              {reviewStats?.quality_alerts_count} alert{reviewStats?.quality_alerts_count! > 1 ? "s" : ""}
+            </span>
+          )}
         </button>
       </div>
 
@@ -1150,6 +1237,7 @@ export default function AdminPage() {
                         setSelectedDeliveryAgentId("");
                       }}
                       onAdminPublish={(order) => confirmGalleryMutation.mutate(order.order_id)}
+                      onAdminUpdateLogistics={(order) => setLogisticsOrder(order)}
                       isPublishing={confirmGalleryMutation.isPending}
                     />
                   </div>
@@ -2042,6 +2130,373 @@ export default function AdminPage() {
               )
             )}
           </div>
+        </div>
+      )}
+
+      {/* TAB 4: REVIEWS & CSAT ANALYTICS */}
+      {activeTab === "reviews" && (
+        <div className="space-y-6">
+          {/* Top KPI Cards Grid */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="rounded-2xl border border-yellow-500/30 bg-yellow-950/20 p-4 shadow-lg">
+              <span className="text-[11px] font-semibold text-yellow-300 uppercase tracking-wider block">
+                CSAT Score (% Positive)
+              </span>
+              <span className="text-3xl font-bold text-yellow-300 mt-1 block">
+                {reviewStats?.csat_score_percent ? `${reviewStats.csat_score_percent}%` : "100%"}
+              </span>
+              <p className="text-[11px] text-slate-400 mt-1">4 & 5 star customer commissions</p>
+            </div>
+
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-950/20 p-4 shadow-lg">
+              <span className="text-[11px] font-semibold text-amber-300 uppercase tracking-wider block">
+                Average Platform Rating
+              </span>
+              <span className="text-3xl font-bold text-white mt-1 block flex items-baseline gap-1">
+                <span>⭐</span>
+                <span>{reviewStats?.average_rating ? reviewStats.average_rating.toFixed(1) : "5.0"}</span>
+                <span className="text-xs text-slate-400 font-normal">/ 5.0</span>
+              </span>
+              <p className="text-[11px] text-slate-400 mt-1">From all verified buyer reviews</p>
+            </div>
+
+            <div className="rounded-2xl border border-brand/30 bg-brand/10 p-4 shadow-lg">
+              <span className="text-[11px] font-semibold text-brand-light uppercase tracking-wider block">
+                Total Reviews Submitted
+              </span>
+              <span className="text-3xl font-bold text-white mt-1 block">
+                {reviewStats?.total_reviews || allReviews.length}
+              </span>
+              <p className="text-[11px] text-slate-400 mt-1">Verified buyer feedback & unboxings</p>
+            </div>
+
+            <div className={`rounded-2xl border p-4 shadow-lg ${
+              (reviewStats?.quality_alerts_count || 0) > 0
+                ? "border-rose-500/40 bg-rose-950/25"
+                : "border-slate-800 bg-slate-900/60"
+            }`}>
+              <span className={`text-[11px] font-semibold uppercase tracking-wider block ${
+                (reviewStats?.quality_alerts_count || 0) > 0 ? "text-rose-300" : "text-slate-400"
+              }`}>
+                Quality Alerts (≤ 3★)
+              </span>
+              <span className={`text-3xl font-bold mt-1 block ${
+                (reviewStats?.quality_alerts_count || 0) > 0 ? "text-rose-400" : "text-emerald-400"
+              }`}>
+                {reviewStats?.quality_alerts_count || 0}
+              </span>
+              <p className="text-[11px] text-slate-400 mt-1">Requires customer satisfaction follow-up</p>
+            </div>
+          </div>
+
+          {/* 2-Column: Rating Breakdown & Top Artist Leaderboard */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Rating Distribution */}
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <span>📊</span> Rating Distribution Breakdown
+              </h3>
+              <div className="space-y-2 text-xs">
+                {[5, 4, 3, 2, 1].map((star) => {
+                  const count = reviewStats?.rating_distribution?.[`${star}`] || 0;
+                  const total = reviewStats?.total_reviews || 1;
+                  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+                  return (
+                    <div key={star} className="flex items-center gap-3">
+                      <span className="w-12 text-slate-300 font-semibold">{star} Star</span>
+                      <div className="flex-1 h-3 rounded-full bg-slate-800 overflow-hidden">
+                        <div
+                          style={{ width: `${pct}%` }}
+                          className={`h-full rounded-full transition-all duration-500 ${
+                            star >= 4 ? "bg-amber-400" : star === 3 ? "bg-yellow-600" : "bg-rose-500"
+                          }`}
+                        />
+                      </div>
+                      <span className="w-16 text-right text-slate-400 text-[11px]">
+                        {count} ({pct}%)
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Top Artist Leaderboard */}
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 space-y-3">
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <span>🏆</span> Artist Satisfaction Leaderboard
+              </h3>
+              {(!reviewStats?.artist_leaderboard || reviewStats.artist_leaderboard.length === 0) ? (
+                <p className="text-xs text-slate-500 py-6 text-center">
+                  No artist review data yet. When verified buyers submit reviews, artist rankings appear here.
+                </p>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto">
+                  {reviewStats.artist_leaderboard.map((a, idx) => (
+                    <div
+                      key={a.artist_id}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-slate-950/50 border border-slate-800/80 text-xs"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center font-bold text-[10px] ${
+                          idx === 0 ? "bg-amber-400 text-black" : idx === 1 ? "bg-slate-300 text-black" : idx === 2 ? "bg-amber-700 text-white" : "bg-slate-800 text-slate-400"
+                        }`}>
+                          {idx + 1}
+                        </span>
+                        <div>
+                          <p className="font-semibold text-white">{a.artist_name}</p>
+                          <p className="text-[10px] text-slate-400">{a.total_reviews} reviewed commission{a.total_reviews === 1 ? "" : "s"}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-lg text-xs">
+                        <span>⭐</span>
+                        <span>{a.average_rating.toFixed(1)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Filter Bar for Reviews List */}
+          <div className="rounded-2xl bg-slate-900/80 border border-slate-800 p-3 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-slate-400 font-semibold">Filter Reviews:</span>
+              <button
+                type="button"
+                onClick={() => setReviewFilterRating("ALL")}
+                className={`rounded-lg px-3 py-1 font-semibold transition ${
+                  reviewFilterRating === "ALL"
+                    ? "bg-brand text-white shadow-sm"
+                    : "bg-slate-800 text-slate-400 hover:text-white"
+                }`}
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setReviewFilterRating("5")}
+                className={`rounded-lg px-3 py-1 font-semibold transition ${
+                  reviewFilterRating === "5"
+                    ? "bg-amber-500 text-black shadow-sm"
+                    : "bg-slate-800 text-slate-400 hover:text-white"
+                }`}
+              >
+                5 Stars
+              </button>
+              <button
+                type="button"
+                onClick={() => setReviewFilterRating("4")}
+                className={`rounded-lg px-3 py-1 font-semibold transition ${
+                  reviewFilterRating === "4"
+                    ? "bg-amber-500 text-black shadow-sm"
+                    : "bg-slate-800 text-slate-400 hover:text-white"
+                }`}
+              >
+                4 Stars
+              </button>
+              <button
+                type="button"
+                onClick={() => setReviewFilterRating("ALERTS")}
+                className={`rounded-lg px-3 py-1 font-semibold transition ${
+                  reviewFilterRating === "ALERTS"
+                    ? "bg-rose-600 text-white shadow-sm"
+                    : "bg-slate-800 text-rose-300 hover:text-white"
+                }`}
+              >
+                ⚠️ Quality Alerts (≤ 3★)
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setReviewFilterFeatured(reviewFilterFeatured === "FEATURED" ? "ALL" : "FEATURED")}
+                className={`rounded-lg px-3 py-1 font-semibold transition border flex items-center gap-1.5 ${
+                  reviewFilterFeatured === "FEATURED"
+                    ? "bg-purple-950/80 border-purple-500 text-purple-300 shadow-sm"
+                    : "bg-slate-800 border-slate-700 text-slate-400 hover:text-white"
+                }`}
+              >
+                <span>🌟</span>
+                <span>Featured on Homepage</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Reviews List */}
+          {allReviews.length === 0 ? (
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-12 text-center space-y-3">
+              <span className="text-4xl">⭐</span>
+              <p className="text-base font-semibold text-slate-300">No reviews found matching the selected filter</p>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                Verified reviews submitted by buyers for completed portrait commissions will appear here for curation and analytics.
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {allReviews.map((r) => (
+                <div
+                  key={r.review_id}
+                  className="rounded-2xl border border-slate-800 bg-slate-900/80 p-5 shadow-lg space-y-4 hover:border-slate-700 transition"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <div className="flex items-center text-amber-400 text-sm">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <span key={i} className={i < r.rating ? "text-amber-400" : "text-slate-600"}>
+                            ★
+                          </span>
+                        ))}
+                      </div>
+                      <span className="font-bold text-white text-xs">{r.title}</span>
+                      <span className="rounded-md bg-slate-800 border border-slate-700 px-2 py-0.5 text-[10px] text-slate-300 font-medium">
+                        {r.painting_category}
+                      </span>
+                      {r.is_featured && (
+                        <span className="rounded-full bg-purple-500/20 text-purple-300 border border-purple-500/40 px-2 py-0.5 text-[10px] font-semibold flex items-center gap-1">
+                          <span>🌟</span> Featured
+                        </span>
+                      )}
+                      {!r.is_approved && (
+                        <span className="rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 px-2 py-0.5 text-[10px] font-semibold">
+                          Hidden
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-slate-500 text-[11px]">
+                      {new Date(r.created_at).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-4 items-start">
+                    {/* Unboxing / Wall Photo Thumbnail */}
+                    {r.unboxing_photo_url && (
+                      <div
+                        onClick={() => setSelectedPhoto(resolveImage(r.unboxing_photo_url))}
+                        className="w-20 aspect-[4/5] rounded-xl overflow-hidden bg-slate-950 flex-shrink-0 cursor-pointer border border-slate-700 group relative flex items-center justify-center shadow"
+                        title="Click to view full unboxing/wall photo"
+                      >
+                        <img
+                          src={resolveImage(r.unboxing_photo_url)}
+                          alt="Unboxing preview"
+                          className="w-full h-full object-contain group-hover:scale-105 transition"
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-[10px] font-bold text-white transition">
+                          View
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex-1 space-y-2">
+                      <p className="text-xs text-slate-200 italic leading-relaxed">
+                        "{r.comment}"
+                      </p>
+
+                      <div className="flex items-center gap-4 text-[11px] text-slate-400 flex-wrap pt-1">
+                        <span>👤 Customer: <strong className="text-white">{r.customer_name || "Verified Buyer"}</strong></span>
+                        <span>🎨 Artist: <strong className="text-emerald-400">{r.artist_name || "Master Artist"}</strong></span>
+                        <span className="font-mono text-slate-500">Order #{r.order_id.slice(0, 8)}</span>
+                      </div>
+
+                      {r.admin_notes && (
+                        <div className="rounded-lg bg-slate-950/60 border border-slate-800 p-2 text-[11px] text-slate-300">
+                          <strong className="text-amber-400">Admin Note:</strong> {r.admin_notes}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Moderation Actions Bar */}
+                  <div className="flex items-center justify-between border-t border-slate-800/80 pt-3 flex-wrap gap-2 text-xs">
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          moderateReviewMutation.mutate({
+                            reviewId: r.review_id,
+                            is_featured: !r.is_featured,
+                          })
+                        }
+                        className={`rounded-lg px-3 py-1 font-semibold transition border flex items-center gap-1.5 ${
+                          r.is_featured
+                            ? "bg-purple-900/40 border-purple-500 text-purple-300 hover:bg-purple-900/60"
+                            : "bg-slate-800 border-slate-700 text-slate-300 hover:text-white"
+                        }`}
+                        title="Toggle featuring this review on the public homepage"
+                      >
+                        <span>🌟</span>
+                        <span>{r.is_featured ? "Remove from Featured" : "Feature on Homepage"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          moderateReviewMutation.mutate({
+                            reviewId: r.review_id,
+                            is_approved: !r.is_approved,
+                          })
+                        }
+                        className={`rounded-lg px-3 py-1 font-semibold transition border flex items-center gap-1.5 ${
+                          r.is_approved
+                            ? "bg-slate-800 border-slate-700 text-slate-300 hover:text-rose-300"
+                            : "bg-emerald-950/60 border-emerald-500 text-emerald-300 hover:bg-emerald-900/60"
+                        }`}
+                        title="Toggle public visibility"
+                      >
+                        <span>{r.is_approved ? "👁️ Hide Review" : "✓ Approve Review"}</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {editingAdminNoteId === r.review_id ? (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="text"
+                            placeholder="Add admin note..."
+                            value={adminNoteText}
+                            onChange={(e) => setAdminNoteText(e.target.value)}
+                            className="rounded-lg bg-slate-950 border border-slate-700 px-2 py-1 text-xs text-white"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              moderateReviewMutation.mutate({
+                                reviewId: r.review_id,
+                                admin_notes: adminNoteText,
+                              });
+                            }}
+                            className="rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white px-2 py-1 text-xs font-semibold"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingAdminNoteId(null)}
+                            className="text-slate-400 hover:text-white text-xs px-1"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingAdminNoteId(r.review_id);
+                            setAdminNoteText(r.admin_notes || "");
+                          }}
+                          className="text-slate-400 hover:text-slate-200 text-xs underline"
+                        >
+                          {r.admin_notes ? "Edit Note" : "+ Add Note"}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -3302,6 +3757,19 @@ export default function AdminPage() {
           </div>
         );
       })()}
+
+      {/* MODAL: LOGISTICS & LIVE CARRIER AWB TRACKING */}
+      {logisticsOrder && (
+        <LogisticsModal
+          isOpen={Boolean(logisticsOrder)}
+          order={logisticsOrder}
+          onClose={() => setLogisticsOrder(null)}
+          onSuccess={(updatedOrder) => {
+            queryClient.invalidateQueries({ queryKey: ["admin_orders"] });
+            showMessage(`Logistics updated for Order #${updatedOrder.order_id.slice(0, 8)}!`);
+          }}
+        />
+      )}
     </div>
   );
 }

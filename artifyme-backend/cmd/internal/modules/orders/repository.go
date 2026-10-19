@@ -27,6 +27,7 @@ const orderColumns = `
 	final_image_url, collage_image_url, original_final_image_url, is_published_to_gallery,
 	size::text, persons_included::text, status::text,
 	delivery_address, COALESCE(delivery_attempts, 0), delivery_failure_reason, last_delivery_attempt_at, total_price, customer_notes,
+	courier_partner, tracking_number, estimated_delivery_at, admin_dispatch_notes,
 	COALESCE(created_at, NOW()), COALESCE(updated_at, NOW()), updated_by, COALESCE(version, 1)
 `
 
@@ -396,12 +397,18 @@ func (r *Repository) scanOrder(row pgx.Row) (*Order, error) {
 	var failureReason *string
 	var lastAttempt *time.Time
 	var notes *string
+	var courierPartner *string
+	var trackingNumber *string
+	var estimatedDeliveryAt *time.Time
+	var adminDispatchNotes *string
 	err := row.Scan(
 		&o.OrderID, &o.UserID, &artistID, &deliveryAgentID, &o.PaintingCategory, &o.ReferenceImageURL,
 		&finalURL, &collageURL, &origFinalURL, &isPublished,
 		&o.Size, &o.PersonsIncluded, &o.Status, &o.DeliveryAddress,
 		&o.DeliveryAttempts, &failureReason, &lastAttempt,
-		&o.TotalPrice, &notes, &o.CreatedAt, &o.UpdatedAt, &o.UpdatedBy, &o.Version,
+		&o.TotalPrice, &notes,
+		&courierPartner, &trackingNumber, &estimatedDeliveryAt, &adminDispatchNotes,
+		&o.CreatedAt, &o.UpdatedAt, &o.UpdatedBy, &o.Version,
 	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -418,6 +425,10 @@ func (r *Repository) scanOrder(row pgx.Row) (*Order, error) {
 	o.DeliveryFailureReason = failureReason
 	o.LastDeliveryAttemptAt = lastAttempt
 	o.CustomerNotes = notes
+	o.CourierPartner = courierPartner
+	o.TrackingNumber = trackingNumber
+	o.EstimatedDeliveryAt = estimatedDeliveryAt
+	o.AdminDispatchNotes = adminDispatchNotes
 	return &o, nil
 }
 
@@ -436,12 +447,18 @@ func scanOrderRow(row scannable) (*Order, error) {
 	var failureReason *string
 	var lastAttempt *time.Time
 	var notes *string
+	var courierPartner *string
+	var trackingNumber *string
+	var estimatedDeliveryAt *time.Time
+	var adminDispatchNotes *string
 	err := row.Scan(
 		&o.OrderID, &o.UserID, &artistID, &deliveryAgentID, &o.PaintingCategory, &o.ReferenceImageURL,
 		&finalURL, &collageURL, &origFinalURL, &isPublished,
 		&o.Size, &o.PersonsIncluded, &o.Status, &o.DeliveryAddress,
 		&o.DeliveryAttempts, &failureReason, &lastAttempt,
-		&o.TotalPrice, &notes, &o.CreatedAt, &o.UpdatedAt, &o.UpdatedBy, &o.Version,
+		&o.TotalPrice, &notes,
+		&courierPartner, &trackingNumber, &estimatedDeliveryAt, &adminDispatchNotes,
+		&o.CreatedAt, &o.UpdatedAt, &o.UpdatedBy, &o.Version,
 	)
 	if err != nil {
 		return nil, err
@@ -455,6 +472,10 @@ func scanOrderRow(row scannable) (*Order, error) {
 	o.DeliveryFailureReason = failureReason
 	o.LastDeliveryAttemptAt = lastAttempt
 	o.CustomerNotes = notes
+	o.CourierPartner = courierPartner
+	o.TrackingNumber = trackingNumber
+	o.EstimatedDeliveryAt = estimatedDeliveryAt
+	o.AdminDispatchNotes = adminDispatchNotes
 	return &o, nil
 }
 
@@ -819,4 +840,26 @@ func (r *Repository) GetArtistCompletedAndStalledCount(ctx context.Context, arti
 		WHERE artist_id = $1
 	`, artistID).Scan(&completed, &stalled)
 	return completed, stalled, err
+}
+
+func (r *Repository) UpdateLogistics(ctx context.Context, orderID uuid.UUID, courierPartner *string, trackingNumber *string, estimatedDeliveryAt *time.Time, adminDispatchNotes *string, actorID uuid.UUID) (*Order, error) {
+	row := r.pool.QueryRow(ctx, `
+		UPDATE orders SET
+			courier_partner = CASE WHEN $2::boolean THEN $3 ELSE courier_partner END,
+			tracking_number = CASE WHEN $4::boolean THEN $5 ELSE tracking_number END,
+			estimated_delivery_at = CASE WHEN $6::boolean THEN $7::timestamptz ELSE estimated_delivery_at END,
+			admin_dispatch_notes = CASE WHEN $8::boolean THEN $9 ELSE admin_dispatch_notes END,
+			version = version + 1,
+			updated_at = NOW(),
+			updated_by = $10
+		WHERE order_id = $1
+		RETURNING `+orderColumns,
+		orderID,
+		courierPartner != nil, courierPartner,
+		trackingNumber != nil, trackingNumber,
+		estimatedDeliveryAt != nil, estimatedDeliveryAt,
+		adminDispatchNotes != nil, adminDispatchNotes,
+		actorID,
+	)
+	return r.scanAndEnrichOrder(ctx, row)
 }

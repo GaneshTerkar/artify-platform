@@ -11,6 +11,7 @@ import (
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/modules/auth"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/modules/files"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/modules/orders"
+	"github.com/ganeshterkar/artifyme-backend/cmd/internal/modules/reviews"
 	"github.com/ganeshterkar/artifyme-backend/cmd/internal/worker"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -202,12 +203,16 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, worke
 	r.Static("/paintings", "./Paintings")
 
 	// ======================
-	// ORDERS / CATALOG (v1)
+	// ORDERS & REVIEWS (v1)
 	// ======================
 	baseURL := "http://localhost:" + cfg.App.Port
 	orderRepo := orders.NewRepository(pool)
 	orderService := orders.NewService(orderRepo, filesService, baseURL, workerPool, eventsRepo, eventsRelay)
 	orderHandler := orders.NewHandler(orderService, cfg)
+
+	reviewRepo := reviews.NewRepository(pool)
+	reviewService := reviews.NewService(reviewRepo, eventsRepo)
+	reviewHandler := reviews.NewHandler(reviewService)
 
 	v1 := r.Group("/api/v1")
 	{
@@ -215,6 +220,7 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, worke
 		v1.GET("/products", orderHandler.ListProducts)
 		v1.GET("/products/price/estimate", orderHandler.EstimatePrice)
 		v1.GET("/products/:id", orderHandler.GetProduct)
+		v1.GET("/reviews/public", reviewHandler.ListPublicReviews)
 	}
 
 	v1Auth := v1.Group("")
@@ -229,6 +235,8 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, worke
 		v1Auth.POST("/orders/:id/assign", orderHandler.AssignOrder)
 		v1Auth.PATCH("/orders/:id/status", orderHandler.UpdateOrderStatus)
 		v1Auth.GET("/artists/verified", orderHandler.ListVerifiedArtists)
+		v1Auth.POST("/reviews", reviewHandler.CreateReview)
+		v1Auth.GET("/reviews/order/:orderId", reviewHandler.GetReviewByOrder)
 	}
 
 
@@ -237,6 +245,7 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, worke
 	{
 		v1Admin.GET("/orders", orderHandler.AdminListOrders)
 		v1Admin.PATCH("/orders/:id/status", orderHandler.AdminUpdateStatus)
+		v1Admin.PATCH("/orders/:id/logistics", orderHandler.AdminUpdateLogistics)
 		v1Admin.POST("/orders/:id/confirm-gallery", orderHandler.AdminConfirmGalleryPublish)
 		v1Admin.POST("/orders/:id/assign-delivery", orderHandler.AssignDeliveryAgent)
 		v1Admin.GET("/delivery-agents", orderHandler.ListActiveDeliveryAgents)
@@ -245,6 +254,9 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, worke
 		v1Admin.PATCH("/users/:id/role", orderHandler.AdminElevateArtist)
 		v1Admin.GET("/worker/stats", orderHandler.GetWorkerStats)
 		v1Admin.GET("/events/stats", orderHandler.GetEventStats)
+		v1Admin.GET("/reviews", reviewHandler.ListAdminReviews)
+		v1Admin.GET("/reviews/stats", reviewHandler.GetReviewStats)
+		v1Admin.PATCH("/reviews/:id/moderate", reviewHandler.ModerateReview)
 	}
 
 	r.POST("/webhooks/stripe", orderHandler.StripeWebhook)

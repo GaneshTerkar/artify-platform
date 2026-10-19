@@ -29,9 +29,20 @@ type orderDTO struct {
 	LastDeliveryAttemptAt *time.Time `json:"last_delivery_attempt_at,omitempty"`
 	TotalPrice            float64    `json:"total_price"`
 	CustomerNotes         *string    `json:"customer_notes,omitempty"`
+	CourierPartner        *string    `json:"courier_partner,omitempty"`
+	TrackingNumber        *string    `json:"tracking_number,omitempty"`
+	EstimatedDeliveryAt   *time.Time `json:"estimated_delivery_at,omitempty"`
+	AdminDispatchNotes    *string    `json:"admin_dispatch_notes,omitempty"`
 	CreatedAt             time.Time  `json:"created_at"`
 	UpdatedAt             time.Time  `json:"updated_at"`
 	Version               int        `json:"version"`
+}
+
+type UpdateLogisticsInput struct {
+	CourierPartner      *string    `json:"courier_partner"`
+	TrackingNumber      *string    `json:"tracking_number"`
+	EstimatedDeliveryAt *time.Time `json:"estimated_delivery_at"`
+	AdminDispatchNotes  *string    `json:"admin_dispatch_notes"`
 }
 
 func lifecycleLabel(status OrderStatus) string {
@@ -89,6 +100,10 @@ func toOrderDTO(o *Order) orderDTO {
 		LastDeliveryAttemptAt: o.LastDeliveryAttemptAt,
 		TotalPrice:            o.TotalPrice,
 		CustomerNotes:         o.CustomerNotes,
+		CourierPartner:        o.CourierPartner,
+		TrackingNumber:        o.TrackingNumber,
+		EstimatedDeliveryAt:   o.EstimatedDeliveryAt,
+		AdminDispatchNotes:    o.AdminDispatchNotes,
 		CreatedAt:             o.CreatedAt,
 		UpdatedAt:             o.UpdatedAt,
 		Version:               o.Version,

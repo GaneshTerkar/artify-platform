@@ -11,6 +11,7 @@ import type { Order, VerifiedArtist } from "../types/order";
 import { OrderCard } from "../components/OrderCard";
 import { EarningsDashboardModal } from "../components/EarningsDashboardModal";
 import { ActiveSessionsCard } from "../components/ActiveSessionsCard";
+import { ReviewModal } from "../components/ReviewModal";
 
 interface ArtistProfile {
   artist_prof_id?: string;
@@ -62,6 +63,7 @@ export default function AccountPage() {
   const [customFailureNotes, setCustomFailureNotes] = useState<string>("");
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [showEarningsModal, setShowEarningsModal] = useState<boolean>(false);
+  const [reviewingOrder, setReviewingOrder] = useState<Order | null>(null);
 
   // Artist Profile form state
   const [profileBio, setProfileBio] = useState("");
@@ -758,6 +760,7 @@ export default function AccountPage() {
                         statusMutation.mutate({ orderId, status: "CANCELLED" });
                       }
                     }}
+                    onCustomerLeaveReview={(order) => setReviewingOrder(order)}
                     isPaying={checkoutMutation.isPending}
                   />
                 );
@@ -1061,6 +1064,18 @@ export default function AccountPage() {
             100 - (isArtist ? commissionSplit.artistPercentage : commissionSplit.deliveryPercentage)
           }
           onViewPhoto={(url) => setSelectedPhoto(url)}
+        />
+      )}
+
+      {/* VERIFIED CUSTOMER REVIEW MODAL */}
+      {reviewingOrder && (
+        <ReviewModal
+          isOpen={Boolean(reviewingOrder)}
+          order={reviewingOrder}
+          onClose={() => setReviewingOrder(null)}
+          onSuccess={() => {
+            queryClient.invalidateQueries({ queryKey: ["my-orders"] });
+          }}
         />
       )}
     </div>

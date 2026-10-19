@@ -511,4 +511,38 @@ func (h *Handler) GetEventStats(c *gin.Context) {
 	c.JSON(http.StatusOK, stats)
 }
 
+func (h *Handler) AdminUpdateLogistics(c *gin.Context) {
+	orderID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid order id"})
+		return
+	}
+	actorID := c.MustGet("user_id").(uuid.UUID)
+	role := c.MustGet("role").(string)
+
+	var in UpdateLogisticsInput
+	if err := c.ShouldBindJSON(&in); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload: " + err.Error()})
+		return
+	}
+
+	o, err := h.service.UpdateLogistics(c.Request.Context(), orderID, actorID, role, in)
+	if err != nil {
+		status := http.StatusBadRequest
+		if errors.Is(err, ErrNotFound) {
+			status = http.StatusNotFound
+		} else if errors.Is(err, ErrForbidden) {
+			status = http.StatusForbidden
+		}
+		c.JSON(status, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "logistics and tracking updated successfully",
+		"order":   toOrderDTO(o),
+	})
+}
+
+
 

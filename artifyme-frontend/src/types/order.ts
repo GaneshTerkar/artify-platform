@@ -32,12 +32,50 @@ export type Order = {
   last_delivery_attempt_at?: string;
   total_price: number;
   customer_notes?: string;
+  courier_partner?: string;
+  tracking_number?: string;
+  estimated_delivery_at?: string;
+  admin_dispatch_notes?: string;
   final_image_url?: string;
   collage_image_url?: string;
   original_final_image_url?: string;
   is_published_to_gallery?: boolean;
   created_at: string;
   updated_at?: string;
+};
+
+export type Review = {
+  review_id: string;
+  order_id: string;
+  customer_id: string;
+  customer_name?: string;
+  artist_id?: string;
+  artist_name?: string;
+  painting_category?: string;
+  final_image_url?: string;
+  rating: number;
+  title: string;
+  comment: string;
+  unboxing_photo_url?: string;
+  is_featured: boolean;
+  is_approved: boolean;
+  admin_notes?: string;
+  created_at: string;
+  updated_at?: string;
+};
+
+export type ReviewStats = {
+  total_reviews: number;
+  average_rating: number;
+  csat_score_percent: number;
+  rating_distribution: Record<string, number>;
+  quality_alerts_count: number;
+  artist_leaderboard: {
+    artist_id: string;
+    artist_name: string;
+    total_reviews: number;
+    average_rating: number;
+  }[];
 };
 
 export type ActiveDeliveryAgent = {

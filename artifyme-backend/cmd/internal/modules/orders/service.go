@@ -587,4 +587,31 @@ func (s *Service) ElevateArtistToAdmin(ctx context.Context, actorRole string, ac
 	return s.repo.UpdateUserRole(ctx, targetUserID, "ADMIN")
 }
 
+func (s *Service) UpdateLogistics(ctx context.Context, orderID uuid.UUID, actorID uuid.UUID, actorRole string, in UpdateLogisticsInput) (*Order, error) {
+	if actorRole != "ADMIN" {
+		return nil, ErrForbidden
+	}
+	o, err := s.repo.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if o.Status == StatusPlaced || o.Status == StatusCancelled {
+		return nil, errors.New("cannot update logistics on placed or cancelled orders")
+	}
+
+	updated, err := s.repo.UpdateLogistics(ctx, orderID, in.CourierPartner, in.TrackingNumber, in.EstimatedDeliveryAt, in.AdminDispatchNotes, actorID)
+	if err != nil {
+		return nil, err
+	}
+
+	s.emitEvent(ctx, updated.OrderID.String(), "order.logistics_updated", map[string]interface{}{
+		"order_id":        updated.OrderID.String(),
+		"courier_partner": updated.CourierPartner,
+		"tracking_number": updated.TrackingNumber,
+		"updated_by":      actorID.String(),
+	})
+
+	return updated, nil
+}
+
 

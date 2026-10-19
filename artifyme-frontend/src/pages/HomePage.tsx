@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, API_URL } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import type { Painting } from "../types/order";
+import type { Painting, Review } from "../types/order";
 
 const CATEGORIES = [
   { id: "ALL", label: "All Paintings" },
@@ -27,7 +27,13 @@ export default function HomePage() {
     queryFn: () => api<{ paintings: Painting[] }>("/api/v1/paintings"),
   });
 
+  const { data: reviewsData } = useQuery({
+    queryKey: ["public_reviews"],
+    queryFn: () => api<{ reviews: Review[] }>("/api/v1/reviews/public?limit=6"),
+  });
+
   const paintings = data?.paintings ?? [];
+  const publicReviews = reviewsData?.reviews ?? [];
 
   const filteredPaintings = useMemo(() => {
     if (activeCategory === "ALL") return paintings;
@@ -1096,6 +1102,153 @@ export default function HomePage() {
                 </div>
               );
             })}
+          </div>
+        )}
+      </section>
+
+      {/* Verified Customer Testimonials & Wall of Love */}
+      <section className="space-y-6 pt-4 border-t border-slate-800/80">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-amber-400 text-sm">★★★★★</span>
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                Verified Customer Wall of Love
+              </span>
+            </div>
+            <h2 className="text-xl sm:text-2xl font-bold text-white mt-1">
+              Real Stories & Commission Reviews
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1 max-w-xl">
+              Authentic reactions, unboxing photos, and five-star experiences from clients whose cherished memories were turned into fine art portraits.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-400">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>100% Genuine Handcrafted Commissions</span>
+          </div>
+        </div>
+
+        {publicReviews.length === 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {[
+              {
+                name: "Aarav Sharma",
+                city: "Bengaluru",
+                stars: 5,
+                title: "Incredible oil portrait of my grandparents!",
+                quote: "The texture and likeness are mind-blowing. Seeing my grandmother's smile painted with such delicate brushstrokes brought tears to our family.",
+                category: "OIL",
+                artist: "Priya Nair",
+              },
+              {
+                name: "Meera Patel",
+                city: "Mumbai",
+                stars: 5,
+                title: "Charcoal sketch exceeded every expectation",
+                quote: "Arrived in a super sturdy cylindrical tube with zero creases. The shading on the hair and eyes looks like a museum masterpiece.",
+                category: "CHARCOAL",
+                artist: "Vikram Sen",
+              },
+              {
+                name: "Rohan & Sneha",
+                city: "Pune",
+                stars: 5,
+                title: "Perfect wedding anniversary gift",
+                quote: "Commissioned a watercolor portrait from our honeymoon photo. The vibrant colors and handwritten artist note made it deeply sentimental.",
+                category: "WATERCOLOR",
+                artist: "Ananya Roy",
+              },
+            ].map((demo, idx) => (
+              <div
+                key={idx}
+                className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5 space-y-3 shadow-lg flex flex-col justify-between"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-400 text-sm">★★★★★</span>
+                    <span className="rounded-full bg-slate-800 border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-300">
+                      {demo.category}
+                    </span>
+                  </div>
+                  <h4 className="text-sm font-bold text-white">{demo.title}</h4>
+                  <p className="text-xs text-slate-300 italic leading-relaxed">
+                    "{demo.quote}"
+                  </p>
+                </div>
+                <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                  <div>
+                    <p className="font-semibold text-white">{demo.name}</p>
+                    <p className="text-[10px] text-slate-500">{demo.city} • Verified Buyer</p>
+                  </div>
+                  <span className="text-emerald-400 font-medium">By {demo.artist}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {publicReviews.map((r) => (
+              <div
+                key={r.review_id}
+                className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 space-y-3 shadow-lg hover:border-slate-700 transition flex flex-col justify-between"
+              >
+                <div className="space-y-2.5">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center text-amber-400 text-sm">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <span key={i} className={i < r.rating ? "text-amber-400" : "text-slate-600"}>
+                          ★
+                        </span>
+                      ))}
+                    </div>
+                    <span className="rounded-full bg-slate-800 border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-300">
+                      {r.painting_category}
+                    </span>
+                  </div>
+
+                  {r.unboxing_photo_url && (
+                    <div
+                      onClick={() => setSelectedPainting({
+                        id: r.review_id,
+                        title: r.title,
+                        category: r.painting_category as any,
+                        category_label: r.painting_category,
+                        description: r.comment,
+                        image_url: r.unboxing_photo_url!,
+                        starting_price: 0,
+                        artist_name: r.artist_name,
+                      })}
+                      className="w-full aspect-[16/10] rounded-xl overflow-hidden bg-slate-950 cursor-pointer border border-slate-700/80 group relative flex items-center justify-center"
+                    >
+                      <img
+                        src={r.unboxing_photo_url.startsWith("http") ? r.unboxing_photo_url : `${API_URL}${r.unboxing_photo_url}`}
+                        alt="Unboxing photo"
+                        className="w-full h-full object-cover group-hover:scale-105 transition"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center text-xs font-semibold text-white transition">
+                        View Unboxing
+                      </div>
+                    </div>
+                  )}
+
+                  <h4 className="text-sm font-bold text-white">{r.title}</h4>
+                  <p className="text-xs text-slate-300 italic leading-relaxed">
+                    "{r.comment}"
+                  </p>
+                </div>
+
+                <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                  <div>
+                    <p className="font-semibold text-white">{r.customer_name || "Verified Customer"}</p>
+                    <p className="text-[10px] text-emerald-400">✓ Verified Commission</p>
+                  </div>
+                  {r.artist_name && (
+                    <span className="text-slate-300 font-medium">By {r.artist_name}</span>
+                  )}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </section>

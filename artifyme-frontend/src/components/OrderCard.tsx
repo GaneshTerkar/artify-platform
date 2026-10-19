@@ -8,6 +8,22 @@ function resolveImage(url?: string): string {
   return url.startsWith("http") ? url : `${API_URL}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
+export function getCarrierTrackingUrl(carrier?: string, trackingNumber?: string): string {
+  if (!trackingNumber) return "#";
+  const norm = (carrier || "").toLowerCase();
+  const enc = encodeURIComponent(trackingNumber.trim());
+  if (norm.includes("blue dart") || norm.includes("bluedart")) {
+    return `https://www.bluedart.com/tracking?trackNumber=${enc}`;
+  }
+  if (norm.includes("delhivery")) {
+    return `https://www.delhivery.com/track/package/${enc}`;
+  }
+  if (norm.includes("dtdc")) {
+    return `https://www.dtdc.in/tracking/shipment-tracking.asp?strCnno=${enc}`;
+  }
+  return `https://track.courier.com/${enc}`;
+}
+
 export function getOrderStatusBadge(status: string): string {
   switch (status) {
     case "PUBLISHED":
@@ -78,6 +94,7 @@ export interface OrderCardProps {
   onAdminAssignArtist?: (order: Order) => void;
   onAdminAssignDelivery?: (order: Order) => void;
   onAdminPublish?: (order: Order) => void;
+  onAdminUpdateLogistics?: (order: Order) => void;
   isPublishing?: boolean;
 
   // Artist actions
@@ -97,6 +114,7 @@ export interface OrderCardProps {
   // Customer actions
   onCustomerPay?: (orderId: string) => void;
   onCustomerCancel?: (orderId: string) => void;
+  onCustomerLeaveReview?: (order: Order) => void;
   isPaying?: boolean;
 }
 
@@ -112,6 +130,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   onAdminAssignArtist,
   onAdminAssignDelivery,
   onAdminPublish,
+  onAdminUpdateLogistics,
   isPublishing,
   onArtistAccept,
   onArtistDecline,
@@ -125,6 +144,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   onDeliveryReattempt,
   onCustomerPay,
   onCustomerCancel,
+  onCustomerLeaveReview,
   isPaying,
 }) => {
   // Resolve artist and delivery agent
@@ -147,10 +167,10 @@ export const OrderCard: React.FC<OrderCardProps> = ({
 
   // Determine if there are actual actionable buttons on the right side
   const hasActions =
-    (role === "ADMIN" && ["PLACED", "CONFIRMED", "COMPLETED", "DELIVERY_FAILED", "DELIVERED"].includes(order.status)) ||
+    (role === "ADMIN" && order.status !== "CANCELLED") ||
     (role === "ARTIST" && (order.status === "ASSIGNED_ARTIST" || order.status === "IN_PROGRESS")) ||
     (role === "DELIVERY_AGENT" && ["ASSIGNED_DELIVERY_AGENT", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERY_FAILED"].includes(order.status)) ||
-    (role === "CUSTOMER" && (order.status === "PLACED" || ((order.status === "PUBLISHED" || order.is_published_to_gallery) && Boolean(order.final_image_url || order.collage_image_url))));
+    (role === "CUSTOMER" && (order.status === "PLACED" || ["COMPLETED", "DELIVERED", "PUBLISHED"].includes(order.status) || ((order.status === "PUBLISHED" || order.is_published_to_gallery) && Boolean(order.final_image_url || order.collage_image_url))));
 
   return (
     <div className="rounded-2xl border border-slate-800/90 bg-slate-900/70 p-5 shadow-lg hover:border-slate-700/80 transition-all flex flex-col gap-4">
@@ -339,6 +359,41 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               <span className="text-slate-500">💬</span>
               <span className="text-slate-400 font-medium">Notes:</span>
               <span className="italic text-slate-300">"{order.customer_notes}"</span>
+            </div>
+          )}
+
+          {/* Logistics & Carrier Tracking */}
+          {order.tracking_number && (
+            <div className="flex items-center gap-2 flex-wrap text-xs bg-indigo-950/40 border border-indigo-500/30 rounded-xl px-3 py-2 mt-1">
+              <span className="text-indigo-300 font-semibold flex items-center gap-1.5">
+                <span>🚀</span>
+                <span>{order.courier_partner || "Courier"}:</span>
+              </span>
+              <span className="font-mono text-white font-bold">{order.tracking_number}</span>
+              <a
+                href={getCarrierTrackingUrl(order.courier_partner, order.tracking_number)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-300 hover:text-white bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-400/40 rounded-md px-2 py-0.5 transition shadow-sm ml-1"
+                title="Open live shipment tracking portal"
+              >
+                <span>Live Tracking</span>
+                <span>↗</span>
+              </a>
+              {order.estimated_delivery_at && (
+                <span className="text-slate-400 text-[11px] ml-auto">
+                  Est: {new Date(order.estimated_delivery_at).toLocaleDateString("en-IN", { month: "short", day: "numeric" })}
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Admin Dispatch Notes */}
+          {order.admin_dispatch_notes && (
+            <div className="flex items-center gap-2 rounded-lg bg-amber-950/30 border border-amber-500/30 px-2.5 py-1.5 text-xs text-amber-200 mt-1">
+              <span className="text-amber-400">📦</span>
+              <span className="font-medium text-amber-300">Dispatch:</span>
+              <span className="italic">{order.admin_dispatch_notes}</span>
             </div>
           )}
         </div>
@@ -587,6 +642,17 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                     <span>🌟</span> {isPublishing ? "Publishing..." : "Publish to Gallery"}
                   </button>
                 )}
+
+                {order.status !== "PLACED" && (
+                  <button
+                    type="button"
+                    onClick={() => onAdminUpdateLogistics?.(order)}
+                    className="rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3.5 py-2 text-xs font-semibold text-slate-200 transition flex items-center gap-1.5 shadow-sm whitespace-nowrap"
+                    title="Update courier partner, tracking number, and dispatch notes"
+                  >
+                    <span>📦</span> Logistics / AWB
+                  </button>
+                )}
               </>
             )}
 
@@ -745,6 +811,17 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                       <span>↓</span> Download {order.collage_image_url ? "Collage" : "Artwork"}
                     </a>
                   </div>
+                )}
+
+                {["COMPLETED", "DELIVERED", "PUBLISHED"].includes(order.status) && (
+                  <button
+                    type="button"
+                    onClick={() => onCustomerLeaveReview?.(order)}
+                    className="rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 px-3.5 py-2 text-xs font-bold text-slate-950 transition flex items-center gap-1.5 shadow-md shadow-amber-950/40 whitespace-nowrap"
+                    title="Leave or view your verified review"
+                  >
+                    <span>⭐</span> Review Artwork
+                  </button>
                 )}
               </>
             )}

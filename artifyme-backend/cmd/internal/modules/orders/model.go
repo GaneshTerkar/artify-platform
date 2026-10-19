@@ -71,6 +71,10 @@ type Order struct {
 	LastDeliveryAttemptAt *time.Time
 	TotalPrice            float64
 	CustomerNotes         *string
+	CourierPartner        *string
+	TrackingNumber        *string
+	EstimatedDeliveryAt   *time.Time
+	AdminDispatchNotes    *string
 	CreatedAt             time.Time
 	UpdatedAt             time.Time
 	UpdatedBy             uuid.UUID

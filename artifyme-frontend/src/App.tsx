@@ -1,5 +1,5 @@
 import React, { Component, useEffect, useRef, useState, type ErrorInfo, type ReactNode } from "react";
-import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Link, Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./lib/auth";
 import AccountPage from "./pages/AccountPage";
 import AdminPage from "./pages/AdminPage";

@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ type Config struct {
 	JWT      JWTConfig
 	CORS     CORSConfig
 	Stripe   StripeConfig
+	Payment  PaymentConfig
 	S3       S3Config
 	Email    EmailConfig
 	Redis    RedisConfig
@@ -58,6 +60,53 @@ type StripeConfig struct {
 	WebhookSecret string
 	SuccessURL    string
 	CancelURL     string
+}
+
+// PaymentConfig controls the payment provider. "manual" (default) keeps the
+// development mock checkout: the order stays PLACED until an admin confirms
+// the payment. "razorpay" enables real/test gateway payments.
+//
+// Live charging requires BOTH Provider == "razorpay" AND Live == true. This is
+// deliberately explicit so a live key can never start charging by accident.
+type PaymentConfig struct {
+	Provider              string
+	Live                  bool
+	RazorpayKeyID         string
+	RazorpayKeySecret     string
+	RazorpayWebhookSecret string
+	RazorpayAPIBase       string
+	MinAmount             float64
+	MaxAmount             float64
+}
+
+// ValidatePayments checks the payment configuration and fails fast on unsafe
+// combinations (for example a live key while PAYMENTS_LIVE is false).
+func (c *Config) ValidatePayments() error {
+	switch strings.ToLower(strings.TrimSpace(c.Payment.Provider)) {
+	case "", "manual":
+		c.Payment.Provider = "manual"
+		return nil
+	case "razorpay":
+		c.Payment.Provider = "razorpay"
+		if c.Payment.RazorpayKeyID == "" || c.Payment.RazorpayKeySecret == "" {
+			return fmt.Errorf("PAYMENT_PROVIDER=razorpay requires RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET")
+		}
+		if c.Payment.RazorpayWebhookSecret == "" {
+			return fmt.Errorf("PAYMENT_PROVIDER=razorpay requires RAZORPAY_WEBHOOK_SECRET (webhook signatures cannot be verified without it)")
+		}
+		if !c.Payment.Live && strings.HasPrefix(c.Payment.RazorpayKeyID, "rzp_live_") {
+			return fmt.Errorf("refusing to start: RAZORPAY_KEY_ID is a LIVE key but PAYMENTS_LIVE=false (set PAYMENTS_LIVE=true to charge real money)")
+		}
+		if c.Payment.Live && strings.HasPrefix(c.Payment.RazorpayKeyID, "rzp_test_") {
+			return fmt.Errorf("PAYMENTS_LIVE=true but RAZORPAY_KEY_ID is a TEST key (use rzp_live_... or set PAYMENTS_LIVE=false)")
+		}
+		if c.Payment.MinAmount <= 0 || c.Payment.MaxAmount < c.Payment.MinAmount {
+			return fmt.Errorf("invalid payment amount limits: min=%v max=%v", c.Payment.MinAmount, c.Payment.MaxAmount)
+		}
+		return nil
+	default:
+		return fmt.Errorf("unknown PAYMENT_PROVIDER %q (use manual or razorpay)", c.Payment.Provider)
+	}
 }
 
 type AppConfig struct {
@@ -105,6 +154,16 @@ func Load() *Config {
 			WebhookSecret: getEnv("STRIPE_WEBHOOK_SECRET", ""),
 			SuccessURL:    getEnv("STRIPE_SUCCESS_URL", "http://localhost:5173/order/success"),
 			CancelURL:     getEnv("STRIPE_CANCEL_URL", "http://localhost:5173/order/cancel"),
+		},
+		Payment: PaymentConfig{
+			Provider:              getEnv("PAYMENT_PROVIDER", "manual"),
+			Live:                  getEnv("PAYMENTS_LIVE", "false") == "true",
+			RazorpayKeyID:         getEnv("RAZORPAY_KEY_ID", ""),
+			RazorpayKeySecret:     getEnv("RAZORPAY_KEY_SECRET", ""),
+			RazorpayWebhookSecret: getEnv("RAZORPAY_WEBHOOK_SECRET", ""),
+			RazorpayAPIBase:       strings.TrimRight(getEnv("RAZORPAY_API_BASE", "https://api.razorpay.com"), "/"),
+			MinAmount:             getEnvAsFloat("PAYMENT_MIN_AMOUNT", 100),
+			MaxAmount:             getEnvAsFloat("PAYMENT_MAX_AMOUNT", 200000),
 		},
 		S3: S3Config{
 			Endpoint:     getEnv("S3_ENDPOINT", "http://localhost:9000"),
@@ -169,6 +228,18 @@ func mustGetEnv(key string) string {
 		panic("Required environment variable missing: " + key)
 	}
 	return v
+}
+
+func getEnvAsFloat(key string, fallback float64) float64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	val, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		panic("Invalid float env var: " + key)
+	}
+	return val
 }
 
 func getEnvAsInt(key string, fallback int) int {

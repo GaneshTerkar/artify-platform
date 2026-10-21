@@ -68,7 +68,7 @@ flowchart TD
     ModArtists -->|pgxpool| PG
     ModFiles -->|Disk Save| DiskUploads
     ModFiles -->|AWS SDK| S3Bucket
-    AutoMigrate -->|Run on Startup 001-012| PG
+    AutoMigrate -->|Run on Startup 001-016| PG
     Router -->|Serve Static| DiskPaintings
     Router -->|Serve Static| DiskUploads
 ```
@@ -84,7 +84,7 @@ The platform enforces four distinct user roles defined in PostgreSQL enum `user_
 | **`CUSTOMER`** | Browse public gallery, estimate pricing, upload reference photos, create custom portrait orders, manage personal account, view personal order history, live delivery tracking, and download finished portraits. |
 | **`ARTIST`** | Complete profile details, submit artwork portfolio for review, track verification status (`PENDING`, `UNDER_REVIEW`, `ACTIVE`), view assigned commission orders, upload completed artwork scans to auto-generate collage. |
 | **`DELIVERY_AGENT`** | View assigned delivery parcels, update delivery transit states (`IN_TRANSIT`, `OUT_FOR_DELIVERY`, `DELIVERED`, `DELIVERY_FAILED` with retry logs), decline assignment back to studio if unavailable. |
-| **`ADMIN`** | Access admin review queue, verify or reject artist profiles, view all platform customer orders, inspect completed collages, assign artists, assign delivery agents, confirm public gallery publication. |
+| **`ADMIN`** | Access admin review queue, verify or reject artist profiles, view all platform customer orders, inspect completed collages, assign artists, confirm manual payments, refund Razorpay payments, assign delivery agents and tracking, and confirm public gallery publication. |
 
 ---
 
@@ -125,7 +125,7 @@ flowchart LR
 
 
 ### 4.2 Authentic Medium Categorization
-All 22 initial artworks seeded via migration `010_seed_gallery_paintings.up.sql` are classified by their true artistic medium:
+The 22 initial artworks in the built-in catalog (`artifyme-backend/cmd/internal/modules/orders/paintings.go`) are classified by their true artistic medium:
 
 | Category | Description | Seeded Artworks | Starting Price |
 | :--- | :--- | :---: | :---: |
@@ -232,7 +232,7 @@ $$\text{Final Price} = \text{Base Price}(\text{Medium}) \times \text{Size Multip
 flowchart TD
     subgraph S1["1. CUSTOMER: Order Commission & Payment"]
         C_START["Customer uploads reference photo & configures portrait"] --> C_PLACE["PLACED<br/>(Order Created)"]
-        C_PLACE -->|"Payment verified (Razorpay / Stripe / Dev)"| A_CONF["CONFIRMED<br/>(Ready for Artist)"]
+        C_PLACE -->|"Payment confirmed (Razorpay / admin)"| A_CONF["CONFIRMED<br/>(Ready for Artist)"]
         C_PLACE -->|"Customer cancels"| CANCEL["CANCELLED"]
     end
 
@@ -319,7 +319,10 @@ stateDiagram-v2
 - Lists all active and past orders placed by the customer.
 - Displays thumbnail of the uploaded reference photo.
 - Color-coded status badge and creation timestamp.
-- Direct link to view/download high-resolution final portrait once `COMPLETED`.
+- Dynamic progress stepper with customer-friendly labels for each lifecycle stage.
+- Shows courier partner, tracking number, estimated delivery and admin dispatch notes once assigned.
+- Tracking links are only rendered for known carriers and safe HTTP(S) URLs; otherwise the tracking number is shown as plain text.
+- Direct link to view/download the high-resolution final portrait and comparison collage once `COMPLETED`.
 
 
 ---
@@ -358,12 +361,14 @@ The platform includes a dedicated **Admin Dashboard** ([`AdminPage.tsx`](file://
 - **Rejection**: `POST /api/admin/reject-artist/:id` sets review state to `REJECTED` with mandatory constructive feedback.
 
 ### 10.3 Order Management & Assignment
-- **Endpoint**: `GET /api/v1/admin/orders` &mdash; Lists all orders across all customers with status filtering (`ALL`, `PLACED`, `CONFIRMED`, `ASSIGNED_ARTIST`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`).
+- **Endpoint**: `GET /api/v1/admin/orders` &mdash; Lists all orders across all customers with status filtering (`ALL`, `PLACED`, `CONFIRMED`, `ASSIGNED_ARTIST`, `IN_PROGRESS`, `COMPLETED`, `ASSIGNED_DELIVERY_AGENT`, `IN_TRANSIT`, `OUT_FOR_DELIVERY`, `DELIVERY_FAILED`, `DELIVERED`, `PUBLISHED`, `CANCELLED`).
 - **Assign to Verified Artist**: One-click dropdown modal selecting from verified artists (`GET /api/v1/artists/verified`) and assigning via `POST /api/v1/orders/:id/assign`.
 - **Status Lifecycle Control**:
   - `Confirm Order`: Transitions `PLACED` &rarr; `CONFIRMED`.
   - `Start Drawing`: Transitions `CONFIRMED`/`ASSIGNED_ARTIST` &rarr; `IN_PROGRESS`.
-  - `Complete & Publish`: Submits `final_image_url` and transitions order to `COMPLETED`, **automatically publishing the artwork to the public gallery**.
+  - `Complete Artwork`: Submits `final_image_url` and transitions order to `COMPLETED`; the comparison collage is generated but remains private until an admin confirms publication.
+  - `Assign Delivery`: Selects an active delivery agent and optionally records courier partner, tracking number, estimated delivery and dispatch notes.
+  - `Confirm Gallery`: After delivery, publishes the collage with `is_published_to_gallery = TRUE`.
   - `Cancel Order`: Transitions order to `CANCELLED`.
 - **Audit Logging**: Every status transition automatically writes a record into `order_status_logs`.
 
@@ -373,20 +378,31 @@ The platform includes a dedicated **Admin Dashboard** ([`AdminPage.tsx`](file://
 
 ## 11. Payments & Checkout Integration
 
-### 11.1 Architecture
-The platform is designed to support **Stripe Checkout**:
-- `POST /api/v1/orders/:id/checkout` initiates a checkout session.
-- Stored in the `payments` table with `order_id`, `stripe_session_id`, `amount`, and `status`.
+### 11.1 Provider Modes
+`PAYMENT_PROVIDER` selects how a `PLACED` order is paid:
 
-### 11.2 Development Mode (Mock Checkout)
-When `STRIPE_SECRET_KEY` is not set in `.env`:
-- The backend generates a deterministic session ID (`dev_session_<order_id>`).
-- Automatically routes the customer to the success URL (`/order/success?order_id=...`).
-- Allows complete end-to-end testing of customer ordering without third-party API dependencies.
+| Mode | Configuration | Behaviour |
+| :--- | :--- | :--- |
+| **Manual** (default) | `PAYMENT_PROVIDER=manual` | Returns a mock `checkout_url` and records a local payment. No money moves; the order stays `PLACED` until an admin confirms it. |
+| **Razorpay test** | `razorpay`, `PAYMENTS_LIVE=false`, `rzp_test_...` keys + webhook secret | Opens Razorpay Checkout.js. Test cards/UPI move no real money and need no KYC. |
+| **Razorpay live** | `razorpay`, `PAYMENTS_LIVE=true`, `rzp_live_...` keys | Charges real money. Requires KYC and a public HTTPS webhook; localhost/portable is not suitable. |
 
-### 11.3 Production Stripe Webhook
-- Endpoint: `POST /webhooks/stripe`
-- Listens for `checkout.session.completed` events, verifies Stripe signatures, and automatically transitions orders to `CONFIRMED`.
+The server refuses unsafe combinations, requires a webhook secret, enforces `PAYMENT_MIN_AMOUNT`/`PAYMENT_MAX_AMOUNT`, and computes the gateway amount from `orders.total_price` — the client never sends the amount.
+
+### 11.2 Checkout
+- `POST /api/v1/orders/:id/checkout` starts payment for an order in `PLACED`.
+- **Manual:** returns `dev_session_<order_id>` and the success URL; no third-party dependency.
+- **Razorpay:** returns the key, Razorpay order ID, local payment ID and amount for Checkout.js.
+- Manual confirmation: `POST /api/v1/orders/:id/confirm-payment` (ADMIN only) moves `PLACED -> CONFIRMED`.
+
+### 11.3 Verification & Webhooks
+- `POST /api/v1/payments/verify` verifies the browser signature and confirms the order.
+- `POST /webhooks/razorpay` verifies `X-Razorpay-Signature` against the **raw body** and handles `payment.captured`, `order.paid`, `payment.failed`, `refund.created` and `refund.processed`.
+- Duplicate `X-Razorpay-Event-Id` values are ignored via the `payment_events` table; webhook processing is idempotent.
+
+### 11.4 Refunds
+- `POST /api/v1/admin/orders/:id/refund` issues a **full** refund for a captured Razorpay payment; manual payments return `400`.
+- In live mode this moves real money.
 
 ---
 
@@ -458,11 +474,28 @@ erDiagram
     }
 
     payments {
-        uuid id PK
+        uuid payment_id PK
         uuid order_id FK
-        varchar stripe_session_id UK
+        varchar provider
+        varchar provider_order_id
+        varchar provider_payment_id
+        varchar stripe_session_id
         numeric amount
+        varchar currency
         varchar status
+        text failure_reason
+        jsonb raw_payload
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    payment_events {
+        text event_id PK
+        varchar provider
+        text event_type
+        jsonb payload
+        timestamptz received_at
+        timestamptz processed_at
     }
 ```
 
@@ -477,11 +510,15 @@ erDiagram
 | `005` | `log_order_status_change` | Creates `order_status_logs` audit trail table for tracking all lifecycle transitions. |
 | `006` | `update_user_name` | Name formatting and constraint adjustments. |
 | `007` | `calculate_order_total_price` | Dynamic pricing calculation functions. |
-| `008` | `payments_and_order_notes` | Adds `payments` table, `notes` column to orders, and unique Stripe session index. |
+| `008` | `payments_and_order_notes` | Adds `payments` table, `customer_notes` column to orders, and the legacy Stripe session field. |
 | `009` | `restore_orders_timestamp_defaults` | Restores `DEFAULT NOW()` for `created_at` and `updated_at` on orders. |
 | `010` | `add_collage_and_gallery_confirmation` | Adds `collage_image_url`, `original_final_image_url`, and `is_published_to_gallery` confirmation flag to `orders`. |
 | `011` | `add_delivery_transit_and_retry` | Adds `delivery_agent_id` foreign key, `DELIVERY_AGENT` user role, courier transit statuses (`IN_TRANSIT`, `DELIVERY_FAILED`), `delivery_attempts` counter, and `delivery_failure_reason`. |
 | `012` | `add_published_order_status` | Extends PostgreSQL `order_status` enum to include `PUBLISHED` status. |
+| `013` | `add_user_sessions_and_optimistic_locking` | Adds `user_sessions`, `orders.version` and `api_idempotency_keys`. |
+| `014` | `create_outbox_events` | Adds the transactional `outbox_events` table for reliable event dispatch. |
+| `015` | `add_logistics_and_customer_reviews` | Adds courier partner, tracking number, estimated delivery, dispatch notes, and verified customer reviews. |
+| `016` | `payment_providers_and_webhook_events` | Adds provider-neutral payment fields and the idempotent `payment_events` log. |
 
 ---
 
@@ -501,5 +538,6 @@ erDiagram
 - [x] **Doorstep Delivery Tracking** (Assignment, transit, failure logs with attempt retry, and delivery handover)
 - [x] **Public Gallery Confirmation Gate** (Admin confirms and promotes delivered collages to public gallery)
 - [x] **Dual Storage Engine** (Local disk fallback and S3/MinIO cloud support)
-- [x] **Embedded Auto-Migrations** (001 to 012 run automatically on server boot)
+- [x] **Payments** (Manual admin confirmation, Razorpay test/live checkout, signed webhook, full refunds)
+- [x] **Embedded Auto-Migrations** (001 to 016 run automatically on server boot)
 - [x] **Interactive Swagger Docs** (Available at `/swagger/index.html`)

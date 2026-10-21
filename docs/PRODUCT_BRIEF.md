@@ -22,7 +22,7 @@ See the canonical brief in project planning docs. Stack: **Go (Gin)**, **React (
 | **Gallery UI & Aspect Ratio** | ✅ Complete | 1:1 square artwork preview cards preventing horizontal clipping and preserving corner reference photos |
 | **Guest to Order Auth Flow** | ✅ Complete | Guests can explore categorized artwork; checkout initiates seamless redirection to Login/Register |
 | **Multi-Role Dashboards** | ✅ Complete | Customer live timeline tracking, Artist commission workbench, Courier transit portal, Admin management hub |
-| **Payments (Stripe)** | 🔄 Configured | Dev mock sessions and Stripe webhook stub; live webhook ready for keys |
+| **Payments (Manual + Razorpay)** | ✅ Complete | Manual admin-confirmed checkout (portable default), Razorpay test/live checkout, signed idempotent webhook, full refunds, and safety guards |
 | **Docker Compose** | ✅ Complete | PostgreSQL 16 container service with persistent volume |
 
 ---

@@ -431,6 +431,197 @@ func (r *Repository) MarkPaymentPaid(ctx context.Context, sessionID string) (uui
 	return orderID, nil
 }
 
+/* =========================================================================
+   Provider payments (manual / Razorpay)
+   ========================================================================= */
+
+// PaymentRecord is the provider-agnostic view of a row in payments.
+type PaymentRecord struct {
+	PaymentID         uuid.UUID `json:"payment_id"`
+	OrderID           uuid.UUID `json:"order_id"`
+	Provider          string    `json:"provider"`
+	ProviderOrderID   *string   `json:"provider_order_id,omitempty"`
+	ProviderPaymentID *string   `json:"provider_payment_id,omitempty"`
+	Status            string    `json:"status"`
+	Amount            float64   `json:"amount"`
+	Currency          string    `json:"currency"`
+	FailureReason     *string   `json:"failure_reason,omitempty"`
+	CreatedAt         time.Time `json:"created_at"`
+	UpdatedAt         time.Time `json:"updated_at"`
+}
+
+const paymentColumns = `
+	payment_id, order_id, provider, provider_order_id, provider_payment_id,
+	status, amount, currency, failure_reason, created_at, updated_at
+`
+
+func scanPayment(row pgx.Row) (*PaymentRecord, error) {
+	var p PaymentRecord
+	err := row.Scan(
+		&p.PaymentID, &p.OrderID, &p.Provider, &p.ProviderOrderID, &p.ProviderPaymentID,
+		&p.Status, &p.Amount, &p.Currency, &p.FailureReason, &p.CreatedAt, &p.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &p, nil
+}
+
+func jsonArg(raw []byte) any {
+	if len(strings.TrimSpace(string(raw))) == 0 {
+		return nil
+	}
+	return string(raw)
+}
+
+// InsertProviderPayment records a pending payment. The provider order id is
+// also written to stripe_session_id for backwards compatibility with the
+// original schema (the column is unique and NOT NULL-free).
+func (r *Repository) InsertProviderPayment(ctx context.Context, orderID uuid.UUID, provider, providerOrderID string, amount float64, currency string, raw []byte) (*PaymentRecord, error) {
+	row := r.pool.QueryRow(ctx, `
+		INSERT INTO payments (order_id, stripe_session_id, provider, provider_order_id, status, amount, currency, raw_payload)
+		VALUES ($1, $2, $3, $2, 'pending', $4, $5, $6::jsonb)
+		ON CONFLICT (stripe_session_id) DO UPDATE SET updated_at = payments.updated_at
+		RETURNING `+paymentColumns,
+		orderID, providerOrderID, provider, amount, currency, jsonArg(raw))
+	return scanPayment(row)
+}
+
+func (r *Repository) GetPendingProviderPayment(ctx context.Context, orderID uuid.UUID, provider string) (*PaymentRecord, error) {
+	row := r.pool.QueryRow(ctx, `
+		SELECT `+paymentColumns+`
+		FROM payments
+		WHERE order_id = $1 AND provider = $2 AND status = 'pending'
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, orderID, provider)
+	p, err := scanPayment(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrPaymentNotFound
+		}
+		return nil, err
+	}
+	return p, nil
+}
+
+func (r *Repository) GetPaymentByOrder(ctx context.Context, orderID uuid.UUID) (*PaymentRecord, error) {
+	row := r.pool.QueryRow(ctx, `
+		SELECT `+paymentColumns+`
+		FROM payments
+		WHERE order_id = $1
+		ORDER BY created_at DESC
+		LIMIT 1
+	`, orderID)
+	p, err := scanPayment(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrPaymentNotFound
+		}
+		return nil, err
+	}
+	return p, nil
+}
+
+func (r *Repository) GetPaymentByProviderOrder(ctx context.Context, provider, providerOrderID string) (*PaymentRecord, error) {
+	row := r.pool.QueryRow(ctx, `
+		SELECT `+paymentColumns+`
+		FROM payments
+		WHERE provider = $1 AND provider_order_id = $2
+		LIMIT 1
+	`, provider, providerOrderID)
+	p, err := scanPayment(row)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrPaymentNotFound
+		}
+		return nil, err
+	}
+	return p, nil
+}
+
+// MarkPaymentPaidByProviderOrder flips a pending payment to paid. It returns
+// the owning order and whether the row actually changed (false = already paid,
+// which makes webhook replays idempotent).
+func (r *Repository) MarkPaymentPaidByProviderOrder(ctx context.Context, provider, providerOrderID, providerPaymentID string, raw []byte) (uuid.UUID, bool, error) {
+	var orderID uuid.UUID
+	err := r.pool.QueryRow(ctx, `
+		UPDATE payments SET
+			status = 'paid',
+			provider_payment_id = COALESCE(NULLIF($3, ''), provider_payment_id),
+			raw_payload = COALESCE($4::jsonb, raw_payload),
+			updated_at = NOW()
+		WHERE provider = $1 AND provider_order_id = $2 AND status = 'pending'
+		RETURNING order_id
+	`, provider, providerOrderID, providerPaymentID, jsonArg(raw)).Scan(&orderID)
+	if err == nil {
+		return orderID, true, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, false, err
+	}
+
+	// Already processed (duplicate webhook / verify-after-webhook): return the
+	// order so the caller can answer idempotently.
+	err = r.pool.QueryRow(ctx, `
+		SELECT order_id FROM payments
+		WHERE provider = $1 AND provider_order_id = $2
+	`, provider, providerOrderID).Scan(&orderID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, false, ErrPaymentNotFound
+		}
+		return uuid.Nil, false, err
+	}
+	return orderID, false, nil
+}
+
+func (r *Repository) MarkPaymentFailedByProviderOrder(ctx context.Context, provider, providerOrderID, reason string, raw []byte) error {
+	_, err := r.pool.Exec(ctx, `
+		UPDATE payments SET
+			status = 'failed',
+			failure_reason = $3,
+			raw_payload = COALESCE($4::jsonb, raw_payload),
+			updated_at = NOW()
+		WHERE provider = $1 AND provider_order_id = $2 AND status = 'pending'
+	`, provider, providerOrderID, reason, jsonArg(raw))
+	return err
+}
+
+func (r *Repository) MarkRefundedByProviderPayment(ctx context.Context, provider, providerPaymentID string, raw []byte) (uuid.UUID, error) {
+	var orderID uuid.UUID
+	err := r.pool.QueryRow(ctx, `
+		UPDATE payments SET
+			status = 'refunded',
+			raw_payload = COALESCE($3::jsonb, raw_payload),
+			updated_at = NOW()
+		WHERE provider = $1 AND provider_payment_id = $2
+		RETURNING order_id
+	`, provider, providerPaymentID, jsonArg(raw)).Scan(&orderID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, ErrPaymentNotFound
+		}
+		return uuid.Nil, err
+	}
+	return orderID, nil
+}
+
+func (r *Repository) PaymentEventExists(ctx context.Context, eventID string) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM payment_events WHERE event_id = $1)`, eventID).Scan(&exists)
+	return exists, err
+}
+
+func (r *Repository) RecordPaymentEvent(ctx context.Context, eventID, provider, eventType string, raw []byte) error {
+	_, err := r.pool.Exec(ctx, `
+		INSERT INTO payment_events (event_id, provider, event_type, payload, processed_at)
+		VALUES ($1, $2, $3, $4::jsonb, NOW())
+		ON CONFLICT (event_id) DO NOTHING
+	`, eventID, provider, eventType, jsonArg(raw))
+	return err
+}
+
 func (r *Repository) scanOrder(row pgx.Row) (*Order, error) {
 	var o Order
 	var artistID *uuid.UUID
@@ -687,7 +878,12 @@ func (r *Repository) AssignDeliveryAgent(ctx context.Context, orderID uuid.UUID,
 	row := r.pool.QueryRow(ctx, `
 		UPDATE orders SET
 			delivery_agent_id = $2,
-			status = 'ASSIGNED_DELIVERY_AGENT'::order_status,
+			-- Swapping couriers mid-flight must not rewind the customer-visible
+			-- status. Only (re)assignment before pickup resets it.
+			status = CASE
+				WHEN status IN ('IN_TRANSIT', 'OUT_FOR_DELIVERY') THEN status
+				ELSE 'ASSIGNED_DELIVERY_AGENT'::order_status
+			END,
 			version = version + 1,
 			updated_at = NOW(),
 			updated_by = $3

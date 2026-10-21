@@ -380,7 +380,8 @@ func (s *Service) AssignDeliveryAgent(ctx context.Context, orderID uuid.UUID, ac
 	if err != nil {
 		return nil, err
 	}
-	if o.Status != StatusCompleted && o.Status != StatusAssignedDeliveryAgent && o.Status != StatusInTransit && o.Status != StatusDeliveryFailed {
+	if o.Status != StatusCompleted && o.Status != StatusAssignedDeliveryAgent && o.Status != StatusInTransit &&
+		o.Status != StatusOutForDelivery && o.Status != StatusDeliveryFailed {
 		return nil, errors.New("only completed or in-delivery orders can be assigned a delivery partner")
 	}
 
@@ -452,6 +453,80 @@ func (s *Service) ConfirmPaid(ctx context.Context, sessionID string, systemUserI
 		"version":    updated.Version,
 	})
 	return updated, nil
+}
+
+// ---------------------------------------------------------------------------
+// Provider payments (manual / Razorpay)
+// ---------------------------------------------------------------------------
+
+func (s *Service) RecordProviderPayment(ctx context.Context, orderID uuid.UUID, provider, providerOrderID string, amount float64, currency string, raw []byte) (*PaymentRecord, error) {
+	return s.repo.InsertProviderPayment(ctx, orderID, provider, providerOrderID, amount, currency, raw)
+}
+
+func (s *Service) PendingProviderPayment(ctx context.Context, orderID uuid.UUID, provider string) (*PaymentRecord, error) {
+	return s.repo.GetPendingProviderPayment(ctx, orderID, provider)
+}
+
+func (s *Service) PaymentForOrder(ctx context.Context, orderID uuid.UUID) (*PaymentRecord, error) {
+	return s.repo.GetPaymentByOrder(ctx, orderID)
+}
+
+func (s *Service) PaymentByProviderOrder(ctx context.Context, provider, providerOrderID string) (*PaymentRecord, error) {
+	return s.repo.GetPaymentByProviderOrder(ctx, provider, providerOrderID)
+}
+
+// ConfirmProviderPayment marks the payment as paid and moves a PLACED order to
+// CONFIRMED. It is idempotent: duplicate webhooks return the current order.
+func (s *Service) ConfirmProviderPayment(ctx context.Context, provider, providerOrderID, providerPaymentID string, raw []byte) (*Order, error) {
+	orderID, _, err := s.repo.MarkPaymentPaidByProviderOrder(ctx, provider, providerOrderID, providerPaymentID, raw)
+	if err != nil {
+		return nil, err
+	}
+
+	o, err := s.repo.GetByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Only PLACED orders are confirmed. Anything further along (or cancelled)
+	// is left untouched so a late webhook cannot rewind the workflow.
+	if o.Status != StatusPlaced {
+		return o, nil
+	}
+
+	// There is no interactive user in a webhook; attribute the transition to the
+	// customer so orders.updated_by stays a valid FK and the history is readable.
+	updated, err := s.repo.UpdateStatus(ctx, orderID, StatusConfirmed, o.UserID, nil, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	s.emitEvent(ctx, updated.OrderID.String(), events.EventOrderConfirmed, map[string]interface{}{
+		"order_id":     updated.OrderID.String(),
+		"provider":     provider,
+		"payment_id":   providerPaymentID,
+		"order_ref":    providerOrderID,
+		"status":       string(updated.Status),
+		"version":      updated.Version,
+		"payment_mode": "gateway",
+	})
+	return updated, nil
+}
+
+func (s *Service) FailProviderPayment(ctx context.Context, provider, providerOrderID, reason string, raw []byte) error {
+	return s.repo.MarkPaymentFailedByProviderOrder(ctx, provider, providerOrderID, reason, raw)
+}
+
+func (s *Service) MarkPaymentRefunded(ctx context.Context, provider, providerPaymentID string, raw []byte) (uuid.UUID, error) {
+	return s.repo.MarkRefundedByProviderPayment(ctx, provider, providerPaymentID, raw)
+}
+
+func (s *Service) PaymentEventExists(ctx context.Context, eventID string) (bool, error) {
+	return s.repo.PaymentEventExists(ctx, eventID)
+}
+
+func (s *Service) RecordPaymentEvent(ctx context.Context, eventID, provider, eventType string, raw []byte) error {
+	return s.repo.RecordPaymentEvent(ctx, eventID, provider, eventType, raw)
 }
 
 func canTransition(role string, from, to OrderStatus) bool {

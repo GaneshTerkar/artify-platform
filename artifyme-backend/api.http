@@ -132,6 +132,30 @@ GET {{baseUrl}}/api/v1/products
 ### Dynamic Price Estimation
 GET {{baseUrl}}/api/v1/products/price/estimate?medium=PENCIL&size=A3&faces=2
 
+### Razorpay Webhook (signed; test locally only)
+# Localhost cannot receive real Razorpay deliveries. For a local test, replace
+# the signature with HMAC-SHA256(raw body, RAZORPAY_WEBHOOK_SECRET) in hex.
+POST {{baseUrl}}/webhooks/razorpay
+Content-Type: application/json
+X-Razorpay-Signature: <HMAC_SHA256_HEX>
+X-Razorpay-Event-Id: evt_local_test_1
+
+{
+  "event": "payment.captured",
+  "payload": {
+    "payment": {
+      "entity": {
+        "id": "pay_REPLACE_ME",
+        "order_id": "order_REPLACE_ME",
+        "amount": 450000,
+        "currency": "INR",
+        "status": "captured",
+        "method": "card"
+      }
+    }
+  }
+}
+
 
 ### ====================================================================
 ### 3. CUSTOMER APIS (Requires CUSTOMER Token)
@@ -165,6 +189,36 @@ Authorization: Bearer {{customerToken}}
 ### Get Specific Order
 GET {{baseUrl}}/api/v1/orders/{{orderId}}
 Authorization: Bearer {{customerToken}}
+
+
+### ====================================================================
+### 3b. PAYMENTS (mode is set by the SERVER, not the client)
+### ====================================================================
+# PAYMENT_PROVIDER=manual (portable default): mock checkout, no money moves;
+# an admin confirms with "Confirm Manual Payment" in section 5.
+# PAYMENT_PROVIDER=razorpay + PAYMENTS_LIVE=false + rzp_test_... keys:
+# Razorpay test mode; test cards/UPI move no real money.
+# PAYMENT_PROVIDER=razorpay + PAYMENTS_LIVE=true + rzp_live_... keys:
+# real money; requires KYC and a public HTTPS webhook.
+# The order must be PLACED. Amount is computed server-side.
+
+### Start Checkout (manual mock or create Razorpay order)
+# @name checkout
+POST {{baseUrl}}/api/v1/orders/{{orderId}}/checkout
+Authorization: Bearer {{customerToken}}
+
+### Verify Razorpay Payment (Razorpay mode only, after Checkout.js success)
+# Copy razorpay_order_id from the checkout response and the payment id +
+# signature from the Checkout.js handler (or Razorpay test dashboard).
+POST {{baseUrl}}/api/v1/payments/verify
+Authorization: Bearer {{customerToken}}
+Content-Type: application/json
+
+{
+  "razorpay_order_id": "<RAZORPAY_ORDER_ID>",
+  "razorpay_payment_id": "<RAZORPAY_PAYMENT_ID>",
+  "razorpay_signature": "<RAZORPAY_SIGNATURE>"
+}
 
 
 ### ====================================================================
@@ -223,6 +277,12 @@ Authorization: Bearer {{adminToken}}
 GET {{baseUrl}}/api/v1/admin/orders
 Authorization: Bearer {{adminToken}}
 
+### Confirm Manual Payment (PLACED -> CONFIRMED)
+# Manual mode only. In Razorpay mode the webhook or /payments/verify confirms
+# automatically; this endpoint remains the admin fallback.
+POST {{baseUrl}}/api/v1/orders/{{orderId}}/confirm-payment
+Authorization: Bearer {{adminToken}}
+
 ### Assign Customer Order to a Verified Artist
 POST {{baseUrl}}/api/v1/orders/{{orderId}}/assign
 Authorization: Bearer {{adminToken}}
@@ -266,6 +326,24 @@ Content-Type: application/json
 
 {
   "delivery_agent_id": "c0a80123-4567-89ab-cdef-0123456789ab"
+}
+
+# Re-assigning while the order is already IN_TRANSIT or OUT_FOR_DELIVERY
+# changes only the courier and preserves the customer-visible status.
+
+### Admin Updates Logistics / Tracking
+# Does not change the order status. Customers see these values in My Orders.
+# Tracking buttons are generated for Blue Dart, Delhivery and DTDC only;
+# other couriers show the AWB without a fabricated link.
+PATCH {{baseUrl}}/api/v1/admin/orders/{{orderId}}/logistics
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "courier_partner": "Blue Dart",
+  "tracking_number": "BD123456789IN",
+  "estimated_delivery_at": "2026-10-25T10:00:00Z",
+  "admin_dispatch_notes": "Handle the artwork with care."
 }
 
 ### Delivery Agent Views Assigned Parcels
@@ -315,6 +393,17 @@ Content-Type: application/json
 
 ### Admin Confirms Artwork & Publishes to Public Gallery
 POST {{baseUrl}}/api/v1/admin/orders/{{orderId}}/confirm-gallery
+Authorization: Bearer {{adminToken}}
+
+
+### --------------------------------------------------------------------
+### 5d. REFUNDS (Razorpay only)
+### --------------------------------------------------------------------
+
+### Refund a Captured Razorpay Payment (full refund)
+# The order must have a PAID Razorpay payment. Manual payments return 400.
+# Live mode moves real money. Partial refunds are not supported.
+POST {{baseUrl}}/api/v1/admin/orders/{{orderId}}/refund
 Authorization: Bearer {{adminToken}}
 
 

@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useSearchParams } from "react-router-dom";
 import { api, API_URL } from "../lib/api";
+import { startCheckout } from "../lib/payments";
 import { useAuth } from "../lib/auth";
 import PhotoUploader from "../components/PhotoUploader";
 import { CollageThumbnail } from "../components/CollageThumbnail";
@@ -220,12 +221,16 @@ export default function AccountPage() {
 
   // 4. Customer Checkout Mutation (Pay Now)
   const checkoutMutation = useMutation({
-    mutationFn: (orderId: string) =>
-      api<{ checkout_url: string }>(`/api/v1/orders/${orderId}/checkout`, {
-        method: "POST",
-      }),
-    onSuccess: (res) => {
-      window.location.href = res.checkout_url;
+    mutationFn: async (orderId: string) => ({
+      orderId,
+      result: await startCheckout(orderId),
+    }),
+    onSuccess: ({ orderId, result }) => {
+      if (result.status === "paid") {
+        window.location.href = `/order/success?order_id=${orderId}`;
+      } else if (result.status === "dismissed") {
+        showMessage("Payment window closed before completion.", "error");
+      }
     },
     onError: (err: Error) => showMessage(err.message, "error"),
   });

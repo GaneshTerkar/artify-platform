@@ -268,22 +268,8 @@ func (h *Handler) Checkout(c *gin.Context) {
 		return
 	}
 
-	checkoutURL, sessionID, err := h.createCheckoutSession(o)
-	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": err.Error()})
-		return
-	}
-
-	if sessionID != "" {
-		_ = h.service.RecordPendingPayment(c.Request.Context(), o.OrderID, sessionID, o.TotalPrice, "INR")
-	}
-
-	c.JSON(http.StatusOK, gin.H{
-		"checkout_url": checkoutURL,
-		"session_id":   sessionID,
-		"amount":       o.TotalPrice,
-		"currency":     "INR",
-	})
+	// Provider-specific checkout (manual mock or Razorpay).
+	h.startCheckout(c, o)
 }
 
 func (h *Handler) ConfirmPayment(c *gin.Context) {

@@ -232,6 +232,7 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, worke
 		v1Auth.GET("/orders/:id", orderHandler.GetOrder)
 		v1Auth.PATCH("/orders/:id", orderHandler.PatchOrder)
 		v1Auth.POST("/orders/:id/checkout", orderHandler.Checkout)
+		v1Auth.POST("/payments/verify", orderHandler.VerifyPayment)
 		v1Auth.POST("/orders/:id/confirm-payment", orderHandler.ConfirmPayment)
 		v1Auth.POST("/orders/:id/assign", orderHandler.AssignOrder)
 		v1Auth.PATCH("/orders/:id/status", orderHandler.UpdateOrderStatus)
@@ -249,6 +250,7 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, worke
 		v1Admin.PATCH("/orders/:id/logistics", orderHandler.AdminUpdateLogistics)
 		v1Admin.POST("/orders/:id/confirm-gallery", orderHandler.AdminConfirmGalleryPublish)
 		v1Admin.POST("/orders/:id/assign-delivery", orderHandler.AssignDeliveryAgent)
+		v1Admin.POST("/orders/:id/refund", orderHandler.AdminRefundPayment)
 		v1Admin.GET("/delivery-agents", orderHandler.ListActiveDeliveryAgents)
 		v1Admin.GET("/users", orderHandler.AdminListUsers)
 		v1Admin.PATCH("/users/:id/status", orderHandler.AdminUpdateUserStatus)
@@ -262,5 +264,6 @@ func RegisterRoutes(r *gin.Engine, pool *pgxpool.Pool, cfg *config.Config, worke
 	}
 
 	r.POST("/webhooks/stripe", orderHandler.StripeWebhook)
+	r.POST("/webhooks/razorpay", orderHandler.RazorpayWebhook)
 
 }

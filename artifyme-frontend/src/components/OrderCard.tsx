@@ -8,8 +8,8 @@ function resolveImage(url?: string): string {
   return url.startsWith("http") ? url : `${API_URL}${url.startsWith("/") ? "" : "/"}${url}`;
 }
 
-export function getCarrierTrackingUrl(carrier?: string, trackingNumber?: string): string {
-  if (!trackingNumber) return "#";
+export function getCarrierTrackingUrl(carrier?: string, trackingNumber?: string): string | null {
+  if (!trackingNumber) return null;
   const norm = (carrier || "").toLowerCase();
   const enc = encodeURIComponent(trackingNumber.trim());
   if (norm.includes("blue dart") || norm.includes("bluedart")) {
@@ -21,7 +21,9 @@ export function getCarrierTrackingUrl(carrier?: string, trackingNumber?: string)
   if (norm.includes("dtdc")) {
     return `https://www.dtdc.in/tracking/shipment-tracking.asp?strCnno=${enc}`;
   }
-  return `https://track.courier.com/${enc}`;
+  // Unknown / in-house courier: no reliable public tracking URL exists, so we
+  // do not fabricate one. The AWB is still shown to the customer.
+  return null;
 }
 
 export function getOrderStatusBadge(status: string): string {
@@ -50,6 +52,37 @@ export function getOrderStatusBadge(status: string): string {
       return "bg-rose-500/20 text-rose-400 border-rose-500/40";
     default:
       return "bg-slate-700/50 text-slate-300 border-slate-600";
+  }
+}
+
+export function getOrderStatusLabel(status: string): string {
+  switch (status) {
+    case "PLACED":
+      return "Awaiting Payment";
+    case "CONFIRMED":
+      return "Payment Confirmed";
+    case "ASSIGNED_ARTIST":
+      return "Artist Assigned";
+    case "IN_PROGRESS":
+      return "In Progress";
+    case "COMPLETED":
+      return "Artwork Completed";
+    case "ASSIGNED_DELIVERY_AGENT":
+      return "Delivery Partner Assigned";
+    case "IN_TRANSIT":
+      return "In Transit";
+    case "OUT_FOR_DELIVERY":
+      return "Out for Delivery";
+    case "DELIVERY_FAILED":
+      return "Delivery Failed";
+    case "DELIVERED":
+      return "Delivered";
+    case "PUBLISHED":
+      return "Published to Gallery";
+    case "CANCELLED":
+      return "Cancelled";
+    default:
+      return status.replaceAll("_", " ");
   }
 }
 
@@ -158,6 +191,16 @@ export const OrderCard: React.FC<OrderCardProps> = ({
   const deliveryAgentName = assignedDeliveryAgent?.full_name || order.delivery_agent_name || (order.delivery_agent_id ? `ID: ${order.delivery_agent_id.slice(0, 8)}` : undefined);
   const deliveryAgentPhone = order.delivery_agent_phone || (assignedDeliveryAgent as any)?.phone_number;
 
+  const trackingUrl = getCarrierTrackingUrl(order.courier_partner, order.tracking_number);
+  const deliveryStepLabel =
+    order.status === "ASSIGNED_DELIVERY_AGENT"
+      ? "Courier Assigned"
+      : order.status === "IN_TRANSIT"
+      ? "In Transit"
+      : order.status === "DELIVERY_FAILED"
+      ? "Delivery Failed"
+      : "Out for Delivery";
+
   const customerName = order.customer_name || (role === "CUSTOMER" && currentUserName ? currentUserName : undefined);
   const customerPhone = order.customer_phone;
 
@@ -187,7 +230,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
             >
               {role === "ARTIST" && order.status === "COMPLETED"
                 ? "Collage Processing"
-                : order.status.replaceAll("_", " ")}
+                : getOrderStatusLabel(order.status)}
             </span>
           )}
           <span className="rounded-md bg-slate-800 border border-slate-700/70 px-2 py-0.5 text-xs font-medium text-slate-300">
@@ -374,14 +417,17 @@ export const OrderCard: React.FC<OrderCardProps> = ({
                 <span>{order.courier_partner || "Courier"}:</span>
               </span>
               <span className="font-mono text-white font-bold">{order.tracking_number}</span>
+              {!trackingUrl && (
+                <span className="text-[11px] text-slate-400">Use this AWB on the courier's website</span>
+              )}
               <a
-                href={getCarrierTrackingUrl(order.courier_partner, order.tracking_number)}
+                href={trackingUrl ?? "#"}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-300 hover:text-white bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-400/40 rounded-md px-2 py-0.5 transition shadow-sm ml-1"
+                className={`inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-300 hover:text-white bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-400/40 rounded-md px-2 py-0.5 transition shadow-sm ml-1 ${trackingUrl ? "" : "hidden"}`}
                 title="Open live shipment tracking portal"
               >
-                <span>Live Tracking</span>
+                <span>Track Shipment</span>
                 <span>↗</span>
               </a>
               {order.estimated_delivery_at && (
@@ -414,7 +460,7 @@ export const OrderCard: React.FC<OrderCardProps> = ({
               { step: 1, label: "Placed & Paid", icon: "✓" },
               { step: 2, label: "Artist Assigned", icon: "🎨" },
               { step: 3, label: "Painting Studio", icon: "🖌️" },
-              { step: 4, label: "Out for Delivery", icon: "🚚" },
+              { step: 4, label: deliveryStepLabel, icon: "🚚" },
               { step: 5, label: "Delivered", icon: "🌟" },
             ].map((m) => {
               const currentStep = getOrderMilestoneStep(order.status);

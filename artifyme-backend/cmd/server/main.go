@@ -54,6 +54,21 @@ func main() {
 	// Load config
 	cfg := config.Load()
 
+	// Payment safety rails: refuse to start on an unsafe provider/key combination.
+	if err := cfg.ValidatePayments(); err != nil {
+		slog.Error("payment configuration invalid", "error", err)
+		panic(err)
+	}
+	if cfg.Payment.Provider == "razorpay" {
+		if cfg.Payment.Live {
+			slog.Warn("LIVE PAYMENTS ENABLED - real money will be charged", "provider", "razorpay", "key_id", cfg.Payment.RazorpayKeyID)
+		} else {
+			slog.Info("Razorpay TEST mode enabled (no real money)", "key_id", cfg.Payment.RazorpayKeyID)
+		}
+	} else {
+		slog.Info("payments running in manual mode (admin confirms PLACED -> CONFIRMED)")
+	}
+
 	// DB connection
 	ctx, cancel := context.WithTimeout(
 		context.Background(),

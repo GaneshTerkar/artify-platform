@@ -23,7 +23,7 @@ const (
 	dbURL      = "postgres://postgres:root@localhost:5432/artifyme?sslmode=disable"
 	baseURL    = "http://localhost:8080"
 	sourcePath = "C:/Users/terka/.gemini/antigravity/brain/03cfeb30-962b-402a-8b51-0405f59db376/.user_uploaded/media_1792263089359_39d2b043.png"
-	bcryptHash = "$2a$12$TmQnbHcozVIcNumYQtmCm.EeNUp7xRi4C4cknj8cY2eEbaaf5FKMu" // Password@123
+	bcryptHash = "$2a$12$TmQnbHcozVIcNumYQtmCm.EeNUp7xRi4C4cknj8cY2eEbaaf5FKMu" // password123
 )
 
 func main() {

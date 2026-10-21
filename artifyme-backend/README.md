@@ -31,11 +31,11 @@ artifyme-backend/
 │   │   │   ├── artists/     # Artist profiles, verification, review queue
 │   │   │   ├── auth/        # Customer/artist registration and login (JWT)
 │   │   │   ├── files/       # File upload handler (Local disk / S3 / MinIO)
-│   │   │   ├── orders/      # Orders, products, dynamic catalog, price estimation, Stripe
+│   │   │   ├── orders/      # Orders, catalog, payments (manual/Razorpay), logistics
 │   │   │   └── users/       # User profile and account management
 │   │   ├── routes/          # Central API route registration
 │   │   └── utils/           # Password hashing, token generation, helpers
-│   ├── migrations/          # SQL migrations 001 to 010 (up & down)
+│   ├── migrations/          # SQL migrations 001 to 016 (up & down)
 │   └── server/
 │       └── main.go          # Server entry point
 ├── docs/                    # Swagger generated API specs (swagger.json, doc.go)
@@ -64,13 +64,18 @@ cp env.example .env
 | `MIGRATIONS_PATH` | No | `cmd/migrations` | Path to SQL migrations directory |
 | `CORS_ALLOWED_ORIGINS`| No | `http://localhost:5173` | Allowed frontend origins (comma-separated) |
 | `JWT_EXPIRES_IN` | No | `24` | Token expiration in hours |
-| `STRIPE_SECRET_KEY` | No | `""` | Stripe secret key (mock checkout when empty) |
-| `STRIPE_SUCCESS_URL` | No | `http://localhost:5173/order/success` | Redirect on payment success |
-| `STRIPE_CANCEL_URL` | No | `http://localhost:5173/order/cancel` | Redirect on payment cancellation |
+| `PAYMENT_PROVIDER` | No | `manual` | `manual` (mock checkout, admin confirms) or `razorpay` |
+| `PAYMENTS_LIVE` | No | `false` | Must be `true` (with `razorpay`) to charge real money |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Razorpay only | `""` | Test keys start with `rzp_test_`, live keys with `rzp_live_` |
+| `RAZORPAY_WEBHOOK_SECRET` | Razorpay only | `""` | Secret used to verify `X-Razorpay-Signature` |
+| `RAZORPAY_API_BASE` | No | `https://api.razorpay.com` | Override for the local test stub |
+| `PAYMENT_MIN_AMOUNT` / `PAYMENT_MAX_AMOUNT` | No | `100` / `200000` | Server-side INR limits for gateway checkout |
+| `STRIPE_SECRET_KEY` | No | `""` | Legacy mock checkout; superseded by `PAYMENT_PROVIDER` |
 | `S3_ENDPOINT` | No | `http://localhost:9000` | S3 / MinIO endpoint |
 | `S3_BUCKET` | No | `artify-uploads` | S3 bucket name |
 | `S3_ACCESS_KEY` | No | `minioadmin` | S3 access key |
 | `S3_SECRET_KEY` | No | `minioadmin` | S3 secret key |
+| `S3_USE_PATH_STYLE` | No | `true` | Use path-style addressing (MinIO compatibility) |
 
 ---
 
@@ -88,11 +93,15 @@ When `cmd/server/main.go` starts, it automatically applies all pending SQL migra
 5. `005_log_order_status_change`: Audit table and triggers for order lifecycle events.
 6. `006_update_user_name`: Name formatting improvements.
 7. `007_calculate_order_total_price`: Dynamic pricing calculations.
-8. `008_payments_and_order_notes`: Payments table, Stripe session tracking, order delivery notes.
+8. `008_payments_and_order_notes`: Payments table, order customer notes, and legacy Stripe session field.
 9. `009_restore_orders_timestamp_defaults`: Restores standard timestamps on orders.
 10. `010_add_collage_and_gallery_confirmation`: Auto-generated comparison collage URLs, original sketch preservation, and `is_published_to_gallery` confirmation flag.
 11. `011_add_delivery_transit_and_retry`: Delivery agent assignment (`delivery_agent_id`), courier transit states (`IN_TRANSIT`, `DELIVERY_FAILED`), attempt counter, and failure reasons.
 12. `012_add_published_order_status`: Extends PostgreSQL `order_status` enum adding `PUBLISHED` status.
+13. `013_add_user_sessions_and_optimistic_locking`: Multi-device sessions, order `version` column, and idempotency keys.
+14. `014_create_outbox_events`: Transactional outbox table for reliable event dispatch.
+15. `015_add_logistics_and_customer_reviews`: Courier partner, tracking number, estimated delivery, dispatch notes, and verified customer reviews.
+16. `016_payment_providers_and_webhook_events`: Provider-neutral payment fields (`provider`, provider order/payment IDs, failure reason, raw payload) and idempotent `payment_events`.
 
 ### Manual Migrations (Optional CLI)
 
@@ -130,6 +139,7 @@ go build -o server.exe ./cmd/server
 
 - **Complete In-Repo Role-Based API Guide**: [`docs/API_DOCUMENTATION.md`](../docs/API_DOCUMENTATION.md) (covers all endpoints, token generation, request/response examples, and role validation).
 - **Executable HTTP Collection**: [`api.http`](api.http) (pre-configured for VS Code REST Client / IntelliJ HTTP Client to execute every endpoint by role with 1 click).
+- **Postman Collection**: [`docs/postman/README.md`](../docs/postman/README.md) (87 requests, automatic token capture, demo-ID sync and signed webhook tests).
 - **Swagger UI**: `http://localhost:8080/swagger/index.html` (public catalog and protected business operations).
 
 
@@ -153,10 +163,18 @@ go build -o server.exe ./cmd/server
 - `POST /api/v1/orders` &mdash; Create customized portrait order
 - `GET /api/v1/orders` &mdash; List authenticated user's orders
 - `GET /api/v1/orders/:id` &mdash; Retrieve order details
-- `POST /api/v1/orders/:id/checkout` &mdash; Initiate checkout session
+- `POST /api/v1/orders/:id/checkout` &mdash; Start manual or Razorpay checkout
+- `POST /api/v1/payments/verify` &mdash; Verify Razorpay browser signature and confirm the order
+
+### Payments & Webhooks
+- `POST /webhooks/razorpay` &mdash; Signed Razorpay webhook; captures, failures and refunds are idempotent
+- `POST /api/v1/orders/:id/confirm-payment` &mdash; Admin-only manual payment confirmation
+- `POST /api/v1/admin/orders/:id/refund` &mdash; Full refund for a captured Razorpay payment
+- `PAYMENT_PROVIDER=manual` requires no gateway; `razorpay` requires the keys/webhook secret above. Live mode also needs `PAYMENTS_LIVE=true` and a public HTTPS webhook.
 
 ### Artist & Admin Routes
 - `GET /api/artist/profile/view` &mdash; Artist profile
 - `GET /api/admin/artists/review-queue` &mdash; Artist verification queue
 - `GET /api/v1/admin/orders` &mdash; Manage customer orders
-- `PATCH /api/v1/admin/orders/:id/status` &mdash; Update order status (`CONFIRMED`, `IN_PROGRESS`, `COMPLETED`)
+- `PATCH /api/v1/admin/orders/:id/status` &mdash; Update order status through the full lifecycle
+- `POST /api/v1/admin/orders/:id/assign-delivery` &mdash; Assign a delivery agent and optional carrier/tracking details

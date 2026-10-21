@@ -23,10 +23,10 @@ This document contains full, executable documentation for all REST API endpoints
 | Role | Permitted Actions |
 | :--- | :--- |
 | **`PUBLIC`** | Browse dynamic gallery, inspect product catalog, estimate custom order pricing. |
-| **`CUSTOMER`** | Upload reference photos, configure and create portrait orders, view personal order history, live delivery tracking, proceed to checkout. |
+| **`CUSTOMER`** | Upload reference photos, configure and create portrait orders, view personal order history, live delivery tracking, checkout with manual mock or Razorpay, verify a Razorpay payment. |
 | **`ARTIST`** | View/update artist profile, submit artwork portfolio, view assigned orders, update order status to `IN_PROGRESS` and `COMPLETED` with finished sketch, assign orders to verified artists. |
 | **`DELIVERY_AGENT`** | View assigned delivery parcels, update parcel transit status (`IN_TRANSIT`, `OUT_FOR_DELIVERY`, `DELIVERED`, `DELIVERY_FAILED` with retry logs), decline assignment back to studio. |
-| **`ADMIN`** | Review artist queue, approve/reject artists, view all customer orders, inspect completed collages, assign artists, assign delivery agents, confirm public gallery publication, manage user roles and statuses. |
+| **`ADMIN`** | Review artist queue, approve/reject artists, view all customer orders, inspect completed collages, assign artists, confirm manual payments, assign delivery agents, update logistics/tracking, refund Razorpay payments, confirm public gallery publication, manage user roles and statuses. |
 
 ---
 
@@ -157,6 +157,36 @@ Calculates estimated price in real-time based on medium, dimensions, and number 
 curl -X GET "http://localhost:8080/api/v1/products/price/estimate?medium=PENCIL&size=A3&faces=2"
 ```
 
+### 4.5 Razorpay Webhook (`POST /webhooks/razorpay`)
+Public endpoint (no JWT), but every request must include a valid `X-Razorpay-Signature` — HMAC-SHA256 of the **raw body** using `RAZORPAY_WEBHOOK_SECRET`. The route is at the server root, **not** under `/api/v1`.
+
+Supported events: `payment.captured`, `order.paid`, `payment.failed`, `refund.created`, `refund.processed`. `payment.authorized` is captured explicitly when auto-capture is disabled. Duplicate `X-Razorpay-Event-Id` values are ignored, and processing is idempotent.
+
+```bash
+curl -X POST http://localhost:8080/webhooks/razorpay \
+  -H "Content-Type: application/json" \
+  -H "X-Razorpay-Signature: <hmac-sha256-hex>" \
+  -H "X-Razorpay-Event-Id: evt_test_1" \
+  -d '{
+    "event": "payment.captured",
+    "payload": {
+      "payment": {
+        "entity": {
+          "id": "pay_...",
+          "order_id": "order_...",
+          "amount": 450000,
+          "currency": "INR",
+          "status": "captured",
+          "method": "card"
+        }
+      }
+    }
+  }'
+```
+
+> [!NOTE]
+> Localhost cannot receive real Razorpay deliveries because Razorpay requires a public HTTPS URL. Use a manually computed signature to test locally; the Postman collection (folder 07) signs the body for you. A `503` means Razorpay is not configured.
+
 ---
 
 ## 5. Customer APIs (`CUSTOMER`)
@@ -213,10 +243,68 @@ curl -X GET http://localhost:8080/api/v1/orders \
 ```
 
 ### 5.5 Checkout Order (`POST /api/v1/orders/:id/checkout`)
+Starts payment for an order in `PLACED`. The **server** chooses the provider from `PAYMENT_PROVIDER`; the client never sends the amount.
+
+| Mode | Required configuration | Behaviour |
+| :--- | :--- | :--- |
+| `manual` (portable default) | `PAYMENT_PROVIDER=manual` | Returns a mock `checkout_url` and records a local payment. **No money moves.** The order stays `PLACED` until an admin confirms it. |
+| `razorpay` test | `PAYMENT_PROVIDER=razorpay`, `PAYMENTS_LIVE=false`, `rzp_test_...` keys and `RAZORPAY_WEBHOOK_SECRET` | Returns the fields for Razorpay Checkout.js. Test cards/UPI move **no real money** and need no KYC. |
+| `razorpay` live | `PAYMENT_PROVIDER=razorpay`, `PAYMENTS_LIVE=true`, `rzp_live_...` keys | **Real money.** Requires KYC and a public HTTPS webhook; the portable/localhost build is not suitable. |
+
 ```bash
 curl -X POST http://localhost:8080/api/v1/orders/<ORDER_ID>/checkout \
   -H "Authorization: Bearer <CUSTOMER_TOKEN>"
 ```
+
+Manual response:
+```json
+{
+  "provider": "manual",
+  "order_id": "...",
+  "amount": 4500,
+  "currency": "INR",
+  "payment_id": "...",
+  "checkout_url": "http://localhost:5173/order/success?order_id=...",
+  "session_id": "dev_session_..."
+}
+```
+
+Razorpay response:
+```json
+{
+  "provider": "razorpay",
+  "order_id": "...",
+  "amount": 4500,
+  "amount_paise": 450000,
+  "currency": "INR",
+  "payment_id": "...",
+  "key_id": "rzp_test_...",
+  "razorpay_order_id": "order_..."
+}
+```
+
+`amount` is computed from `orders.total_price`; gateway checkout enforces `PAYMENT_MIN_AMOUNT`/`PAYMENT_MAX_AMOUNT`. The `payment_id` in the checkout response is the **local payment record**; Razorpay's provider payment ID (`pay_...`) arrives after Checkout.js completes. A `503` means the selected provider is not configured correctly, and the server refuses to start with unsafe combinations (for example a live key while `PAYMENTS_LIVE=false`).
+
+### 5.6 Verify Razorpay Payment (`POST /api/v1/payments/verify`)
+Called by the browser immediately after a successful Razorpay Checkout.js payment. The server verifies the HMAC signature and moves the order `PLACED -> CONFIRMED`. The signed webhook (4.5) is the fallback if the browser never returns.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/payments/verify \
+  -H "Authorization: Bearer <CUSTOMER_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "razorpay_order_id": "order_...",
+    "razorpay_payment_id": "pay_...",
+    "razorpay_signature": "<signature-from-checkout>"
+  }'
+```
+
+Success:
+```json
+{ "status": "paid", "order": { "status": "CONFIRMED" } }
+```
+
+Returns `503` in manual mode, `400` for a bad signature, and `404` if the order/payment does not belong to the caller. Confirmation is idempotent.
 
 ---
 
@@ -396,7 +484,14 @@ curl -X PATCH http://localhost:8080/api/v1/admin/orders/<ORDER_ID>/status \
 > [!NOTE]
 > When an order is transitioned to `COMPLETED`, the system automatically synthesizes a high-resolution side-by-side comparison collage (`collage_image_url`). However, the artwork **remains private** (`is_published_to_gallery = false`) until courier delivery and Admin confirmation.
 
-### 8.6 Assign Delivery Partner (`POST /api/v1/admin/orders/:id/assign-delivery`)
+### 8.6 Confirm Manual Payment (`POST /api/v1/orders/:id/confirm-payment`)
+ADMIN-only fallback for manual mode (`PLACED -> CONFIRMED`). In Razorpay mode the signed webhook or **Verify Razorpay payment** confirms automatically; use this only when a manual payment was received outside the gateway.
+```bash
+curl -X POST http://localhost:8080/api/v1/orders/<ORDER_ID>/confirm-payment \
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
+```
+
+### 8.7 Assign Delivery Partner (`POST /api/v1/admin/orders/:id/assign-delivery`)
 Assigns a verified delivery agent to a completed or in-delivery order.
 ```bash
 curl -X POST http://localhost:8080/api/v1/admin/orders/<ORDER_ID>/assign-delivery \
@@ -406,22 +501,49 @@ curl -X POST http://localhost:8080/api/v1/admin/orders/<ORDER_ID>/assign-deliver
     "delivery_agent_id": "<DELIVERY_AGENT_UUID>"
   }'
 ```
+> Re-assigning while the order is already `IN_TRANSIT` or `OUT_FOR_DELIVERY` changes only the courier and **preserves the current status**, so the customer does not see the delivery step rewind. Assigning from `COMPLETED` or `DELIVERY_FAILED` sets `ASSIGNED_DELIVERY_AGENT`.
 
-### 8.7 List Active Delivery Partners (`GET /api/v1/admin/delivery-agents`)
+### 8.8 Update Logistics & Tracking (`PATCH /api/v1/admin/orders/:id/logistics`)
+Adds or updates courier details, the AWB/tracking number, ETA and dispatch notes. This does **not** change the order status.
+```bash
+curl -X PATCH http://localhost:8080/api/v1/admin/orders/<ORDER_ID>/logistics \
+  -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "courier_partner": "Blue Dart",
+    "tracking_number": "BD123456789IN",
+    "estimated_delivery_at": "2026-10-25T10:00:00Z",
+    "admin_dispatch_notes": "Handle the artwork with care."
+  }'
+```
+> The customer sees these values in **My Orders**. A tracking button is generated only for Blue Dart, Delhivery and DTDC; other/in-house couriers show the AWB without a fabricated tracking link. All fields are optional; omitted fields are left unchanged.
+
+### 8.9 List Active Delivery Partners (`GET /api/v1/admin/delivery-agents`)
 Lists all active delivery agents available for courier dispatch.
 ```bash
 curl -X GET http://localhost:8080/api/v1/admin/delivery-agents \
   -H "Authorization: Bearer <ADMIN_TOKEN>"
 ```
 
-### 8.8 Confirm & Publish Artwork to Public Gallery (`POST /api/v1/admin/orders/:id/confirm-gallery`)
+### 8.10 Confirm & Publish Artwork to Public Gallery (`POST /api/v1/admin/orders/:id/confirm-gallery`)
 Admin quality inspection approval. Promotes the delivered artwork's comparison collage to the Public Art Gallery (`/gallery`), setting `is_published_to_gallery = true` and status `PUBLISHED`.
 ```bash
 curl -X POST http://localhost:8080/api/v1/admin/orders/<ORDER_ID>/confirm-gallery \
   -H "Authorization: Bearer <ADMIN_TOKEN>"
 ```
 
-### 8.9 Platform User Management (`GET /api/v1/admin/users`, `PATCH status`, `PATCH role`)
+### 8.11 Refund Razorpay Payment (`POST /api/v1/admin/orders/:id/refund`)
+Issues a **full** refund for a captured Razorpay payment. The order must have a `PAID` Razorpay payment; manual payments return `400`. Partial refunds are not supported. In live mode this moves real money.
+```bash
+curl -X POST http://localhost:8080/api/v1/admin/orders/<ORDER_ID>/refund \
+  -H "Authorization: Bearer <ADMIN_TOKEN>"
+```
+Success response:
+```json
+{ "status": "refunded", "refund_id": "rfnd_...", "order_id": "..." }
+```
+
+### 8.12 Platform User Management (`GET /api/v1/admin/users`, `PATCH status`, `PATCH role`)
 ```bash
 # List all platform users with role counts
 curl -X GET http://localhost:8080/api/v1/admin/users \

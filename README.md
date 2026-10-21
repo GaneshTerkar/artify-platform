@@ -20,7 +20,7 @@ artify-platform/
 │   ├── cmd/
 │   │   ├── internal/       # Config, db, logger, middleware, routes, and domain modules
 │   │   │   └── modules/    # artists, auth, files, orders, users
-│   │   ├── migrations/     # PostgreSQL SQL migrations (001 to 012)
+│   │   ├── migrations/     # PostgreSQL SQL migrations (001 to 016)
 │   │   └── server/         # API server entrypoint (main.go)
 │   ├── docs/               # Swagger API specifications
 │   ├── Paintings/          # Authentic artist catalog images served at /paintings/
@@ -34,8 +34,11 @@ artify-platform/
 │   └── README.md           # Dedicated frontend documentation
 │
 ├── docker-compose.yml      # Local development container orchestration (PostgreSQL)
-├── docs/                   # Product requirements & architectural documentation
-│   └── PRODUCT_BRIEF.md
+├── docs/                   # Product, API, functionality and Postman documentation
+│   ├── PRODUCT_BRIEF.md
+│   ├── API_DOCUMENTATION.md
+│   ├── FUNCTIONALITY_GUIDE.md
+│   └── postman/
 ├── .env.example            # Master environment configuration reference
 ├── .gitignore              # Repository git ignore rules
 └── README.md               # Main project overview (this file)
@@ -78,7 +81,7 @@ go run cmd/server/main.go
 ```
 
 > [!TIP]
-> **Automatic Migrations**: The backend automatically connects to PostgreSQL and applies all pending SQL migrations (`001` through `012`) on startup. No manual migration CLI commands are required!
+> **Automatic Migrations**: The backend automatically connects to PostgreSQL and applies all pending SQL migrations (`001` through `016`) on startup. No manual migration CLI commands are required!
 
 The API will be live at:
 - **API Base**: `http://localhost:8080`
@@ -140,7 +143,7 @@ Open your browser at **`http://localhost:5173`**.
 flowchart TD
     subgraph S1["1. CUSTOMER: Order Commission & Payment"]
         C_START["Customer configures portrait & uploads photo"] --> C_PLACE["PLACED<br/>(Order Created)"]
-        C_PLACE -->|"Payment verified (Razorpay / Stripe / Dev)"| A_CONF["CONFIRMED<br/>(Ready for Artist)"]
+        C_PLACE -->|"Payment confirmed (Razorpay / admin)"| A_CONF["CONFIRMED<br/>(Ready for Artist)"]
     end
 
     subgraph S2["2. ADMIN: Studio Artist Assignment"]
@@ -185,7 +188,13 @@ A single reference file is provided at [`.env.example`](.env.example).
 | `APP_ENV` | No | `development` | `development` or `production` |
 | `CORS_ALLOWED_ORIGINS`| No | `http://localhost:5173` | Allowed frontend origins |
 | `MIGRATIONS_PATH` | No | `cmd/migrations` | Path to SQL migrations |
-| `STRIPE_SECRET_KEY` | No | `""` | Stripe secret key (mock checkout when empty)|
+| `PAYMENT_PROVIDER` | No | `manual` | `manual` (mock checkout, admin confirms) or `razorpay` |
+| `PAYMENTS_LIVE` | No | `false` | Must be `true` (together with `razorpay`) to charge real money |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Razorpay only | `""` | API credentials. Test keys start with `rzp_test_`, live keys with `rzp_live_` |
+| `RAZORPAY_WEBHOOK_SECRET` | Razorpay only | `""` | Secret used to verify `X-Razorpay-Signature` |
+| `RAZORPAY_API_BASE` | No | `https://api.razorpay.com` | Override for the local stub used in tests |
+| `PAYMENT_MIN_AMOUNT` / `PAYMENT_MAX_AMOUNT` | No | `100` / `200000` | Server-side INR limits for gateway checkout |
+| `STRIPE_SECRET_KEY` | No | `""` | Legacy mock checkout (superseded by `PAYMENT_PROVIDER`) |
 | `S3_ENDPOINT` | No | `http://localhost:9000` | S3 / MinIO endpoint |
 | `S3_BUCKET` | No | `artify-uploads` | Storage bucket name |
 
@@ -209,7 +218,10 @@ A single reference file is provided at [`.env.example`](.env.example).
 | `POST` | `/api/v1/upload` | User | Upload customer reference photo |
 | `POST` | `/api/v1/orders` | User | Create a new custom portrait order |
 | `GET` | `/api/v1/orders` | User | List orders for current authenticated user / courier |
-| `POST` | `/api/v1/orders/:id/checkout` | User | Generate checkout session |
+| `POST` | `/api/v1/orders/:id/checkout` | User | Start checkout (manual mock or Razorpay order) |
+| `POST` | `/api/v1/payments/verify` | User | Verify Razorpay checkout signature and confirm the order |
+| `POST` | `/api/v1/orders/:id/confirm-payment` | Admin | Confirm a manual payment (`PLACED` → `CONFIRMED`) |
+| `POST` | `/webhooks/razorpay` | Public (signed) | Razorpay webhook: captured/failed/refunded events |
 | `POST` | `/api/v1/orders/:id/assign` | Artist/Admin | Assign order to verified portrait artist |
 | `PATCH` | `/api/v1/orders/:id/status` | Artist/Courier | Update order state (drawing progress, courier transit) |
 | `GET` | `/api/v1/admin/orders` | Admin | Review all platform orders |
@@ -217,6 +229,42 @@ A single reference file is provided at [`.env.example`](.env.example).
 | `POST` | `/api/v1/admin/orders/:id/assign-delivery` | Admin | Assign delivery agent to completed portrait |
 | `GET` | `/api/v1/admin/delivery-agents` | Admin | List active verified delivery agents |
 | `POST` | `/api/v1/admin/orders/:id/confirm-gallery` | Admin | Confirm & publish delivered artwork to public gallery |
+| `POST` | `/api/v1/admin/orders/:id/refund` | Admin | Full refund of a captured Razorpay payment |
+
+### Payments
+
+Three modes are supported:
+
+1. **Manual (default, no money):** `PAYMENT_PROVIDER=manual`. Checkout keeps the
+   mock flow and the order stays `PLACED` until an admin confirms it with
+   **Pay Now → Admin confirms**. Nothing is charged.
+2. **Razorpay test mode (no real money):** set `PAYMENT_PROVIDER=razorpay`,
+   `PAYMENTS_LIVE=false`, a `rzp_test_…` key pair and a webhook secret. Orders
+   are confirmed automatically by the signed webhook (or the browser
+   signature check). Test cards/UPI move no money and need no KYC.
+3. **Razorpay live mode (real money):** additionally set `PAYMENTS_LIVE=true`
+   and use `rzp_live_…` keys. Live mode requires a **public HTTPS webhook URL**,
+   so it cannot work from localhost — deploy the API publicly first.
+
+Safety rails: the server refuses to start if a `rzp_live_` key is configured
+while `PAYMENTS_LIVE=false`, refuses `rzp_test_` keys when `PAYMENTS_LIVE=true`,
+requires a webhook secret, enforces `PAYMENT_MIN_AMOUNT`/`PAYMENT_MAX_AMOUNT`,
+verifies every webhook signature against the raw body, and ignores duplicate
+webhook event IDs. Gateway amount is computed server-side from the order; the
+client never sends the amount.
+
+Local offline test (no keys, no network): the repository includes a Razorpay
+stub and a full E2E script.
+
+```powershell
+cd artifyme-backend
+powershell -ExecutionPolicy Bypass -File .\scripts\e2e-payments.ps1
+```
+
+It creates a throw-away `artifyme_paytest` database, starts Redis, the stub and
+the API, then exercises checkout, signed webhooks, duplicates, tampered
+signatures, failed payments, browser verification, admin refunds and the
+live-key guard. See `cmd/devtools/razorpay-stub` for the stub itself.
 
 For the complete role-by-role API specification and ready-to-run requests, see [`docs/API_DOCUMENTATION.md`](docs/API_DOCUMENTATION.md) and [`artifyme-backend/api.http`](artifyme-backend/api.http).
 
@@ -226,6 +274,7 @@ For the complete role-by-role API specification and ready-to-run requests, see [
 
 - [Complete API Documentation & Role Guide](docs/API_DOCUMENTATION.md)
 - [Functionality Guide (Feature by Feature)](docs/FUNCTIONALITY_GUIDE.md)
+- [Postman Collection & Environments](docs/postman/README.md)
 - [Backend Documentation](artifyme-backend/README.md)
 - [Frontend Documentation](artifyme-frontend/README.md)
 - [Product Brief & Requirements](docs/PRODUCT_BRIEF.md)

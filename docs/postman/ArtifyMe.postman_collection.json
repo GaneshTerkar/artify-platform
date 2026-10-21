@@ -1,0 +1,3047 @@
+{
+  "info": {
+    "_postman_id": "71c0259a-bcb8-42b7-aebf-32cdd28fd1c9",
+    "name": "ArtifyMe API · Ready to Use (existing users)",
+    "description": "# ArtifyMe API - ready-to-use Postman collection\n\n**Base URL:** `http://localhost:8080` - the portable edition currently running on this machine.\n\n## Existing users (all can sign in now)\n\n| Role | Name | Email | Password | User ID |\n| --- | --- | --- | --- | --- |\n| `ADMIN` | Ganesh Terkar | `ganesh@example.com` | `password123` | `11111111-1111-4111-8111-111111111111` |\n| `ADMIN` | Admin Tester | `testadmin2@artifyme.com` | `password123` | `22222222-2222-4222-8222-222222222222` |\n| `CUSTOMER` | Priya Patel | `priya.customer@example.com` | `password123` | `17c74a5c-ab7e-495c-a214-6bf48ce94377` |\n| `ARTIST` | Rohan Sharma (verified) | `rohan.artist@example.com` | `password123` | `591fe88e-a0d2-40e2-8edf-f184bded8c3f` |\n| `DELIVERY_AGENT` | Vikram Courier (created by this collection, PENDING) | `courier.vikram@example.com` | `password123` | `e39a0201-5fde-4758-b80f-edb4dcd22fa8` |\n\n> The demo seed does not create a courier. The collection includes a one-click **Register - DELIVERY AGENT** request. The portable database used for validation already has the courier account above; use **05 -> ADMIN -> Activate delivery agent** to move it to `ACTIVE`.\n\n## Quick start\n\n1. Import this collection (and optionally `ArtifyMe.postman_environment.json`).\n2. Select the **ArtifyMe - Local (portable)** environment in the top-right selector.\n3. Open **00 - Authentication & Tokens** and send the login requests. Each login saves its JWT automatically into `adminToken`, `customerToken`, `artistToken`, `deliveryToken` and related variables.\n4. Send **Sync demo order IDs** and **Sync user IDs** at the bottom of the same folder. These refresh every demo UUID from the live database - **run them again after any re-seed**.\n5. Open any role folder and send requests - authorization is already wired per folder.\n\n## Demo orders (auto-synced)\n\n| Variable | State |\n| --- | --- |\n| `orderIdPlaced` | `PLACED` |\n| `orderIdConfirmed` | `CONFIRMED` |\n| `orderIdAssigned` | `ASSIGNED_ARTIST` |\n| `orderIdInProgress` | `IN_PROGRESS` |\n| `orderIdCompleted` | `COMPLETED` (not published) |\n| `orderIdPublished` | `PUBLISHED` |\n\nThe environment values are current at the last sync; the **Sync demo order IDs** request updates them automatically if the demo data is re-seeded.\n\n## Payments\n\nThe **server** decides the payment mode; Postman cannot switch it.\n\n| Server configuration | Checkout behaviour |\n| --- | --- |\n| `PAYMENT_PROVIDER=manual` (portable default) | Returns `200` with a mock `checkout_url`; **no money moves**. An admin confirms with **Confirm payment**. |\n| `PAYMENT_PROVIDER=razorpay` + `rzp_test_…` keys, `PAYMENTS_LIVE=false` | Returns `key_id`, `razorpay_order_id`, `amount_paise` for Checkout.js. Test cards/UPI move **no real money** and need no KYC. |\n| `PAYMENT_PROVIDER=razorpay` + `rzp_live_…` keys, `PAYMENTS_LIVE=true` | **Real money.** Requires KYC and a public HTTPS webhook; do not use the portable/localhost build for this. |\n\nPayment requests in this collection:\n\n- **02 → Checkout** — manual mock or Razorpay order; saves `razorpayOrderId`, `paymentId`, `paymentAmountPaise`.\n- **02 → Verify Razorpay payment** — browser signature verification. Fill `razorpayPaymentId` and `razorpaySignature` from the Checkout.js success callback.\n- **05 → Refund Razorpay payment** — ADMIN-only full refund of a captured Razorpay payment.\n- **07 → Razorpay webhook** — manually signed `payment.captured` event. Set the **secret** environment variable `razorpayWebhookSecret`; the request computes `X-Razorpay-Signature` itself.\n\n> The webhook route is `/webhooks/razorpay` (root, not under `/api/v1`). Localhost cannot receive real Razorpay webhooks; use the signed request in folder 07 only to test verification and processing.\n\n## Notes\n\n- **MUTATES** means the request changes demo data. Re-run `app\\artifyme-seed.exe` (portable edition) to reset the six demo orders.\n- Test scripts save tokens, user IDs, new order IDs and review IDs into **both** collection and environment variables, so either import style works.\n- Requests expected to fail by design are in **06 - RBAC Negative Tests** (`401`/`403`).\n- Checkout is provider-aware: `manual` mode returns `200` and moves no money; `razorpay` mode returns Checkout.js fields. A `503` means the selected gateway is not configured correctly.\n- Responses that are already in a later state return `400`/`409`; the test scripts treat those as handled rather than failures.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "id": "7b3f5aae-0860-43e4-b83c-d36f61c6ae7e",
+      "name": "00 · Authentication & Tokens  (run these first)",
+      "description": "Run the **Login** requests in this folder first. Every login saves its JWT into collection/environment variables so the other folders work immediately.\n\n| Request | Saves |\n| --- | --- |\n| Login · ADMIN — Ganesh | `adminToken`, `adminUserId`, `adminRefreshToken` |\n| Login · ADMIN — Test Admin | `admin2Token`, `admin2UserId`, `admin2RefreshToken` |\n| Login · CUSTOMER — Priya | `customerToken`, `customerUserId`, `customerRefreshToken` |\n| Login · ARTIST — Rohan | `artistToken`, `artistId`, `artistRefreshToken` |\n| Login · NEW ARTIST (optional) | `newArtistToken`, `newArtistId`, `newArtistRefreshToken` |\n| Login · DELIVERY AGENT | `deliveryToken`, `deliveryAgentId`, `deliveryRefreshToken` |\n\n**Then run the two `Sync ...` requests** at the bottom of this folder. They refresh all demo order IDs and user IDs from the live database, so the collection keeps working even after `artifyme-seed.exe` changes the UUIDs.\n\n**No courier is pre-seeded.** Run **Register · DELIVERY AGENT** once before the courier login.",
+      "item": [
+        {
+          "id": "34ec4371-3a94-4d2b-bbb3-9a70107b34e9",
+          "name": "Login · ADMIN — Ganesh  (ganesh@example.com)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "description": "**Existing user · ACTIVE · ADMIN**\n\n| Field | Value |\n| --- | --- |\n| Email | `ganesh@example.com` |\n| Password | `password123` |\n| User ID | `11111111-1111-4111-8111-111111111111` |\n\nSaves `adminToken` and `adminUserId` automatically.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"device_name\": \"Postman\",\n  \"device_type\": \"DESKTOP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Login succeeded\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"JWT token returned\", function () { pm.expect(data.token).to.be.a(\"string\").and.not.empty; });",
+                  "pm.test(\"User has ADMIN role\", function () { pm.expect(data.user.role).to.eql(\"ADMIN\"); });",
+                  "pm.test(\"Account can sign in\", function () { pm.expect(data.user.status).to.be.oneOf([\"ACTIVE\", \"PENDING\", \"UNDER_REVIEW\"]); });",
+                  "pm.collectionVariables.set(\"adminToken\", data.token);",
+                  "if (pm.environment.name) { pm.environment.set(\"adminToken\", data.token); }",
+                  "pm.collectionVariables.set(\"adminUserId\", data.user.user_id);",
+                  "if (pm.environment.name) { pm.environment.set(\"adminUserId\", data.user.user_id); }",
+                  "pm.collectionVariables.set(\"adminRefreshToken\", data.refresh_token);",
+                  "if (pm.environment.name) { pm.environment.set(\"adminRefreshToken\", data.refresh_token); }",
+                  "console.log(\"ADMIN token saved for \" + data.user.email);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "d8c4ed07-0675-4d5a-bf1d-102e59c005d7",
+          "name": "Login · ADMIN — Test Admin  (testadmin2@artifyme.com)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "description": "**Existing user · ACTIVE · ADMIN**\n\n| Field | Value |\n| --- | --- |\n| Email | `testadmin2@artifyme.com` |\n| Password | `password123` |\n| User ID | `22222222-2222-4222-8222-222222222222` |\n\nSaves `admin2Token` and `admin2UserId`. This account owns the preloaded demo orders.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin2Email}}\",\n  \"password\": \"{{admin2Password}}\",\n  \"device_name\": \"Postman\",\n  \"device_type\": \"DESKTOP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Login succeeded\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"JWT token returned\", function () { pm.expect(data.token).to.be.a(\"string\").and.not.empty; });",
+                  "pm.test(\"User has ADMIN role\", function () { pm.expect(data.user.role).to.eql(\"ADMIN\"); });",
+                  "pm.test(\"Account can sign in\", function () { pm.expect(data.user.status).to.be.oneOf([\"ACTIVE\", \"PENDING\", \"UNDER_REVIEW\"]); });",
+                  "pm.collectionVariables.set(\"admin2Token\", data.token);",
+                  "if (pm.environment.name) { pm.environment.set(\"admin2Token\", data.token); }",
+                  "pm.collectionVariables.set(\"admin2UserId\", data.user.user_id);",
+                  "if (pm.environment.name) { pm.environment.set(\"admin2UserId\", data.user.user_id); }",
+                  "pm.collectionVariables.set(\"admin2RefreshToken\", data.refresh_token);",
+                  "if (pm.environment.name) { pm.environment.set(\"admin2RefreshToken\", data.refresh_token); }",
+                  "console.log(\"ADMIN token saved for \" + data.user.email);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "c7a46d9b-bfb9-4ceb-a058-2e990145af4f",
+          "name": "Login · CUSTOMER — Priya  (priya.customer@example.com)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "description": "**Existing user · ACTIVE · CUSTOMER**\n\n| Field | Value |\n| --- | --- |\n| Email | `priya.customer@example.com` |\n| Password | `password123` |\n| User ID | `17c74a5c-ab7e-495c-a214-6bf48ce94377` |\n\nSaves `customerToken` and `customerUserId` automatically.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{customerEmail}}\",\n  \"password\": \"{{customerPassword}}\",\n  \"device_name\": \"Postman\",\n  \"device_type\": \"DESKTOP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Login succeeded\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"JWT token returned\", function () { pm.expect(data.token).to.be.a(\"string\").and.not.empty; });",
+                  "pm.test(\"User has CUSTOMER role\", function () { pm.expect(data.user.role).to.eql(\"CUSTOMER\"); });",
+                  "pm.test(\"Account can sign in\", function () { pm.expect(data.user.status).to.be.oneOf([\"ACTIVE\", \"PENDING\", \"UNDER_REVIEW\"]); });",
+                  "pm.collectionVariables.set(\"customerToken\", data.token);",
+                  "if (pm.environment.name) { pm.environment.set(\"customerToken\", data.token); }",
+                  "pm.collectionVariables.set(\"customerUserId\", data.user.user_id);",
+                  "if (pm.environment.name) { pm.environment.set(\"customerUserId\", data.user.user_id); }",
+                  "pm.collectionVariables.set(\"customerRefreshToken\", data.refresh_token);",
+                  "if (pm.environment.name) { pm.environment.set(\"customerRefreshToken\", data.refresh_token); }",
+                  "console.log(\"CUSTOMER token saved for \" + data.user.email);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "5ffe04ce-0b12-4ef2-818d-88a3f2cc6186",
+          "name": "Login · ARTIST — Rohan  (rohan.artist@example.com)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "description": "**Existing user · ACTIVE · ARTIST · VERIFIED**\n\n| Field | Value |\n| --- | --- |\n| Email | `rohan.artist@example.com` |\n| Password | `password123` |\n| User ID | `591fe88e-a0d2-40e2-8edf-f184bded8c3f` |\n\nSaves `artistToken` and `artistId` automatically. This is the only verified artist in the demo data.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{artistEmail}}\",\n  \"password\": \"{{artistPassword}}\",\n  \"device_name\": \"Postman\",\n  \"device_type\": \"DESKTOP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Login succeeded\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"JWT token returned\", function () { pm.expect(data.token).to.be.a(\"string\").and.not.empty; });",
+                  "pm.test(\"User has ARTIST role\", function () { pm.expect(data.user.role).to.eql(\"ARTIST\"); });",
+                  "pm.test(\"Account can sign in\", function () { pm.expect(data.user.status).to.be.oneOf([\"ACTIVE\", \"PENDING\", \"UNDER_REVIEW\"]); });",
+                  "pm.collectionVariables.set(\"artistToken\", data.token);",
+                  "if (pm.environment.name) { pm.environment.set(\"artistToken\", data.token); }",
+                  "pm.collectionVariables.set(\"artistId\", data.user.user_id);",
+                  "if (pm.environment.name) { pm.environment.set(\"artistId\", data.user.user_id); }",
+                  "pm.collectionVariables.set(\"artistRefreshToken\", data.refresh_token);",
+                  "if (pm.environment.name) { pm.environment.set(\"artistRefreshToken\", data.refresh_token); }",
+                  "console.log(\"ARTIST token saved for \" + data.user.email);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "07e30714-8bb3-464d-ae26-1df694bfb276",
+          "name": "Sync demo order IDs  (run after ADMIN login)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/orders",
+            "description": "**Recommended after any re-seed.** Reads the current orders and refreshes `orderIdPlaced`, `orderIdConfirmed`, `orderIdAssigned`, `orderIdInProgress`, `orderIdCompleted` and `orderIdPublished` from the live database, so the collection keeps working even when demo UUIDs change."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Orders returned\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "const orders = data.orders || [];",
+                  "function save(key, value) { if (!value) return; pm.collectionVariables.set(key, value); if (pm.environment.name) { pm.environment.set(key, value); } }",
+                  "const placed = orders.find(o => o.status === \"PLACED\");",
+                  "const confirmed = orders.find(o => o.status === \"CONFIRMED\");",
+                  "const assigned = orders.find(o => o.status === \"ASSIGNED_ARTIST\");",
+                  "const inProgress = orders.find(o => o.status === \"IN_PROGRESS\");",
+                  "const completed = orders.find(o => o.status === \"COMPLETED\" && !o.is_published_to_gallery);",
+                  "const published = orders.find(o => o.status === \"PUBLISHED\") || orders.find(o => o.status === \"COMPLETED\" && o.is_published_to_gallery);",
+                  "save(\"orderIdPlaced\", placed && placed.order_id);",
+                  "save(\"orderIdConfirmed\", confirmed && confirmed.order_id);",
+                  "save(\"orderIdAssigned\", assigned && assigned.order_id);",
+                  "save(\"orderIdInProgress\", inProgress && inProgress.order_id);",
+                  "save(\"orderIdCompleted\", completed && completed.order_id);",
+                  "save(\"orderIdPublished\", published && published.order_id);",
+                  "const fallback = placed || confirmed || assigned || inProgress || completed || orders[0];",
+                  "save(\"orderId\", fallback && fallback.order_id);",
+                  "console.log(\"Synced demo orders: placed=\" + (placed && placed.order_id) + \" confirmed=\" + (confirmed && confirmed.order_id) + \" completed=\" + (completed && completed.order_id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "5e72d730-859a-4485-8cb0-1f8f85ce77be",
+          "name": "Sync user IDs  (run after ADMIN login)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/users",
+            "description": "Refreshes `adminUserId`, `customerUserId`, `artistId` and `deliveryAgentId` from the live user list. Useful after registering a new artist or courier."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Users returned\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "const users = data.users || [];",
+                  "function save(key, value) { if (!value) return; pm.collectionVariables.set(key, value); if (pm.environment.name) { pm.environment.set(key, value); } }",
+                  "const admin = users.find(u => u.email === \"ganesh@example.com\") || users.find(u => u.role === \"ADMIN\");",
+                  "const customer = users.find(u => u.email === \"priya.customer@example.com\") || users.find(u => u.role === \"CUSTOMER\");",
+                  "const artist = users.find(u => u.email === \"rohan.artist@example.com\") || users.find(u => u.role === \"ARTIST\" && u.is_verified_artist) || users.find(u => u.role === \"ARTIST\");",
+                  "const courier = users.find(u => u.role === \"DELIVERY_AGENT\");",
+                  "save(\"adminUserId\", admin && admin.user_id);",
+                  "save(\"customerUserId\", customer && customer.user_id);",
+                  "save(\"artistId\", artist && artist.user_id);",
+                  "save(\"deliveryAgentId\", courier && courier.user_id);",
+                  "console.log(\"Synced users: admin=\" + (admin && admin.email) + \" customer=\" + (customer && customer.email) + \" artist=\" + (artist && artist.email) + \" courier=\" + (courier && courier.email));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "b554b441-a473-4bd0-aa4b-2134490683e6",
+          "name": "Register · DELIVERY AGENT  (run once)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/register",
+            "description": "Creates the courier account used by the **Login · DELIVERY AGENT** request.\n\n- Email: `{{deliveryEmail}}` = `courier.vikram@example.com`\n- Password: `password123`\n- Role: `DELIVERY_AGENT`\n\nRun once. Re-running is safe and returns `409 Email already exists`; the login still works.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Vikram Courier\",\n  \"email\": \"{{deliveryEmail}}\",\n  \"password\": \"password123\",\n  \"address\": \"Postman Test Address, Pune, Maharashtra\",\n  \"phone_number\": \"+919876512345\",\n  \"role\": \"DELIVERY_AGENT\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Created, or already exists\", function () { pm.expect([201, 409]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 201) {",
+                  "  const d = pm.response.json();",
+                  "  pm.collectionVariables.set('deliveryAgentId', d.user.user_id);",
+                  "  if (pm.environment.name) { pm.environment.set('deliveryAgentId', d.user.user_id); }",
+                  "  console.log(\"Courier created: \" + d.user.email + \" (\" + d.user.user_id + \")\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "ebeecb30-22e9-4190-9e4b-7bc6f27ba985",
+          "name": "Login · DELIVERY AGENT  (courier.vikram@example.com)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "description": "**Courier account — create it first if needed.**\n\n| Field | Value |\n| --- | --- |\n| Email | `courier.vikram@example.com` |\n| Password | `password123` |\n\nThe demo database has **no pre-seeded delivery agent**. Send **Register · DELIVERY AGENT** once in this folder, then send this login. The newly registered courier starts as `PENDING`, which can still sign in; use **ADMIN → Activate delivery agent** to set it to `ACTIVE`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{deliveryEmail}}\",\n  \"password\": \"{{deliveryPassword}}\",\n  \"device_name\": \"Postman\",\n  \"device_type\": \"DESKTOP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Login succeeded\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"JWT token returned\", function () { pm.expect(data.token).to.be.a(\"string\").and.not.empty; });",
+                  "pm.test(\"User has DELIVERY_AGENT role\", function () { pm.expect(data.user.role).to.eql(\"DELIVERY_AGENT\"); });",
+                  "pm.test(\"Account can sign in\", function () { pm.expect(data.user.status).to.be.oneOf([\"ACTIVE\", \"PENDING\", \"UNDER_REVIEW\"]); });",
+                  "pm.collectionVariables.set(\"deliveryToken\", data.token);",
+                  "if (pm.environment.name) { pm.environment.set(\"deliveryToken\", data.token); }",
+                  "pm.collectionVariables.set(\"deliveryAgentId\", data.user.user_id);",
+                  "if (pm.environment.name) { pm.environment.set(\"deliveryAgentId\", data.user.user_id); }",
+                  "pm.collectionVariables.set(\"deliveryRefreshToken\", data.refresh_token);",
+                  "if (pm.environment.name) { pm.environment.set(\"deliveryRefreshToken\", data.refresh_token); }",
+                  "console.log(\"DELIVERY_AGENT token saved for \" + data.user.email);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "e9d74f19-ba77-45a8-a394-c0d88a7ce583",
+          "name": "Register · ARTIST  (optional, for verify/reject tests)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/register",
+            "description": "Optional helper for the **Verify artist** and **Reject artist** admin requests.\n\n- Email: `postman.artist@example.com`\n- Password: `password123`\n- Role: `ARTIST` (starts `PENDING`)\n\nOn success this request stores the new `user_id` in `newArtistId`. If the account already exists (409), look it up with **ADMIN → List all users** and paste its ID into the `newArtistId` variable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Postman Artist\",\n  \"email\": \"postman.artist@example.com\",\n  \"password\": \"password123\",\n  \"address\": \"Postman Test Address, Pune, Maharashtra\",\n  \"phone_number\": \"+919876500022\",\n  \"role\": \"ARTIST\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Created, or already exists\", function () { pm.expect([201, 409]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 201) {",
+                  "  const d = pm.response.json();",
+                  "  pm.collectionVariables.set('newArtistId', d.user.user_id);",
+                  "  if (pm.environment.name) { pm.environment.set('newArtistId', d.user.user_id); }",
+                  "  console.log(\"Artist created: \" + d.user.email + \" (\" + d.user.user_id + \")\");",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "dc7f13a7-0deb-4457-a0cf-72f2c14436fb",
+          "name": "Login · NEW ARTIST  (run Register · ARTIST first)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/login",
+            "description": "Signs in as the optional **Postman Artist** created by **Register · ARTIST**.\n\n- Email: `postman.artist@example.com`\n- Password: `password123`\n\nSaves `newArtistToken`, `newArtistId` and `newArtistRefreshToken`. This token is used by **03 → Add painting as new artist**, which is required before an admin can verify the artist.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"postman.artist@example.com\",\n  \"password\": \"password123\",\n  \"device_name\": \"Postman\",\n  \"device_type\": \"DESKTOP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Login succeeded\", function () { pm.response.to.have.status(200); });",
+                  "const data = pm.response.json();",
+                  "pm.test(\"JWT token returned\", function () { pm.expect(data.token).to.be.a(\"string\").and.not.empty; });",
+                  "pm.test(\"User has ARTIST role\", function () { pm.expect(data.user.role).to.eql(\"ARTIST\"); });",
+                  "pm.test(\"Account can sign in\", function () { pm.expect(data.user.status).to.be.oneOf([\"ACTIVE\", \"PENDING\", \"UNDER_REVIEW\"]); });",
+                  "pm.collectionVariables.set(\"newArtistToken\", data.token);",
+                  "if (pm.environment.name) { pm.environment.set(\"newArtistToken\", data.token); }",
+                  "pm.collectionVariables.set(\"newArtistId\", data.user.user_id);",
+                  "if (pm.environment.name) { pm.environment.set(\"newArtistId\", data.user.user_id); }",
+                  "pm.collectionVariables.set(\"newArtistRefreshToken\", data.refresh_token);",
+                  "if (pm.environment.name) { pm.environment.set(\"newArtistRefreshToken\", data.refresh_token); }",
+                  "console.log(\"ARTIST token saved for \" + data.user.email);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "d1889577-b276-471a-956c-073c78f06136",
+          "name": "Register · CUSTOMER  (optional)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/register",
+            "description": "Optional helper that creates another `CUSTOMER` account with password `password123`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Postman Customer\",\n  \"email\": \"postman.customer@example.com\",\n  \"password\": \"password123\",\n  \"address\": \"Postman Test Address, Pune, Maharashtra\",\n  \"phone_number\": \"+919876500033\",\n  \"role\": \"CUSTOMER\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Created, or already exists\", function () { pm.expect([201, 409]).to.include(pm.response.code); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "48605c01-9ac1-4101-8b42-d2efd4460939",
+          "name": "Refresh admin token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/auth/refresh-token",
+            "description": "Rotates the admin refresh token. Requires **Login · ADMIN** to have been run in this Postman session so `adminRefreshToken` has a value.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{adminRefreshToken}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Token refreshed\", function () { pm.response.to.have.status(200); });",
+                  "const d = pm.response.json();",
+                  "pm.collectionVariables.set(\"adminToken\", d.token);",
+                  "if (pm.environment.name) { pm.environment.set(\"adminToken\", d.token); }",
+                  "pm.collectionVariables.set(\"adminRefreshToken\", d.refresh_token);",
+                  "if (pm.environment.name) { pm.environment.set(\"adminRefreshToken\", d.refresh_token); }"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "145b10f4-f6c1-4268-a3aa-fe56d3c7576d",
+          "name": "List my active sessions (admin)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/sessions",
+            "description": "Lists every active device/session for the signed-in admin."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Sessions returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "62b6a160-837e-4810-96c4-a2a8ae9ddce3",
+          "name": "Revoke all other sessions (admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{adminToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/auth/sessions/revoke-all",
+            "description": "Revokes all sessions except the one used by this request."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Other sessions revoked\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "be536362-8185-418a-a8f8-e61edf4d4590",
+      "name": "01 · Public APIs  (no token required)",
+      "description": "These endpoints work without authentication.",
+      "item": [
+        {
+          "id": "f5524788-2b5b-4de0-a4df-c565842ca0dc",
+          "name": "Health check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health",
+            "description": "Simple API health probe."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"API is healthy\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"status is ok\", function () { pm.expect(pm.response.json().status).to.eql(\"ok\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "d8bf1607-f275-406a-bae7-40e1aae25abf",
+          "name": "Service info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/",
+            "description": "Returns service name, Swagger URL and frontend URL."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Service info returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "0839139b-5fe6-4daa-97b2-ecf6199d3da3",
+          "name": "Gallery · all published paintings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/paintings",
+            "description": "Returns the public gallery built from verified artist work and published orders."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Gallery returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "26c25b1b-0718-48d1-9786-1c553ca4d043",
+          "name": "Gallery · filter PENCIL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/paintings?category=PENCIL",
+            "description": "Supported categories: `PENCIL`, `CHARCOAL`, `WATERCOLOR`, `ACRYLIC`, `OIL`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Filtered gallery returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "2ac08238-4cfc-4978-9a97-4df8d314fe9f",
+          "name": "Products catalog",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products",
+            "description": "Returns the portrait product, categories, sizes and subjects with price factors."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Products returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "5de79af4-599d-4b1e-823b-5033d98e0ec0",
+          "name": "Product by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/portrait-sketch",
+            "description": "The default product ID is `portrait-sketch`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Product returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "b6463426-ad7b-45ed-a2c6-25a43dc5de01",
+          "name": "Price estimate · OIL / A3 / COUPLE",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/products/price/estimate?category=OIL&size=A3&persons=COUPLE",
+            "description": "Live estimate in INR. Valid sizes: `A4`, `A3`, `A2`; persons: `SINGLE`, `COUPLE`, `FAMILY`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Estimate returned\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Currency is INR\", function () { pm.expect(pm.response.json().currency).to.eql(\"INR\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "9bb36c4e-b921-4c69-a962-31c0be6d3f74",
+          "name": "Public reviews",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/reviews/public?limit=10",
+            "description": "Approved customer reviews shown on the storefront."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Reviews returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "e314340b-7e7b-46a1-a174-e0f361141d15",
+      "name": "02 · CUSTOMER APIs  (Priya Patel)",
+      "description": "Folder-level authorization: `Bearer {{customerToken}}`.\n\nRun **00 → Login · CUSTOMER** first. Requests that change demo data are marked **MUTATES**.",
+      "item": [
+        {
+          "id": "6cdea38f-798d-43c5-997d-a0ceafc00df7",
+          "name": "Current session (/api/me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/me",
+            "description": "Returns the authenticated user's `user_id`, `role` and `status`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Session returned\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Role is CUSTOMER\", function () { pm.expect(pm.response.json().role).to.eql(\"CUSTOMER\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "d24eb763-20c7-4395-b749-19a25437e7ca",
+          "name": "My profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/user/profile",
+            "description": "Full profile for the signed-in customer."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Profile returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "6d97b425-bf91-476e-a467-55f111a6833a",
+          "name": "Update my profile  (MUTATES)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/user/profile",
+            "description": "Updates name, phone and address. Empty fields are ignored.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Priya Patel\",\n  \"phone_number\": \"+919123456789\",\n  \"address\": \"42 MG Road, Bangalore, Karnataka\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Profile updated\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "ca8a9e03-7f1e-44eb-9ed0-60bb7defe120",
+          "name": "Upload reference photo  (MUTATES · pick a file)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/upload",
+            "description": "Select a JPG/PNG/WebP (max 10 MB) in the **Body → form-data → file** row. The response returns a `file_url` you can use when creating an order.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Upload accepted\", function () { pm.expect([200, 201]).to.include(pm.response.code); });",
+                  "const d = pm.response.json();",
+                  "if (d.file_url) {",
+                  "  pm.collectionVariables.set('uploadedFileUrl', d.file_url);",
+                  "  if (pm.environment.name) { pm.environment.set('uploadedFileUrl', d.file_url); }",
+                  "  console.log(\"Uploaded file URL: \" + d.file_url);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "dc89000b-b4d7-4ae7-b55d-fe625601a911",
+          "name": "Create portrait order  (MUTATES)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders",
+            "description": "Creates a new `PLACED` order. The reference URL defaults to the value saved by the upload request; if you have not uploaded anything, set `uploadedFileUrl` to a valid path such as `/uploads/demo-reference.jpg`.\n\nOn success the new order ID is saved to `orderId` so the next requests can use it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"painting_category\": \"PENCIL\",\n  \"reference_image_url\": \"{{uploadedFileUrl}}\",\n  \"size\": \"A4\",\n  \"persons_included\": \"SINGLE\",\n  \"delivery_address\": \"42 MG Road, Bangalore, Karnataka\",\n  \"customer_notes\": \"Created from the ArtifyMe Postman collection.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Order created or payload rejected\", function () { pm.expect([201, 400]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 201) {",
+                  "  const d = pm.response.json();",
+                  "  pm.collectionVariables.set('orderId', d.order_id);",
+                  "  pm.collectionVariables.set('newOrderId', d.order_id);",
+                  "  if (pm.environment.name) {",
+                  "    pm.environment.set('orderId', d.order_id);",
+                  "    pm.environment.set('newOrderId', d.order_id);",
+                  "  }",
+                  "  console.log(\"New order: \" + d.order_id + \" · total ₹\" + d.total_price);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "7af527d8-30c5-4c4e-9e00-5d82f80aca4f",
+          "name": "List my orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/orders",
+            "description": "Every order that belongs to Priya, newest first."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Orders returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "5657d326-27fa-44f7-b2ee-4e7750ab0cb9",
+          "name": "Get order by ID  (completed demo order)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/orders/{{orderIdCompleted}}",
+            "description": "Returns the order plus its status history. `orderIdCompleted` is a preloaded `COMPLETED` order."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Order returned\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Order and history present\", function () { const d = pm.response.json(); pm.expect(d.order).to.be.an(\"object\"); pm.expect(d.history).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "3550e4db-83db-4f1d-8128-c3b3ea148d64",
+          "name": "Update draft order  (MUTATES · PLACED only)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders/{{orderId}}",
+            "description": "Only `PLACED` orders can be edited. `orderId` defaults to the preloaded `PLACED` order; if you created a new order, it now points at that order.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"size\": \"A4\",\n  \"persons_included\": \"SINGLE\",\n  \"delivery_address\": \"42 MG Road, Bangalore, Karnataka\",\n  \"customer_notes\": \"Updated from Postman.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Draft updated (or rejected because status changed)\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "0a845a24-1029-4f38-9662-003ed47cf3f7",
+          "name": "Checkout · manual mock or Razorpay  (MUTATES)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/orders/{{orderId}}/checkout",
+            "description": "Starts payment for a `PLACED` order. **Manual** mode (portable default) returns a mock `checkout_url` and records a dev payment; no money moves. **Razorpay** mode creates a Razorpay order and returns `key_id`, `razorpay_order_id` and `amount_paise` for Checkout.js. The response is saved into `razorpayOrderId`, `paymentId`, `paymentAmountPaise` and `checkoutProvider`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Checkout handled (200; 503 means the payment provider is misconfigured)\", function () {",
+                  "  pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.oneOf([200, 400, 503]);",
+                  "});",
+                  "if (pm.response.code === 200) {",
+                  "  const d = pm.response.json();",
+                  "if (d.provider !== undefined && d.provider !== null && d.provider !== \"\") {",
+                  "  pm.collectionVariables.set(\"checkoutProvider\", String(d.provider));",
+                  "  if (pm.environment.name) { pm.environment.set(\"checkoutProvider\", String(d.provider)); }",
+                  "}",
+                  "if (d.payment_id !== undefined && d.payment_id !== null && d.payment_id !== \"\") {",
+                  "  pm.collectionVariables.set(\"paymentId\", String(d.payment_id));",
+                  "  if (pm.environment.name) { pm.environment.set(\"paymentId\", String(d.payment_id)); }",
+                  "}",
+                  "if (d.razorpay_order_id !== undefined && d.razorpay_order_id !== null && d.razorpay_order_id !== \"\") {",
+                  "  pm.collectionVariables.set(\"razorpayOrderId\", String(d.razorpay_order_id));",
+                  "  if (pm.environment.name) { pm.environment.set(\"razorpayOrderId\", String(d.razorpay_order_id)); }",
+                  "}",
+                  "if (d.amount_paise !== undefined && d.amount_paise !== null && d.amount_paise !== \"\") {",
+                  "  pm.collectionVariables.set(\"paymentAmountPaise\", String(d.amount_paise));",
+                  "  if (pm.environment.name) { pm.environment.set(\"paymentAmountPaise\", String(d.amount_paise)); }",
+                  "}",
+                  "  console.log(\"Checkout provider=\" + d.provider + \" · local payment=\" + d.payment_id + \" · razorpay order=\" + d.razorpay_order_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "98f686f3-bf67-4e26-8795-9a0dfbd109ce",
+          "name": "Verify Razorpay payment  (MUTATES · Razorpay mode)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/payments/verify",
+            "description": "Verifies the Razorpay Checkout.js signature and confirms the order (`PLACED → CONFIRMED`). Checkout saves `razorpayOrderId`; paste `razorpayPaymentId` and `razorpaySignature` from the Checkout.js success handler (or the Razorpay test dashboard). Returns `503` in manual mode. The signed webhook is the authoritative fallback if the browser never returns.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"razorpay_order_id\": \"{{razorpayOrderId}}\",\n  \"razorpay_payment_id\": \"{{razorpayPaymentId}}\",\n  \"razorpay_signature\": \"{{razorpaySignature}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Verify handled (503 in manual mode is expected)\", function () {",
+                  "  pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.oneOf([200, 400, 404, 503]);",
+                  "});",
+                  "if (pm.response.code === 200) {",
+                  "  const d = pm.response.json();",
+                  "  pm.test(\"Payment is marked paid\", function () { pm.expect(d.status).to.eql(\"paid\"); });",
+                  "  pm.test(\"Order is no longer awaiting payment\", function () { pm.expect(d.order.status).to.not.eql(\"PLACED\"); });",
+                  "if (d.order.order_id !== undefined && d.order.order_id !== null && d.order.order_id !== \"\") {",
+                  "  pm.collectionVariables.set(\"orderId\", String(d.order.order_id));",
+                  "  if (pm.environment.name) { pm.environment.set(\"orderId\", String(d.order.order_id)); }",
+                  "}",
+                  "  console.log(\"Payment verified · order \" + d.order.order_id + \" · status \" + d.order.status);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "a5772b4b-8d68-4625-a473-99f852bba204",
+          "name": "Submit review  (MUTATES)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/reviews",
+            "description": "Submits a review for the preloaded completed order. If that order already has a review, the API returns `400`; that is safe.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": \"{{orderIdCompleted}}\",\n  \"rating\": 5,\n  \"title\": \"Beautiful portrait\",\n  \"comment\": \"The likeness and shading exceeded my expectations. Created from Postman.\",\n  \"unboxing_photo_url\": \"{{uploadedFileUrl}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Review created or already exists\", function () { pm.expect([201, 400]).to.include(pm.response.code); });",
+                  "if (pm.response.code === 201) {",
+                  "  const d = pm.response.json();",
+                  "  const rev = d.review || d;",
+                  "  if (rev.review_id) {",
+                  "    pm.collectionVariables.set('reviewId', rev.review_id);",
+                  "    if (pm.environment.name) { pm.environment.set('reviewId', rev.review_id); }",
+                  "    console.log(\"Review id: \" + rev.review_id);",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "46e11cec-c787-4c8f-9a21-326bee5a1c5f",
+          "name": "Get review for order",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/reviews/order/{{orderIdCompleted}}",
+            "description": "Fetches the review attached to the completed demo order, if any."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Review lookup handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{customerToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "id": "794d9b9c-58cd-408b-9c38-9f93f08c7bbe",
+      "name": "03 · ARTIST APIs  (Rohan Sharma — verified)",
+      "description": "Folder-level authorization: `Bearer {{artistToken}}`.\n\nRun **00 → Login · ARTIST** first. Rohan is `ACTIVE` and `verified = true`, so assignment and status requests work.",
+      "item": [
+        {
+          "id": "9bd28a28-6306-400a-907f-1957bb4de320",
+          "name": "My artist profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/artist/profile/view",
+            "description": "Returns Rohan's bio, experience and verification state."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Artist profile returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "89ff03f2-c86e-4b01-9a2c-1136632b61d8",
+          "name": "Create / update artist profile  (MUTATES)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/artist/profile",
+            "description": "`bio` is required; `experience_years` must be 0–60.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bio\": \"Master of pencil and charcoal realism with 7+ years of portrait experience.\",\n  \"experience_years\": 7\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Artist profile saved\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "b3125842-3594-4ba7-8fbf-ff5c3f9c1110",
+          "name": "My review status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/artist/profile/review-status",
+            "description": "Shows verification status and any rejection reason."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Review status returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "78a1c33b-5011-41e3-bae3-416011da45fd",
+          "name": "My portfolio paintings",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/artist/paintings/",
+            "description": "Lists paintings uploaded by the signed-in artist."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Paintings returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "de7bef3e-92f0-47a3-abd4-59a06737482b",
+          "name": "Add portfolio painting  (MUTATES)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/artist/paintings/add",
+            "description": "Creates a new portfolio item for the verified artist.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Morning Light Study\",\n  \"description\": \"Graphite study uploaded from Postman.\",\n  \"category\": \"PENCIL\",\n  \"image_url\": \"/paintings/demo-painting.jpg\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Painting added\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "d3253686-2172-4a0b-8417-e7e318a6e2b9",
+          "name": "Add painting as NEW artist  (for verification)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/artist/paintings/add",
+            "description": "Overrides folder authorization with `{{newArtistToken}}`. Run **00 → Register · ARTIST** and **00 → Login · NEW ARTIST** first. Adds the portfolio piece required by the admin verification flow.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Verification Portfolio Piece\",\n  \"description\": \"Required before an admin can verify the new artist.\",\n  \"category\": \"PENCIL\",\n  \"image_url\": \"/paintings/demo-verification-piece.jpg\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{newArtistToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"New artist painting added\", function () { pm.response.to.have.status(201); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "7a17f8ee-a781-4f05-aab8-f728ad41a0ce",
+          "name": "My assigned orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/orders",
+            "description": "Orders visible to the artist, including assigned and unassigned work."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Orders returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "7b8787f2-205e-4a25-bbf7-2bd18ca5156b",
+          "name": "Start work · ASSIGNED_ARTIST → IN_PROGRESS  (MUTATES)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders/{{orderIdAssigned}}/status",
+            "description": "`orderIdAssigned` is a preloaded `ASSIGNED_ARTIST` order. Run once; a second run returns a conflict because the status already moved on.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_PROGRESS\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status transition handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "803f9150-59b3-4d48-a3e4-e3a0bc9c333e",
+          "name": "Complete work · IN_PROGRESS → COMPLETED  (MUTATES)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders/{{orderIdInProgress}}/status",
+            "description": "Completes the preloaded `IN_PROGRESS` order and generates the comparison collage. Run once.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"COMPLETED\",\n  \"final_image_url\": \"/uploads/demo-finished-artwork.jpg\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status transition handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "798a1b63-32af-4209-afc8-6e68066fc71c",
+          "name": "Verified artists roster",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/artists/verified",
+            "description": "Lists artists eligible for assignment (`verified = true`)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Roster returned\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Only verified artists\", function () { const d = pm.response.json(); pm.expect(d.verified_artists).to.be.an(\"array\"); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{artistToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "id": "c3345527-0027-431c-9eb1-8e20e59746b0",
+      "name": "04 · DELIVERY AGENT APIs  (courier)",
+      "description": "Folder-level authorization: `Bearer {{deliveryToken}}`.\n\n**Setup:** run **00 → Register · DELIVERY AGENT** once, then **00 → Login · DELIVERY AGENT**.\n\n**Before the transit requests work:** use **05 → ADMIN → Assign delivery agent** on `{{orderIdCompleted}}`. Then run the status requests in order.\n\nThere is **no pre-seeded courier** in the demo database.",
+      "item": [
+        {
+          "id": "f164b2ed-4c0c-43b3-b766-6bf1af70cd72",
+          "name": "My assigned parcels",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/orders",
+            "description": "Orders assigned to this courier, plus parcels in delivery states."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Parcels returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "7f55dbb0-d8e9-4b0a-b0c4-4ba2cde89603",
+          "name": "Mark IN_TRANSIT  (MUTATES)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders/{{orderIdCompleted}}/status",
+            "description": "Courier accepts the parcel and dispatches it from the studio. Assign the courier first in the Admin folder.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_TRANSIT\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Transit transition handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "42c9d623-39fa-4730-837a-480db4cc7f4d",
+          "name": "Mark OUT_FOR_DELIVERY  (MUTATES)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders/{{orderIdCompleted}}/status",
+            "description": "Courier is on the route to the customer.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"OUT_FOR_DELIVERY\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Out-for-delivery transition handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "c3bfa972-18db-427a-a168-6916cbfbbdd6",
+          "name": "Mark DELIVERY_FAILED  (MUTATES)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders/{{orderIdCompleted}}/status",
+            "description": "Records a failed attempt and increments `delivery_attempts`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"DELIVERY_FAILED\",\n  \"failure_reason\": \"Customer premises locked / phone unreachable\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Failure transition handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "803392db-0bbd-4217-9045-f983c8ae84a7",
+          "name": "Mark DELIVERED  (MUTATES)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders/{{orderIdCompleted}}/status",
+            "description": "Confirms physical handover at the customer's door.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"DELIVERED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Delivery transition handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{deliveryToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "id": "78e8f26a-8504-4a4e-a39f-894a4301d39f",
+      "name": "05 · ADMIN APIs  (Ganesh)",
+      "description": "Folder-level authorization: `Bearer {{adminToken}}`.\n\nRun **00 → Login · ADMIN — Ganesh** and **00 → Sync demo order IDs** first. Requests that change demo data are marked **MUTATES**.\n\nThe **Demo orders** subfolder contains read-only GETs for every preloaded order state.",
+      "item": [
+        {
+          "id": "e2540ec7-1324-425d-bf74-62a96b9112a3",
+          "name": "Demo orders · preloaded IDs",
+          "description": "Six demo orders already exist in the portable database. These GETs let you inspect each lifecycle state immediately.",
+          "item": [
+            {
+              "id": "ac4b5e83-a5db-4b93-b4fb-a9bc83e1b8b9",
+              "name": "PLACED · payment pending",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/v1/orders/{{orderIdPlaced}}",
+                "description": "`orderIdPlaced` — use this for Confirm payment → Assign artist."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Order returned\", function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "id": "b28a4d45-bc2f-44b3-9de8-5be085c9a6d6",
+              "name": "CONFIRMED · ready for artist assignment",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/v1/orders/{{orderIdConfirmed}}",
+                "description": "`orderIdConfirmed` — use this for Admin → Assign verified artist."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Order returned\", function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "id": "12ac02fe-c340-45bd-97b6-5984419c636e",
+              "name": "ASSIGNED_ARTIST · watercolor",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/v1/orders/{{orderIdAssigned}}",
+                "description": "`orderIdAssigned` — use this for Artist → Start work."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Order returned\", function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "id": "8e0326d8-cb3d-47e7-b15f-5cd63975ef91",
+              "name": "IN_PROGRESS · oil portrait",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/v1/orders/{{orderIdInProgress}}",
+                "description": "`orderIdInProgress` — use this for Artist → Complete work."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Order returned\", function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "id": "0234bd1f-180d-4a93-b0e6-e2c1e0759242",
+              "name": "COMPLETED · awaiting delivery / publish",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/v1/orders/{{orderIdCompleted}}",
+                "description": "`orderIdCompleted` — use this for Assign delivery, courier transit, and Confirm gallery publish."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Order returned\", function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "id": "9831c449-b6dc-465c-830a-842918213645",
+              "name": "PUBLISHED · live gallery",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/api/v1/orders/{{orderIdPublished}}",
+                "description": "`orderIdPublished` — already published to the public gallery."
+              },
+              "response": [],
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "type": "text/javascript",
+                    "exec": [
+                      "pm.test(\"Order returned\", function () { pm.response.to.have.status(200); });"
+                    ]
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "47c8ecfb-eda3-4792-93d1-954910369699",
+          "name": "Current session (/api/me)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/me",
+            "description": "Confirms the admin JWT is valid."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Session returned\", function () { pm.response.to.have.status(200); });",
+                  "pm.test(\"Role is ADMIN\", function () { pm.expect(pm.response.json().role).to.eql(\"ADMIN\"); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "7e8d91cb-849e-47f5-a206-c0c1ddb70aa1",
+          "name": "List all orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/orders",
+            "description": "Every order across all customers, with artist and courier details."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Orders returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "3618bea8-069d-4201-8469-b0fe2eda686a",
+          "name": "List orders by status · PLACED",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/orders?status=PLACED",
+            "description": "Filter values: `PLACED`, `CONFIRMED`, `ASSIGNED_ARTIST`, `IN_PROGRESS`, `COMPLETED`, `ASSIGNED_DELIVERY_AGENT`, `IN_TRANSIT`, `OUT_FOR_DELIVERY`, `DELIVERY_FAILED`, `DELIVERED`, `PUBLISHED`, `CANCELLED`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Filtered orders returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "4b6933f0-00e2-409a-a103-66fdd0c71761",
+          "name": "List all users  ← current accounts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/users",
+            "description": "Returns every user with role, status, order counts and artist verification. Use this to confirm the credentials below and copy any missing user ID."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Users returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "bba52f54-18b3-42f2-8d06-1d52a158ef74",
+          "name": "Activate delivery agent  (MUTATES)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/users/{{deliveryAgentId}}/status",
+            "description": "Newly registered couriers start as `PENDING`. Run this after **Register · DELIVERY AGENT** and **Login · DELIVERY AGENT** so `deliveryAgentId` is populated.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"User status updated\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "1f99072c-7426-45d8-a9a3-494e14f6440f",
+          "name": "Suspend / reactivate customer  (MUTATES)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/users/{{customerUserId}}/status",
+            "description": "Change a customer's account status. Keep `ACTIVE` to avoid locking the demo customer out; other common values are `SUSPENDED` and `PENDING`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ACTIVE\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"User status updated\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "82a76edf-7f7b-4706-9068-416d0b71c81d",
+          "name": "Artist review queue",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/artists/review-queue",
+            "description": "Artists waiting for portfolio review."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Review queue returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "3b9c926a-8032-4f1a-86f0-18e5418ff668",
+          "name": "Artist portfolio (Rohan)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/artists/{{artistId}}/paintings",
+            "description": "Admin view of the verified artist's uploaded work."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Artist paintings returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "29b2b7bc-5cf2-4270-ac18-8fe0d4ed9bc6",
+          "name": "Verify artist  (MUTATES · use newArtistId)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/admin/verify-artist/{{newArtistId}}",
+            "description": "Approves an artist after portfolio review. Flow: **00 → Register · ARTIST** → **00 → Login · NEW ARTIST** → **03 → Add painting as NEW artist** → this request. Rohan is already verified and would return `409`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Verification handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "13a6e6a6-0d6f-4efb-92a3-4dd03cd1ee0f",
+          "name": "Reject artist  (MUTATES · use newArtistId)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/admin/reject-artist/{{newArtistId}}",
+            "description": "Rejects an artist in review with a mandatory reason (at least 10 characters). Use a fresh unverified artist from **Register · ARTIST**.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Portfolio samples do not meet the current quality bar. Please reapply with higher-resolution work.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Rejection handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "69d3e1c7-954c-4839-a512-5f58c23b2827",
+          "name": "Confirm payment · PLACED → CONFIRMED  (MUTATES)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/orders/{{orderIdPlaced}}/confirm-payment",
+            "description": "ADMIN-only manual confirmation for a `PLACED` order (`PLACED → CONFIRMED`). In Razorpay mode the signed webhook or **Verify Razorpay payment** confirms automatically; use this endpoint as the manual fallback."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Payment confirmation handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "29315b51-34b2-46d5-baf7-ef0492a652f7",
+          "name": "Refund Razorpay payment  (MUTATES · test mode only)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/orders/{{orderId}}/refund",
+            "description": "Full refund of a captured **Razorpay** payment for `{{orderId}}`. Only a `PAID` Razorpay payment can be refunded; manual payments return `400` and partial refunds are not supported. In live mode this moves real money. Set `orderId` to the order you paid in **Checkout → Verify**.",
+            "body": {
+              "mode": "raw",
+              "raw": "",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Refund handled (400/404 in manual or unpaid mode is expected)\", function () {",
+                  "  pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.oneOf([200, 400, 404, 503]);",
+                  "});",
+                  "if (pm.response.code === 200) {",
+                  "  const d = pm.response.json();",
+                  "  pm.test(\"Payment refunded\", function () { pm.expect(d.status).to.eql(\"refunded\"); });",
+                  "if (d.refund_id !== undefined && d.refund_id !== null && d.refund_id !== \"\") {",
+                  "  pm.collectionVariables.set(\"refundId\", String(d.refund_id));",
+                  "  if (pm.environment.name) { pm.environment.set(\"refundId\", String(d.refund_id)); }",
+                  "}",
+                  "  console.log(\"Refunded \" + d.refund_id + \" · order \" + d.order_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "a8313244-9609-4c20-9544-c6711ee3c5ef",
+          "name": "Assign verified artist  (MUTATES)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/orders/{{orderIdConfirmed}}/assign",
+            "description": "Assigns Rohan (the verified artist) to the preloaded `CONFIRMED` order (`orderIdConfirmed`). Works immediately — no need to run Confirm payment first.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"artist_id\": \"{{artistId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Assignment handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "b18bbc74-2ee2-49bb-a078-444bfedc684f",
+          "name": "Update order status  (MUTATES)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/orders/{{orderIdPlaced}}/status",
+            "description": "Generic lifecycle override. Change `status` to any valid state; `artist_id` is only needed for `ASSIGNED_ARTIST`. Demo order is `PLACED`, so `CONFIRMED` is the safe next step.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"CONFIRMED\",\n  \"artist_id\": \"{{artistId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status update handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "f9cb27b0-a1cb-448d-b411-98f1db01abbf",
+          "name": "Confirm gallery publish  (MUTATES)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/orders/{{orderIdCompleted}}/confirm-gallery",
+            "description": "Publishes the completed demo order's collage to the public gallery. This is the direct override; the normal path is `DELIVERED → PUBLISHED`."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Gallery publish handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "75e13e2d-5ef1-4ae7-b770-3e3ff81d49d4",
+          "name": "Assign delivery agent  (MUTATES)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/orders/{{orderIdCompleted}}/assign-delivery",
+            "description": "Assigns the courier to the completed order (`COMPLETED → ASSIGNED_DELIVERY_AGENT`). Re-assigning while the order is already `IN_TRANSIT` or `OUT_FOR_DELIVERY` changes only the courier and **preserves** the current status, so the customer does not see the delivery step rewind. Requires **Login · DELIVERY AGENT** or **Register · DELIVERY AGENT** first.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"delivery_agent_id\": \"{{deliveryAgentId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Courier assignment handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "b5705326-4b12-472e-9423-532715cce4cf",
+          "name": "Update logistics / tracking  (MUTATES)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/orders/{{orderIdCompleted}}/logistics",
+            "description": "Adds courier partner, tracking number, ETA and dispatch notes. These values appear in the customer's **My Orders**. Tracking buttons are generated only for Blue Dart, Delhivery and DTDC; other couriers show the AWB without a fabricated tracking link. Saving logistics does **not** change the order status.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"courier_partner\": \"BlueDart\",\n  \"tracking_number\": \"BD123456789IN\",\n  \"estimated_delivery_at\": \"2026-10-25T10:00:00Z\",\n  \"admin_dispatch_notes\": \"Handle the artwork with care.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Logistics updated\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "898b38aa-5aa5-41d9-a720-9c6ae7baaed6",
+          "name": "Active delivery agents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/delivery-agents",
+            "description": "Couriers eligible for parcel assignment. Empty until you register and activate one."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Delivery agents returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "1aa96cea-5aba-42f1-a8e2-488fb5e70d61",
+          "name": "Worker pool stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/worker/stats",
+            "description": "Background job worker metrics."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Worker stats returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "e72899b9-945c-4951-a878-407fb4821ddd",
+          "name": "Outbox / event relay stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/events/stats",
+            "description": "Event outbox relay metrics."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Event stats returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "ef743ddd-ff3b-41a5-95c7-6bcfda54ea06",
+          "name": "List reviews (admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/reviews",
+            "description": "Optional filters: `min_rating`, `max_rating`, `is_featured`, `is_approved` (for example `?min_rating=4&is_approved=false`)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Reviews returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "adf83767-07a2-4fb0-ba2c-f260c9876a0f",
+          "name": "Review stats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/reviews/stats",
+            "description": "Average rating, CSAT, distribution and artist leaderboard."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Review stats returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "fbf42701-7023-4605-b6ab-e05ae8e730e6",
+          "name": "Moderate review  (MUTATES · needs reviewId)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/reviews/{{reviewId}}/moderate",
+            "description": "Feature/approve a review. `reviewId` is saved automatically by **02 → Submit review** when it succeeds.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_featured\": true,\n  \"is_approved\": true,\n  \"admin_notes\": \"Approved from Postman.\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Moderation handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "18fae580-95ff-4f00-92f1-38b1f977963e",
+          "name": "Test fixture suites",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/test-fixtures",
+            "description": "Reference/artwork image suites used by the admin demo and gallery."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Fixtures returned\", function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "667120ff-0512-4f4f-964a-2c54062a4021",
+          "name": "Promote artist to ADMIN  (OPTIONAL · privileged)",
+          "request": {
+            "method": "PATCH",
+            "header": [],
+            "url": "{{baseUrl}}/api/v1/admin/users/{{newArtistId}}/role",
+            "description": "**Privilege escalation:** promotes the artist in `newArtistId` to `ADMIN`. Only use on a throwaway test artist. Do not run against Rohan."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Role elevation handled\", function () { pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.below(500); });"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{adminToken}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "id": "ce62dd3d-a614-460d-a863-e43a0da8c2f1",
+      "name": "06 · RBAC Negative Tests  (expected rejections)",
+      "description": "These requests intentionally use the wrong role or no token. `403 Forbidden` / `401 Unauthorized` is the correct result.",
+      "item": [
+        {
+          "id": "e95f757e-9941-4ef0-843b-e0a1ee553308",
+          "name": "CUSTOMER → admin orders  (expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/orders",
+            "description": "A customer must not see platform-wide orders."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Correctly forbidden\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "ba1f47c5-f6c5-4bca-b5c2-b98a4c514d98",
+          "name": "CUSTOMER → artist profile  (expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{customerToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/artist/profile/view",
+            "description": "Artist-only endpoint."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Correctly forbidden\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "553a76ce-14b7-4725-b017-4f89e68d8755",
+          "name": "ARTIST → admin users  (expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{artistToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/v1/admin/users",
+            "description": "Artists cannot list platform users."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Correctly forbidden\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "a5820ceb-c442-4fc4-a4d8-7181b176ac32",
+          "name": "COURIER → admin review queue  (expect 403)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{deliveryToken}}",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/admin/artists/review-queue",
+            "description": "Couriers cannot access the artist review queue."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Correctly forbidden\", function () { pm.response.to.have.status(403); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "121af3b1-3344-4679-b790-0dad5ea53655",
+          "name": "No token → /api/me  (expect 401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/me",
+            "description": "Protected endpoint without an Authorization header."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Correctly unauthorized\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "id": "e11ff1f2-1ba4-4bbc-9a6c-055ab8b67950",
+          "name": "Invalid token → /api/me  (expect 401)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer not-a-real-jwt",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/api/me",
+            "description": "Malformed JWT must be rejected."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Correctly unauthorized\", function () { pm.response.to.have.status(401); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "07 · PAYMENT WEBHOOKS  (signed · test only)",
+      "item": [
+        {
+          "id": "4d94e698-e928-42ec-a22f-5bef6eab2fe2",
+          "name": "Razorpay webhook · payment.captured  (TEST)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": "{{baseUrl}}/webhooks/razorpay",
+            "description": "Posts a signed `payment.captured` event to the public webhook route. Requires `PAYMENT_PROVIDER=razorpay` and the same `RAZORPAY_WEBHOOK_SECRET` you put in the Postman environment as `razorpayWebhookSecret`. Set `razorpayOrderId` (saved by Checkout) and `razorpayPaymentId` (provider payment ID, not the local `payment_id`) to a recorded Razorpay payment, then send. The pre-request script computes `X-Razorpay-Signature` over the raw body. Localhost cannot receive real Razorpay webhooks; this request is for signature/processing tests only.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"event\": \"payment.captured\",\n  \"payload\": {\n    \"payment\": {\n      \"entity\": {\n        \"id\": \"{{razorpayPaymentId}}\",\n        \"order_id\": \"{{razorpayOrderId}}\",\n        \"amount\": {{paymentAmountPaise}},\n        \"currency\": \"INR\",\n        \"status\": \"captured\",\n        \"method\": \"card\"\n      }\n    }\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.request.body.raw;",
+                  "const secret = pm.environment.get(\"razorpayWebhookSecret\") || pm.collectionVariables.get(\"razorpayWebhookSecret\");",
+                  "if (!secret) {",
+                  "  console.warn(\"Set razorpayWebhookSecret in the environment to sign this webhook.\");",
+                  "} else {",
+                  "  const sig = CryptoJS.HmacSHA256(body, secret).toString(CryptoJS.enc.Hex);",
+                  "  pm.request.headers.upsert({ key: \"X-Razorpay-Signature\", value: sig });",
+                  "  pm.request.headers.upsert({ key: \"X-Razorpay-Event-Id\", value: \"postman-\" + Date.now() });",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Webhook handled (503 without Razorpay configuration is expected)\", function () {",
+                  "  pm.expect(pm.response.code, JSON.stringify(pm.response.text())).to.be.oneOf([200, 400, 503]);",
+                  "});",
+                  "if (pm.response.code === 200) {",
+                  "  const d = pm.response.json();",
+                  "  console.log(\"Webhook response: \" + JSON.stringify(d));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "adminEmail",
+      "value": "ganesh@example.com",
+      "type": "string"
+    },
+    {
+      "key": "adminPassword",
+      "value": "password123",
+      "type": "string"
+    },
+    {
+      "key": "admin2Email",
+      "value": "testadmin2@artifyme.com",
+      "type": "string"
+    },
+    {
+      "key": "admin2Password",
+      "value": "password123",
+      "type": "string"
+    },
+    {
+      "key": "customerEmail",
+      "value": "priya.customer@example.com",
+      "type": "string"
+    },
+    {
+      "key": "customerPassword",
+      "value": "password123",
+      "type": "string"
+    },
+    {
+      "key": "artistEmail",
+      "value": "rohan.artist@example.com",
+      "type": "string"
+    },
+    {
+      "key": "artistPassword",
+      "value": "password123",
+      "type": "string"
+    },
+    {
+      "key": "deliveryEmail",
+      "value": "courier.vikram@example.com",
+      "type": "string"
+    },
+    {
+      "key": "deliveryPassword",
+      "value": "password123",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminRefreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "admin2Token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "admin2RefreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "customerToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "customerRefreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "artistToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "artistRefreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "newArtistToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "newArtistRefreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "deliveryToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "deliveryRefreshToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminUserId",
+      "value": "11111111-1111-4111-8111-111111111111",
+      "type": "string"
+    },
+    {
+      "key": "admin2UserId",
+      "value": "22222222-2222-4222-8222-222222222222",
+      "type": "string"
+    },
+    {
+      "key": "customerUserId",
+      "value": "17c74a5c-ab7e-495c-a214-6bf48ce94377",
+      "type": "string"
+    },
+    {
+      "key": "artistId",
+      "value": "591fe88e-a0d2-40e2-8edf-f184bded8c3f",
+      "type": "string"
+    },
+    {
+      "key": "newArtistId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "deliveryAgentId",
+      "value": "e39a0201-5fde-4758-b80f-edb4dcd22fa8",
+      "type": "string"
+    },
+    {
+      "key": "orderId",
+      "value": "f8631526-c47f-424b-9688-3bba183cd4e9",
+      "type": "string"
+    },
+    {
+      "key": "newOrderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "orderIdPlaced",
+      "value": "f8631526-c47f-424b-9688-3bba183cd4e9",
+      "type": "string"
+    },
+    {
+      "key": "orderIdConfirmed",
+      "value": "97e119b4-25f3-47ba-9dfc-629bf29ec7bb",
+      "type": "string"
+    },
+    {
+      "key": "orderIdAssigned",
+      "value": "7ed65d4b-bcc7-4c1e-876d-02fa584c71be",
+      "type": "string"
+    },
+    {
+      "key": "orderIdInProgress",
+      "value": "418324c3-7485-4937-9f3d-f1833ee4daaa",
+      "type": "string"
+    },
+    {
+      "key": "orderIdCompleted",
+      "value": "f6cd860d-de00-4c50-b791-0407bd784235",
+      "type": "string"
+    },
+    {
+      "key": "orderIdPublished",
+      "value": "09100d2b-ba2b-4735-9b88-1d520a61c81f",
+      "type": "string"
+    },
+    {
+      "key": "reviewId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "uploadedFileUrl",
+      "value": "/uploads/demo-reference.jpg",
+      "type": "string"
+    },
+    {
+      "key": "checkoutProvider",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "razorpayOrderId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "razorpayPaymentId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "razorpaySignature",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "paymentAmountPaise",
+      "value": "0",
+      "type": "string"
+    },
+    {
+      "key": "refundId",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
+import { startCheckout } from "../lib/payments";
 import { useAuth } from "../lib/auth";
 import PhotoUploader from "../components/PhotoUploader";
 import type { Order, Product } from "../types/order";
@@ -72,16 +73,12 @@ export default function OrderWizardPage() {
         }),
       });
       setOrder(created);
-      const checkout = await api<{ checkout_url: string }>(
-        `/api/v1/orders/${created.order_id}/checkout`,
-        {
-          method: "POST",
-          headers: {
-            "Idempotency-Key": `checkout-${created.order_id}`,
-          },
-        },
-      );
-      window.location.href = checkout.checkout_url;
+      const result = await startCheckout(created.order_id);
+      if (result.status === "paid") {
+        window.location.href = `/order/success?order_id=${created.order_id}`;
+      } else if (result.status === "dismissed") {
+        setError("Payment was cancelled. You can pay later from My Orders.");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not place order");
     } finally {
